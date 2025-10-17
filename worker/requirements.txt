@@ -1,0 +1,19 @@
+# Supabase Client
+supabase==2.3.4
+postgrest-py==0.13.2
+
+# Flask API für SMTP
+flask==3.0.0
+flask-cors==4.0.0
+
+# Utilities
+python-dotenv==1.0.0
+structlog==23.2.0
+httpx==0.25.2
+cryptography==41.0.7
+
+# Testing
+pytest==7.4.3
+faker==20.1.0
+
+

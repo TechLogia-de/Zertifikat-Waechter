@@ -1,0 +1,436 @@
+---
+alwaysApply: true
+---
+## 🔒 Sicherheit - KRITISCH!
+
+### Environment Variables
+```bash
+# ✅ Frontend (.env)
+VITE_SUPABASE_URL=https://xxx.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGc...  # ✅ Anon Key ist OK für Frontend
+
+# ❌ NIEMALS im Frontend:
+SUPABASE_SERVICE_ROLE_KEY=xxx  # ⛔ NUR Backend/Worker!
+SMTP_PASSWORD=xxx              # ⛔ NUR Backend!
+API_SECRET=xxx                 # ⛔ NUR Backend!
+```
+
+### Input Validation
+```typescript
+// ✅ IMMER validieren vor Supabase Queries
+function isValidDomain(domain: string): boolean {
+  const domainRegex = /^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,}$/i
+  return domainRegex.test(domain) && domain.length <= 255
+}
+
+// ✅ Sanitize User Input
+const sanitizedInput = domain.trim().toLowerCase()
+if (!isValidDomain(sanitizedInput)) {
+  throw new Error('Ungültige Domain')
+}
+
+// ❌ NIEMALS ungeprüfte Inputs direkt verwenden
+await supabase.from('assets').insert({ host: userInput }) // GEFÄHRLICH!
+```
+
+### XSS Prevention
+```typescript
+// ✅ React escapt automatisch, ABER:
+// ❌ Vorsicht bei dangerouslySetInnerHTML
+<div dangerouslySetInnerHTML={{ __html: userContent }} /> // VERBOTEN!
+
+// ✅ Stattdessen: Text als Children
+<div>{userContent}</div>
+
+// ✅ Oder Libraries wie DOMPurify für HTML
+import DOMPurify from 'dompurify'
+const clean = DOMPurify.sanitize(userHtml)
+```
+
+### Authentifizierung
+```typescript
+// ✅ Protected Routes Pattern
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth()
+
+  if (loading) return <LoadingSpinner />
+  if (!user) return <Navigate to="/login" />
+
+  return <>{children}</>
+}
+
+// ✅ IMMER prüfen ob User eingeloggt ist
+const { data: { user }, error } = await supabase.auth.getUser()
+if (!user) throw new Error('Nicht authentifiziert')
+
+// ✅ RLS schützt auf DB-Ebene (Supabase macht das automatisch)
+// Trotzdem: IMMER tenant_id mitgeben für klarheit
+const { data } = await supabase
+  .from('certificates')
+  .select('*')
+  .eq('tenant_id', currentTenantId) // Explizit filtern
+```
+
+### Secrets Management
+```typescript
+// ✅ RICHTIG: Secrets nur im Backend
+// Worker/Edge Function:
+const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+
+// ❌ FALSCH: Secrets im Frontend Code
+const API_KEY = 'sk_live_12345...' // NIEMALS!
+
+// ❌ FALSCH: Secrets in Git
+// .env Dateien MÜSSEN in .gitignore!
+```
+
+---
+
+## 🚀 Error Handling
+
+### Frontend Error Boundaries
+```typescript
+// ✅ IMMER Error Boundaries für Komponenten
+class ErrorBoundary extends React.Component {
+  componentDidCatch(error: Error) {
+    console.error('Component error:', error)
+    // Optional: Sentry/Logging Service
+  }
+  render() {
+    if (this.state.hasError) {
+      return <ErrorFallback />
+    }
+    return this.props.children
+  }
+}
+
+// ✅ Try-Catch für Async Operationen
+async function handleSubmit() {
+  try {
+    await scanDomain(domain)
+    toast.success('Scan gestartet')
+  } catch (error) {
+    if (error instanceof Error) {
+      toast.error(`Fehler: ${error.message}`)
+    }
+    console.error('Scan failed:', error)
+  }
+}
+
+// ❌ Keine ungefangenen Promises
+scanDomain(domain) // FALSCH - kein await, kein .catch()
+```
+
+### API Error Handling
+```typescript
+// ✅ Supabase Errors korrekt behandeln
+const { data, error } = await supabase
+  .from('certificates')
+  .select('*')
+
+if (error) {
+  // Log für Debugging
+  console.error('Supabase error:', error.message, error.details)
+  
+  // User-friendly Message
+  if (error.code === 'PGRST116') {
+    throw new Error('Keine Berechtigung')
+  } else if (error.code === '23505') {
+    throw new Error('Eintrag existiert bereits')
+  } else {
+    throw new Error('Datenbankfehler')
+  }
+}
+
+return data
+```
+
+---
+
+## ⚡ Performance
+
+### React Performance
+```typescript
+// ✅ useMemo für teure Berechnungen
+const sortedCerts = useMemo(() => {
+  return certificates.sort((a, b) => 
+    new Date(a.not_after).getTime() - new Date(b.not_after).getTime()
+  )
+}, [certificates])
+
+// ✅ useCallback für Event Handlers (wenn an Kinder übergeben)
+const handleClick = useCallback(() => {
+  setSelected(id)
+}, [id])
+
+// ✅ React.memo für Pure Components
+export const CertificateCard = memo(({ cert }: Props) => {
+  return <div>...</div>
+})
+
+// ❌ Keine Inline-Funktionen in Listen
+{certs.map(c => (
+  <Card onClick={() => select(c.id)} /> // FALSCH - re-renders
+))}
+```
+
+### Lazy Loading & Code Splitting
+```typescript
+// ✅ Route-based Code Splitting
+const routes = [
+  { path: '/dashboard', element: lazy(() => import('./pages/Dashboard')) },
+  { path: '/settings', element: lazy(() => import('./pages/Settings')) }
+]
+
+// ✅ Suspense für Lazy Components
+<Suspense fallback={<LoadingSpinner />}>
+  <LazyComponent />
+</Suspense>
+
+// ✅ Dynamic Imports für große Dependencies
+const handleExport = async () => {
+  const { exportToPDF } = await import('./utils/pdf-export')
+  await exportToPDF(data)
+}
+```
+
+### Supabase Performance
+```typescript
+// ✅ Select nur benötigte Felder
+const { data } = await supabase
+  .from('certificates')
+  .select('id, subject_cn, not_after') // Nicht: .select('*')
+  .limit(50)
+
+// ✅ Pagination
+const { data } = await supabase
+  .from('certificates')
+  .select('*')
+  .range(page * pageSize, (page + 1) * pageSize - 1)
+
+// ✅ Realtime nur für nötige Tabellen
+const channel = supabase
+  .channel('cert-changes')
+  .on('postgres_changes', {
+    event: 'UPDATE',
+    schema: 'public',
+    table: 'certificates',
+    filter: `tenant_id=eq.${tenantId}` // IMMER filtern!
+  }, handler)
+  .subscribe()
+
+// ⚠️ Channel unsubscribe nicht vergessen!
+return () => { channel.unsubscribe() }
+```
+
+---
+
+## 🧪 Testing (Minimal, nicht übertreiben!)
+
+### Unit Tests (nur für komplexe Logik)
+```typescript
+// ✅ Nur kritische Business-Logik testen
+test('calculates days until expiry correctly', () => {
+  const cert = { not_after: '2025-12-31T00:00:00Z' }
+  const days = getDaysUntilExpiry(cert)
+  expect(days).toBeGreaterThan(0)
+})
+
+// ❌ NICHT jede kleine Funktion testen
+test('formats date correctly', () => { ... }) // UNNÖTIG
+```
+
+### Component Tests (nur für kritische Komponenten)
+```typescript
+// ✅ Kritische User Flows testen
+test('shows error when login fails', async () => {
+  render(<Login />)
+  await userEvent.type(screen.getByLabelText('Email'), 'invalid@email')
+  await userEvent.click(screen.getByRole('button', { name: 'Login' }))
+  expect(screen.getByText(/fehler/i)).toBeInTheDocument()
+})
+
+// ❌ Keine Snapshot Tests für alles
+```
+
+---
+
+## 📝 Code Style
+
+### Naming Conventions
+```typescript
+// ✅ Komponenten: PascalCase
+export function CertificateList() {}
+
+// ✅ Hooks: camelCase mit "use" Prefix
+export function useCertificates() {}
+
+// ✅ Utilities: camelCase
+export function formatDate() {}
+
+// ✅ Konstanten: UPPER_SNAKE_CASE
+const MAX_RETRIES = 3
+
+// ✅ Types/Interfaces: PascalCase
+interface Certificate {}
+type Status = 'active' | 'expired'
+```
+
+### File Naming
+```
+✅ components/CertificateCard.tsx       # PascalCase für Komponenten
+✅ hooks/useCertificates.ts             # camelCase für Hooks
+✅ utils/formatDate.ts                  # camelCase für Utils
+✅ types/database.types.ts              # kebab-case für Types
+```
+
+### Import Order
+```typescript
+// 1. React & External Libraries
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
+
+// 2. Internal Components
+import { Button } from '@/components/ui/Button'
+import { Modal } from '@/components/ui/Modal'
+
+// 3. Hooks & Utils
+import { useAuth } from '@/hooks/useAuth'
+import { formatDate } from '@/utils/formatDate'
+
+// 4. Types
+import type { Certificate } from '@/types/database.types'
+
+// 5. Styles (wenn vorhanden)
+import './styles.css'
+```
+
+---
+
+## 🎨 UI/UX Best Practices
+
+### Loading States
+```typescript
+// ✅ IMMER Loading States anzeigen
+if (isLoading) return <LoadingSpinner />
+if (error) return <ErrorMessage error={error} />
+if (!data) return null
+
+// ✅ Skeleton Screens für bessere UX
+{isLoading ? (
+  <SkeletonCard />
+) : (
+  <CertificateCard cert={data} />
+)}
+```
+
+### User Feedback
+```typescript
+// ✅ Toast Notifications für Actions
+import { toast } from 'sonner'
+
+async function deleteCertificate(id: string) {
+  try {
+    await supabase.from('certificates').delete().eq('id', id)
+    toast.success('Zertifikat gelöscht')
+  } catch (error) {
+    toast.error('Löschen fehlgeschlagen')
+  }
+}
+
+// ✅ Confirmation Modals für destructive Actions
+const handleDelete = () => {
+  if (confirm('Wirklich löschen?')) {
+    deleteCertificate(id)
+  }
+}
+```
+
+### Accessibility
+```typescript
+// ✅ Semantic HTML
+<button type="button">Click</button>  // nicht <div onClick>
+<nav>...</nav>
+<main>...</main>
+
+// ✅ ARIA Labels
+<button aria-label="Schließen">×</button>
+
+// ✅ Keyboard Navigation
+<Modal onClose={handleClose} trapFocus>
+```
+
+---
+
+## 🔄 Git Workflow (Kurz & Knapp)
+
+### Commit Messages
+```bash
+✅ feat: Add certificate scan functionality
+✅ fix: Resolve login redirect issue
+✅ refactor: Extract API client to separate file
+✅ style: Update button colors to match design system
+
+❌ "update stuff"
+❌ "fix bug"
+❌ "changes"
+```
+
+### Branch Strategy
+```bash
+# Arbeite direkt auf main für kleine Features
+git checkout main
+git pull
+# ... changes ...
+git commit -m "feat: Add domain scanning"
+git push
+
+# Bei größeren Features: Feature Branch
+git checkout -b feature/acme-integration
+# ... changes ...
+git push -u origin feature/acme-integration
+```
+
+---
+
+## 📦 Dependencies Management
+
+### Nur installieren was wirklich gebraucht wird!
+```bash
+# ✅ Nur nötige Dependencies
+npm install date-fns              # Nur date-fns, nicht moment + dayjs + date-fns
+
+# ❌ Keine riesigen Libraries für kleine Features
+npm install lodash                # FALSCH - 100KB für eine Funktion
+npm install lodash.debounce       # BESSER - nur was gebraucht wird
+```
+
+### Regelmäßig updaten
+```bash
+# Security Updates prüfen
+npm audit
+npm audit fix
+
+# Dependencies updaten (vorsichtig!)
+npm outdated
+npm update
+```
+
+---
+
+## 🎯 Zusammenfassung - Die 10 Gebote
+
+1. **Keine unnötigen Dateien erstellen** - Nur Code, keine Doku-Dateien
+2. **TypeScript strict mode** - Keine `any`, keine `@ts-ignore`
+3. **Secrets NIE im Frontend** - Nur `VITE_` Variablen, nur Anon Key
+4. **Input validieren** - Immer user input prüfen und sanitizen
+5. **Errors behandeln** - Try-Catch, Error Boundaries, User Feedback
+6. **Performance beachten** - Lazy Loading, Memo, Code Splitting
+7. **RLS vertrauen** - Supabase schützt automatisch, trotzdem explizit filtern
+8. **Loading States** - Immer Feedback bei async Operationen
+9. **Accessibility** - Semantic HTML, ARIA, Keyboard Support
+10. **Keep it simple** - Nicht over-engineeren, YAGNI Prinzip
+
+---
+
+**Diese Regeln gelten ab sofort. Bei Verstößen: Nachfragen, nicht einfach machen!**
