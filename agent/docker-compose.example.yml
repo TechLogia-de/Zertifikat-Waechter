@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  # Zertifikat-Wächter Agent für Intranet-Scans
+  agent:
+    build: .
+    container_name: certwatcher-agent
+    environment:
+      # ⚠️ WICHTIG: Ersetze diese Werte mit deinen echten Credentials
+      SUPABASE_URL: https://ethwkzwsxkhcexibuvwp.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      
+      # Optional: Connector Name
+      CONNECTOR_NAME: my-office-agent
+      
+      # Scan Configuration
+      # ⚠️ Ersetze mit deinen internen Hosts
+      SCAN_TARGETS: internal-server.corp,mail.corp,ldap.corp
+      SCAN_PORTS: 443,8443,636,993,995
+      
+      # Scan alle 30 Minuten (1800 Sekunden)
+      SCAN_INTERVAL: 1800
+      
+      # Timeout pro Scan
+      SCAN_TIMEOUT: 5
+      
+      # Logging
+      LOG_LEVEL: INFO
+      
+      # Health Check Port
+      HEALTH_CHECK_PORT: 8080
+    
+    ports:
+      - "8080:8080"
+    
+    restart: unless-stopped
+    
+    # Health Check für Docker
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    
+    # Resource Limits (optional)
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    
+    # Logging Configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Optional: Separate Netzwerk für Isolation
+networks:
+  default:
+    name: certwatcher
+
