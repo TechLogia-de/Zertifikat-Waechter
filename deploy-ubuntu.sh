@@ -122,7 +122,11 @@ pip install -r requirements.txt
 echo -e "${GREEN}✅ Worker eingerichtet${NC}"
 
 # Nginx konfigurieren
-echo -e "${YELLOW}[8/9] Konfiguriere Nginx...${NC}"
+echo -e "${YELLOW}[8/9] Konfiguriere Nginx (HTTP-only für certbot)...${NC}"
+
+# Erstelle certbot webroot
+mkdir -p /var/www/certbot
+
 cat > /etc/nginx/sites-available/zertifikat-waechter <<EOF
 # Zertifikat-Wächter Nginx Configuration
 
@@ -140,37 +144,13 @@ server {
     listen [::]:80;
     server_name $DOMAIN www.$DOMAIN;
 
-    # Let's Encrypt Challenge
+    # Let's Encrypt Challenge (wichtig für certbot!)
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
+        allow all;
     }
-
-    # Redirect zu HTTPS
-    location / {
-        return 301 https://\$server_name\$request_uri;
-    }
-}
-
-server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
-    server_name $DOMAIN www.$DOMAIN;
-
-    # SSL Zertifikate (werden von certbot erstellt)
-    ssl_certificate /etc/letsencrypt/live/$DOMAIN/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/$DOMAIN/privkey.pem;
-
-    # SSL Configuration (Modern)
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384;
-    ssl_prefer_server_ciphers on;
-    ssl_session_cache shared:SSL:10m;
-    ssl_session_timeout 10m;
-    ssl_stapling on;
-    ssl_stapling_verify on;
 
     # Security Headers
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
@@ -222,7 +202,7 @@ server {
     }
 
     # Static Assets Caching
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)\$ {
         expires 1y;
         add_header Cache-Control "public, immutable";
         access_log off;
@@ -286,31 +266,56 @@ echo -e "${GREEN}║   ✅ Installation erfolgreich abgeschlossen!              
 echo -e "${GREEN}║                                                            ║${NC}"
 echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "${YELLOW}Nächste Schritte:${NC}"
+echo -e "${GREEN}╔════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${GREEN}║                                                            ║${NC}"
+echo -e "${GREEN}║   📋 WICHTIGE NÄCHSTE SCHRITTE                            ║${NC}"
+echo -e "${GREEN}║                                                            ║${NC}"
+echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo "1. Environment Variables konfigurieren:"
-echo "   nano $APP_DIR/.env.production"
+echo -e "${YELLOW}SCHRITT 1: Environment Variables konfigurieren${NC}"
 echo ""
-echo "2. DNS prüfen (A-Record muss auf Server-IP zeigen):"
-echo "   nslookup $DOMAIN"
+echo "  nano $APP_DIR/.env.production"
 echo ""
-echo "3. SSL-Zertifikat installieren:"
-echo "   certbot --nginx -d $DOMAIN -d www.$DOMAIN"
+echo "  Wichtig: Trage ein:"
+echo "  • VITE_SUPABASE_URL"
+echo "  • VITE_SUPABASE_ANON_KEY"
+echo "  • SUPABASE_SERVICE_ROLE_KEY"
+echo "  • SMTP_HOST, SMTP_USER, SMTP_PASSWORD"
 echo ""
-echo "4. Services starten:"
-echo "   systemctl start zertifikat-waechter-worker"
-echo "   systemctl restart nginx"
+echo -e "${YELLOW}SCHRITT 2: DNS prüfen${NC}"
 echo ""
-echo "5. Status prüfen:"
-echo "   systemctl status zertifikat-waechter-worker"
-echo "   systemctl status nginx"
+echo "  nslookup $DOMAIN"
+echo "  → Muss deine Server-IP anzeigen!"
 echo ""
-echo "6. App öffnen:"
-echo "   https://$DOMAIN"
+echo -e "${YELLOW}SCHRITT 3: SSL-Zertifikat installieren${NC}"
 echo ""
-echo "7. Logs anschauen:"
-echo "   journalctl -u zertifikat-waechter-worker -f"
-echo "   tail -f /var/log/nginx/zertifikat-waechter-error.log"
+echo "  sudo certbot --nginx -d $DOMAIN -d www.$DOMAIN"
+echo ""
+echo "  Certbot wird automatisch:"
+echo "  • SSL-Zertifikat erstellen"
+echo "  • Nginx-Config für HTTPS aktualisieren"
+echo "  • Auto-Renewal einrichten"
+echo ""
+echo -e "${YELLOW}SCHRITT 4: Services starten${NC}"
+echo ""
+echo "  cd $APP_DIR"
+echo "  chmod +x start-production.sh"
+echo "  sudo ./start-production.sh"
+echo ""
+echo -e "${YELLOW}SCHRITT 5: App im Browser öffnen${NC}"
+echo ""
+echo "  Ohne SSL (vor certbot): http://$DOMAIN"
+echo "  Mit SSL (nach certbot):  https://$DOMAIN"
+echo ""
+echo -e "${YELLOW}SCHRITT 6: Monitoring${NC}"
+echo ""
+echo "  # Worker Logs"
+echo "  sudo journalctl -u zertifikat-waechter-worker -f"
+echo ""
+echo "  # Nginx Logs"
+echo "  sudo tail -f /var/log/nginx/zertifikat-waechter-error.log"
 echo ""
 echo -e "${GREEN}Happy Monitoring! 🛡️${NC}"
+echo ""
+echo -e "${YELLOW}Vollständige Anleitung: QUICK-START-CERT-WATCHER.md${NC}"
 
