@@ -106,7 +106,7 @@ async function scanCertificateSimple(host: string, port: number) {
     // Methode 1: Python Worker API - ECHTE SCANS!
     // In Production: /api/ (Nginx Reverse Proxy)
     // In Development: http://localhost:5000
-    const apiUrl = import.meta.env.VITE_WORKER_API_URL || '/api'
+    const apiUrl = (import.meta as any).env.VITE_WORKER_API_URL || '/api'
     
     try {
       console.log('Trying Worker API...', apiUrl)
