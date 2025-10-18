@@ -184,21 +184,36 @@ export default function Settings() {
       }
     } catch (err: any) {
       console.error('Failed to start MFA enrollment:', err)
-      setMfaError(err.message || 'Fehler beim Aktivieren von MFA')
+      const message: string = (err?.message || '').toLowerCase()
+      if (message.includes('not enabled') || message.includes('disabled')) {
+        setMfaError('MFA ist serverseitig deaktiviert. Bitte MFA/TOTP in Supabase aktivieren.')
+      } else if (message.includes('too many') || message.includes('max')) {
+        setMfaError('Zu viele Faktoren registriert. Bitte zunächst alte Faktoren entfernen.')
+      } else {
+        setMfaError(err.message || 'Fehler beim Aktivieren von MFA')
+      }
     } finally {
       setEnrolling(false)
     }
   }
 
   async function verifyMfa() {
-    if (!totpFactor?.id || !verificationCode.trim()) return
+    const code = verificationCode.trim()
+    if (!totpFactor?.id) {
+      setMfaError('Kein TOTP‑Faktor vorhanden. Bitte starte die Aktivierung erneut.')
+      return
+    }
+    if (code.length !== 6) {
+      setMfaError('Bitte den 6‑stelligen Code eingeben')
+      return
+    }
     setVerifying(true)
     setMfaError(null)
     setMfaSuccess(null)
     try {
       const { error } = await (supabase.auth as any).mfa.verify({
         factorId: totpFactor.id,
-        code: verificationCode.trim(),
+        code,
       })
       if (error) throw error
 
@@ -213,7 +228,14 @@ export default function Settings() {
       setVerificationCode('')
     } catch (err: any) {
       console.error('Failed to verify MFA:', err)
-      setMfaError(err.message || 'Fehler bei der Verifizierung')
+      const message: string = (err?.message || '').toLowerCase()
+      if (message.includes('not enabled') || message.includes('disabled')) {
+        setMfaError('MFA ist serverseitig deaktiviert. Bitte MFA/TOTP in Supabase aktivieren.')
+      } else if (message.includes('invalid') || message.includes('code')) {
+        setMfaError('Ungültiger Code. Bitte erneut versuchen.')
+      } else {
+        setMfaError(err?.message || 'Fehler bei der Verifizierung')
+      }
     } finally {
       setVerifying(false)
     }
@@ -480,6 +502,11 @@ export default function Settings() {
               {mfaError && (
                 <div className="bg-[#FEE2E2] border border-[#EF4444] text-[#991B1B] px-4 py-3 rounded-lg mb-4">
                   ❌ {mfaError}
+                  {mfaError.includes('serverseitig deaktiviert') && (
+                    <div className="mt-2 text-[#991B1B] text-xs">
+                      Tipp: In `supabase/config.toml` den Block `[auth.mfa]` aktivieren und unter `[auth.mfa.totp]` `enroll_enabled=true`, `verify_enabled=true` setzen. Danach Supabase neu starten.
+                    </div>
+                  )}
                 </div>
               )}
 
