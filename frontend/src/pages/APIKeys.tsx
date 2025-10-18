@@ -193,6 +193,23 @@ export default function APIKeys() {
             <h1 className="text-3xl font-bold text-gray-900">API Keys & Dokumentation</h1>
             <p className="text-gray-600 mt-2">Verwalte API-Zugänge und entdecke unsere RESTful API</p>
             
+            {/* API Endpoint Info */}
+            <div className="mt-3 flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
+              <span className="text-blue-600 font-semibold text-sm">🌐 API Endpoint:</span>
+              <code className="text-sm font-mono text-blue-800 bg-white px-3 py-1 rounded border border-blue-300">
+                https://api.cert-watcher.de
+              </code>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText('https://api.cert-watcher.de')
+                  alert('API-URL kopiert!')
+                }}
+                className="ml-auto text-xs text-blue-600 hover:text-blue-700 font-medium"
+              >
+                📋 Kopieren
+              </button>
+            </div>
+            
             {/* Tabs */}
             <div className="flex gap-4 mt-4 border-b border-gray-200">
               <button

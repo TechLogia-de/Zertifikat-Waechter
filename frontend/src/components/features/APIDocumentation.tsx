@@ -179,7 +179,7 @@ export default function APIDocumentation() {
   const [selectedLanguage, setSelectedLanguage] = useState<'curl' | 'javascript' | 'python' | 'go'>('curl')
 
   function generateCodeExample(endpoint: Endpoint, language: string, apiKey: string = 'your_api_key_here'): string {
-    const baseUrl = 'https://api.cert-watcher.com'
+    const baseUrl = 'https://api.cert-watcher.de'
     const fullPath = endpoint.path.replace('{id}', 'certificate-id-123')
 
     switch (language) {
@@ -271,17 +271,29 @@ func main() {
           Alle Endpunkte erfordern Authentifizierung via API Key im Authorization Header.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-          <div className="bg-white rounded-lg p-3">
-            <div className="font-semibold text-blue-900 mb-1">Base URL</div>
-            <code className="text-blue-700">https://api.cert-watcher.com</code>
+          <div className="bg-white rounded-lg p-4 border-2 border-blue-200">
+            <div className="font-semibold text-blue-900 mb-2">🌐 Base URL</div>
+            <div className="flex items-center gap-2">
+              <code className="text-blue-700 font-mono text-base">https://api.cert-watcher.de</code>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText('https://api.cert-watcher.de')
+                  alert('URL kopiert!')
+                }}
+                className="text-xs text-blue-600 hover:text-blue-700"
+                title="URL kopieren"
+              >
+                📋
+              </button>
+            </div>
           </div>
-          <div className="bg-white rounded-lg p-3">
-            <div className="font-semibold text-blue-900 mb-1">Authentication</div>
-            <code className="text-blue-700">Bearer Token</code>
+          <div className="bg-white rounded-lg p-4">
+            <div className="font-semibold text-blue-900 mb-2">🔐 Authentication</div>
+            <code className="text-blue-700">Bearer Token (API Key)</code>
           </div>
-          <div className="bg-white rounded-lg p-3">
-            <div className="font-semibold text-blue-900 mb-1">Rate Limit</div>
-            <code className="text-blue-700">100 req/min</code>
+          <div className="bg-white rounded-lg p-4">
+            <div className="font-semibold text-blue-900 mb-2">⏱️ Rate Limit</div>
+            <code className="text-blue-700">100 requests/minute</code>
           </div>
         </div>
       </div>
