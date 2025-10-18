@@ -268,6 +268,7 @@ echo -e "${YELLOW}Erstelle Frontend .env...${NC}"
 cat > .env <<FRONTENDENVEOF
 VITE_SUPABASE_URL=$SUPABASE_URL
 VITE_SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
+VITE_WORKER_API_URL=/api
 FRONTENDENVEOF
 
 echo -e "${YELLOW}Installing npm packages...${NC}"
