@@ -209,6 +209,16 @@ export default function Certificates() {
               SSL/TLS-Zertifikat-Monitoring • Automatische Scans • Ablauf-Tracking • x509-Metadaten
             </p>
             
+            {/* Erfolgs-Banner falls gerade gescannt wurde */}
+            {assets.length > 0 && assets.some(a => a.certificates && a.certificates.length > 0) && (
+              <div className="mt-3 bg-green-50 border border-green-200 rounded-lg px-4 py-2 flex items-center gap-2">
+                <span className="text-green-600 text-lg">✅</span>
+                <span className="text-sm text-green-800 font-medium">
+                  {assets.filter(a => a.certificates && a.certificates.length > 0).length} Domain(s) erfolgreich überwacht
+                </span>
+              </div>
+            )}
+            
             {/* Tabs */}
             <div className="flex gap-4 mt-4 border-b border-gray-200">
               <button
