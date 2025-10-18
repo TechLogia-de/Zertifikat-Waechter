@@ -11,12 +11,17 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
 
   const navigation = [
     { name: 'Dashboard', href: '/', icon: '📊', exact: true },
-    { name: 'Zertifikate', href: '/certificates', icon: '🔒' },
-    { name: 'Alerts', href: '/alerts', icon: '🔔' },
+    { name: 'Zertifikate & Assets', href: '/certificates', icon: '🔒' },
+    { name: 'SSL Health Check', href: '/ssl-health', icon: '🔐' },
+    { name: 'Compliance', href: '/compliance', icon: '✅' },
+    { name: 'Alerts & Regeln', href: '/alerts', icon: '🔔' },
+    { name: 'API Keys', href: '/api-keys', icon: '🔑' },
     { name: 'Connectors', href: '/connectors', icon: '🤖' },
     { name: 'Agent Logs', href: '/agent-logs', icon: '📡' },
     { name: 'Integrationen', href: '/integrations', icon: '🔗' },
+    { name: 'Webhook Logs', href: '/webhook-logs', icon: '📬' },
     { name: 'ACME Auto-Renewal', href: '/acme', icon: '🔄' },
+    { name: 'Reports', href: '/reports', icon: '📄' },
     { name: 'Audit Log', href: '/audit-log', icon: '📋' },
     { name: 'Einstellungen', href: '/settings', icon: '⚙️' },
   ]
@@ -79,10 +84,29 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
 
       {/* Footer - immer sichtbar am unteren Rand */}
       <div className="p-4 border-t border-[#334155] space-y-2 flex-shrink-0">
+        {/* Profil Link */}
+        <NavLink
+          to="/profile"
+          onClick={handleLinkClick}
+          className={({ isActive }) =>
+            `flex items-center space-x-3 px-4 py-3 rounded-lg transition-all ${
+              isActive
+                ? 'bg-[#3B82F6] text-white shadow-lg'
+                : 'text-[#94A3B8] hover:bg-[#334155] hover:text-white'
+            }`
+          }
+        >
+          <span className="text-xl">👤</span>
+          <span className="font-medium">Mein Profil</span>
+        </NavLink>
+
+        {/* Version */}
         <div className="px-4 py-2 bg-[#334155] rounded-lg">
           <p className="text-xs text-[#94A3B8]">Version</p>
           <p className="text-sm text-white font-medium">v1.0.0</p>
         </div>
+
+        {/* Logout */}
         <button
           onClick={signOut}
           className="w-full flex items-center space-x-3 px-4 py-3 text-[#94A3B8] hover:bg-red-500/20 hover:text-red-400 rounded-lg transition-colors group"

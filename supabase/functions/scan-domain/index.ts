@@ -14,7 +14,7 @@ serve(async (req) => {
       })
     }
 
-    const { host, port = 443 } = await req.json()
+    let { host, port = 443 } = await req.json()
 
     if (!host) {
       return new Response(
@@ -28,6 +28,9 @@ serve(async (req) => {
         }
       )
     }
+
+    // ✅ Parse hostname: Entferne Protokoll und Pfad
+    host = parseHostname(host)
 
     console.log(`Scanning ${host}:${port}...`)
 
@@ -78,6 +81,34 @@ serve(async (req) => {
     )
   }
 })
+
+function parseHostname(host: string): string {
+  // Entferne Whitespace
+  host = host.trim()
+  
+  // Wenn URL mit Protokoll
+  if (host.includes('://')) {
+    try {
+      const url = new URL(host)
+      return url.hostname
+    } catch {
+      // Fallback: Manuell parsen
+      host = host.split('://')[1]
+    }
+  }
+  
+  // Entferne Pfad
+  if (host.includes('/')) {
+    host = host.split('/')[0]
+  }
+  
+  // Entferne Port
+  if (host.includes(':')) {
+    host = host.split(':')[0]
+  }
+  
+  return host
+}
 
 async function scanTLSCertificate(host: string, port: number) {
   // TLS-Verbindung über Deno's TLS API

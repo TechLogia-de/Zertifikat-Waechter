@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import Modal from '../components/ui/Modal'
@@ -47,7 +47,6 @@ export default function Connectors() {
   const [newConnector, setNewConnector] = useState<ConnectorWithToken | null>(null)
   const [creating, setCreating] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
-  const [regenerating, setRegenerating] = useState<string | null>(null)
   const [showFullToken, setShowFullToken] = useState<string | null>(null)
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
   const [selectedTab, setSelectedTab] = useState<'docker' | 'compose' | 'windows'>('docker')
@@ -72,35 +71,53 @@ export default function Connectors() {
   useEffect(() => {
     fetchConnectors()
 
-    // Realtime Updates bei echten Änderungen
-    const channel = supabase
-      .channel('connectors-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'connectors',
-        },
-        (payload) => {
-          console.log('Connector changed:', payload)
-          setInitialLoad(false) // Kein Loading-State beim Realtime-Update
-          fetchConnectors() // Refresh nur bei echten Änderungen
-        }
-      )
-      .subscribe()
+    // Realtime Updates NUR für eigenen Tenant (wird nach fetchConnectors gesetzt)
+    let channel: any = null
+
+    if (user?.id) {
+      // Hole Tenant-ID für Filter
+      supabase
+        .from('memberships')
+        .select('tenant_id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data) {
+            const tenantId = (data as any).tenant_id
+            
+            // Realtime Updates NUR für eigenen Tenant!
+            channel = supabase
+              .channel('connectors-changes')
+              .on(
+                'postgres_changes',
+                {
+                  event: '*',
+                  schema: 'public',
+                  table: 'connectors',
+                  filter: `tenant_id=eq.${tenantId}` // ✅ NUR EIGENER TENANT!
+                },
+                (payload) => {
+                  console.log('Connector changed:', payload)
+                  setInitialLoad(false)
+                  fetchConnectors()
+                }
+              )
+              .subscribe()
+          }
+        })
+    }
 
     // Auto-Refresh im Hintergrund (alle 30 Sekunden, OHNE Loading-Spinner!)
     const interval = setInterval(() => {
-      setInitialLoad(false) // WICHTIG: Kein Loading-State zeigen
-      fetchConnectors() // Still refresh im Hintergrund (nur wenn Daten sich ändern)
-    }, 30000) // 30 Sekunden - weniger störend
+      setInitialLoad(false)
+      fetchConnectors()
+    }, 30000)
 
     return () => {
-      channel.unsubscribe()
+      if (channel) channel.unsubscribe()
       clearInterval(interval)
     }
-  }, [])
+  }, [user])
 
   async function fetchConnectors() {
     try {
@@ -108,10 +125,28 @@ export default function Connectors() {
       if (initialLoad) {
         setLoading(true)
       }
+
+      // WICHTIG: Erst Tenant-ID holen!
+      if (!user?.id) return
+
+      const { data: membership } = await supabase
+        .from('memberships')
+        .select('tenant_id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (!membership) {
+        console.error('Kein Tenant gefunden!')
+        return
+      }
+
+      const tenantId = (membership as any).tenant_id
       
+      // NUR Connectors des eigenen Tenants laden! (Multi-Tenant Security!)
       const { data, error } = await supabase
         .from('connectors')
         .select('*')
+        .eq('tenant_id', tenantId) // ✅ TENANT-FILTER!
         .order('created_at', { ascending: false })
 
       if (error) throw error
@@ -377,7 +412,6 @@ docker run -d \`
       return
     }
 
-    setRegenerating(connectorId)
     try {
       if (!user?.id) {
         throw new Error('Nicht eingeloggt')
@@ -416,8 +450,6 @@ docker run -d \`
     } catch (error: any) {
       console.error('Error regenerating token:', error)
       alert(`Fehler: ${error.message}`)
-    } finally {
-      setRegenerating(null)
     }
   }
 

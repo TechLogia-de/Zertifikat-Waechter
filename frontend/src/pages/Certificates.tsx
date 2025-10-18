@@ -6,6 +6,7 @@ import AddDomainModal from '../components/features/AddDomainModal'
 import CertificateDetailsModal from '../components/features/CertificateDetailsModal'
 import DeleteConfirmModal from '../components/ui/DeleteConfirmModal'
 import LoadingState from '../components/ui/LoadingState'
+import Assets from './Assets'
 
 interface Asset {
   id: string
@@ -31,6 +32,7 @@ export default function Certificates() {
   const [assetToDelete, setAssetToDelete] = useState<Asset | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [activeTab, setActiveTab] = useState<'certificates' | 'assets'>('certificates')
 
   useEffect(() => {
     loadAssets()
@@ -206,6 +208,30 @@ export default function Certificates() {
             <p className="text-sm sm:text-base text-[#64748B] mt-1">
               SSL/TLS-Zertifikat-Monitoring • Automatische Scans • Ablauf-Tracking • x509-Metadaten
             </p>
+            
+            {/* Tabs */}
+            <div className="flex gap-4 mt-4 border-b border-gray-200">
+              <button
+                onClick={() => setActiveTab('certificates')}
+                className={`pb-2 px-1 font-medium text-sm transition-colors ${
+                  activeTab === 'certificates'
+                    ? 'border-b-2 border-blue-600 text-blue-600'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                🔒 Zertifikate
+              </button>
+              <button
+                onClick={() => setActiveTab('assets')}
+                className={`pb-2 px-1 font-medium text-sm transition-colors ${
+                  activeTab === 'assets'
+                    ? 'border-b-2 border-blue-600 text-blue-600'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                🖥️ Assets & SSL Status
+              </button>
+            </div>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
             {/* Export Dropdown */}
@@ -267,7 +293,9 @@ export default function Certificates() {
 
       {/* Main Content - SCROLLBAR */}
       <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        {loading ? (
+        {activeTab === 'assets' ? (
+          <Assets />
+        ) : loading ? (
           <div className="py-12">
             <LoadingState size="md" text="Lade Domains..." />
           </div>

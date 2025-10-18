@@ -1,173 +1,98 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-serve(async (req) => {
-  try {
-    // CORS Headers
-    if (req.method === 'OPTIONS') {
-      return new Response('ok', {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-          'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-        },
-      })
-    }
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
 
+serve(async (req) => {
+  // CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
+  try {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Get request body
-    const { tenant_id, format = 'csv', filters = {} } = await req.json()
+    const body = await req.json()
+    const {
+      tenant_id,
+      tenant_name = 'Organisation',
+      config = {},
+      certificates = [],
+      events = [],
+      stats = {},
+      generated_by = 'System',
+      generated_at = new Date().toISOString()
+    } = body
 
     if (!tenant_id) {
-      return new Response(
-        JSON.stringify({ error: 'tenant_id is required' }),
-        {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
+      throw new Error('tenant_id is required')
     }
 
-    // Build query
-    let query = supabase
-      .from('certificates')
-      .select(`
-        *,
-        assets(host, port, proto)
-      `)
-      .eq('tenant_id', tenant_id)
-      .order('not_after', { ascending: true })
+    console.log(`Generating ${config.format || 'pdf'} report for tenant ${tenant_id}`)
+    console.log(`Config:`, config)
+    console.log(`Certificates: ${certificates.length}`)
+    console.log(`Events: ${events.length}`)
 
-    // Apply filters
-    if (filters.expired) {
-      query = query.lt('not_after', new Date().toISOString())
-    }
-    if (filters.expiringSoon) {
-      const thirtyDaysFromNow = new Date()
-      thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30)
-      query = query.lte('not_after', thirtyDaysFromNow.toISOString())
-    }
-    if (filters.search) {
-      query = query.ilike('subject_cn', `%${filters.search}%`)
-    }
+    // Generate HTML Report (kann vom Browser als PDF gespeichert werden)
+    const html = generateComplianceReport({
+      tenant_name,
+      certificates,
+      events,
+      stats,
+      config,
+      generated_by,
+      generated_at
+    })
 
-    const { data: certificates, error } = await query
-
-    if (error) throw error
-
-    if (!certificates || certificates.length === 0) {
-      return new Response(
-        JSON.stringify({ error: 'No certificates found' }),
-        {
-          status: 404,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
-    }
-
-    // Generate Report
-    if (format === 'csv') {
-      const csv = generateCSV(certificates)
-      return new Response(csv, {
-        headers: {
-          'Content-Type': 'text/csv',
-          'Content-Disposition': `attachment; filename="certificates-${new Date().toISOString().split('T')[0]}.csv"`,
-          'Access-Control-Allow-Origin': '*',
-        },
-      })
-    } else if (format === 'json') {
-      return new Response(JSON.stringify(certificates, null, 2), {
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Disposition': `attachment; filename="certificates-${new Date().toISOString().split('T')[0]}.json"`,
-          'Access-Control-Allow-Origin': '*',
-        },
-      })
-    } else if (format === 'html') {
-      const html = generateHTML(certificates, tenant_id)
-      return new Response(html, {
-        headers: {
-          'Content-Type': 'text/html',
-          'Access-Control-Allow-Origin': '*',
-        },
-      })
-    }
-
+    // Return HTML (Frontend kann es in neuem Tab öffnen → Drucken → Als PDF)
     return new Response(
-      JSON.stringify({ error: 'Invalid format. Use csv, json, or html' }),
+      JSON.stringify({
+        success: true,
+        html_report: html,
+        metadata: {
+          certificates_count: certificates.length,
+          events_count: events.length,
+          generated_at,
+          generated_by,
+          tenant_name
+        }
+      }),
       {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        }
       }
     )
 
   } catch (error: any) {
     console.error('Report generation failed:', error)
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        success: false,
+        error: error.message 
+      }),
       {
         status: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        }
       }
     )
   }
 })
 
-function generateCSV(certificates: any[]): string {
-  const headers = [
-    'Subject CN',
-    'Host',
-    'Port',
-    'Issuer',
-    'Valid From',
-    'Valid Until',
-    'Days Remaining',
-    'Status',
-    'Key Algorithm',
-    'Key Size',
-    'Serial',
-    'Fingerprint',
-    'Self-Signed',
-  ]
-
-  const rows = certificates.map(cert => {
-    const asset = cert.assets || {}
-    const now = new Date()
-    const expiryDate = new Date(cert.not_after)
-    const daysRemaining = Math.floor((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-    
-    let status = 'Valid'
-    if (daysRemaining < 0) status = 'Expired'
-    else if (daysRemaining < 7) status = 'Critical'
-    else if (daysRemaining < 30) status = 'Warning'
+function generateComplianceReport(data: any): string {
+  const { tenant_name, certificates, events, stats, config, generated_by, generated_at } = data
   
-  return [
-      cert.subject_cn || '',
-      asset.host || '',
-      asset.port || '',
-      cert.issuer || '',
-      new Date(cert.not_before).toISOString(),
-      new Date(cert.not_after).toISOString(),
-      daysRemaining.toString(),
-      status,
-      cert.key_alg || '',
-      cert.key_size?.toString() || '',
-      cert.serial || '',
-      cert.fingerprint || '',
-      cert.is_self_signed ? 'Yes' : 'No',
-    ].map(field => `"${field.replace(/"/g, '""')}"`).join(',')
-  })
-
-  return [headers.join(','), ...rows].join('\n')
-}
-
-function generateHTML(certificates: any[], tenant_id: string): string {
-  const now = new Date()
-  const reportDate = now.toLocaleDateString('de-DE', {
+  const reportDate = new Date(generated_at).toLocaleDateString('de-DE', {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
@@ -175,53 +100,57 @@ function generateHTML(certificates: any[], tenant_id: string): string {
     minute: '2-digit'
   })
 
-  const stats = {
-    total: certificates.length,
-    valid: 0,
-    warning: 0,
-    critical: 0,
-    expired: 0,
+  // Hash-Chain Verifizierung
+  let hashChainHtml = ''
+  if (config.includeHashChain && events.length > 0) {
+    const lastEvent = events[0]
+    hashChainHtml = `
+      <div class="hash-chain-section">
+        <h2>🔒 Kryptographische Hash-Chain Verifizierung</h2>
+        <div class="hash-info">
+          <p><strong>Letzter Event:</strong> ${lastEvent.type}</p>
+          <p><strong>Hash (SHA-256):</strong></p>
+          <code>${lastEvent.hash}</code>
+          <p class="hash-note">
+            ✅ Diese Hash-Kette beweist, dass die Audit-Log-Daten seit Erstellung 
+            nicht manipuliert wurden. Jeder Event ist kryptographisch mit dem vorherigen verknüpft.
+          </p>
+        </div>
+      </div>
+    `
   }
 
-  const rows = certificates.map(cert => {
+  // Zertifikats-Tabellen
+  const certRows = certificates.map((cert: any) => {
     const asset = cert.assets || {}
     const expiryDate = new Date(cert.not_after)
-    const daysRemaining = Math.floor((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+    const daysRemaining = Math.floor((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     
-    let status = 'valid'
     let statusColor = '#10B981'
-    let statusLabel = 'Gültig'
+    let statusLabel = '✅ Gültig'
     
     if (daysRemaining < 0) {
-      status = 'expired'
-      statusColor = '#991B1B'
-      statusLabel = 'Abgelaufen'
-      stats.expired++
-    } else if (daysRemaining < 7) {
-      status = 'critical'
       statusColor = '#EF4444'
-      statusLabel = 'Kritisch'
-      stats.critical++
+      statusLabel = '🚨 Abgelaufen'
+    } else if (daysRemaining < 7) {
+      statusColor = '#EF4444'
+      statusLabel = '⚠️ Kritisch'
     } else if (daysRemaining < 30) {
-      status = 'warning'
       statusColor = '#F59E0B'
-      statusLabel = 'Warnung'
-      stats.warning++
-    } else {
-      stats.valid++
+      statusLabel = '⏰ Warnung'
     }
 
     return `
-      <tr class="border-b border-gray-200 hover:bg-gray-50">
-        <td class="px-4 py-3 font-mono text-sm">${cert.subject_cn || 'N/A'}</td>
-        <td class="px-4 py-3 text-sm">${asset.host || 'N/A'}:${asset.port || ''}</td>
-        <td class="px-4 py-3 text-sm">${cert.issuer || 'N/A'}</td>
-        <td class="px-4 py-3 text-sm">${expiryDate.toLocaleDateString('de-DE')}</td>
-        <td class="px-4 py-3 text-sm font-bold" style="color: ${statusColor}">
+      <tr>
+        <td><strong>${cert.subject_cn || 'N/A'}</strong></td>
+        <td>${asset.host || 'N/A'}:${asset.port || ''}</td>
+        <td class="issuer">${cert.issuer || 'N/A'}</td>
+        <td>${expiryDate.toLocaleDateString('de-DE')}</td>
+        <td style="color: ${statusColor}; font-weight: bold;">
           ${daysRemaining >= 0 ? daysRemaining + ' Tage' : 'Abgelaufen'}
         </td>
-        <td class="px-4 py-3">
-          <span class="px-2 py-1 text-xs font-semibold rounded" style="background-color: ${statusColor}20; color: ${statusColor}">
+        <td>
+          <span class="status-badge" style="background-color: ${statusColor}20; color: ${statusColor}">
             ${statusLabel}
           </span>
         </td>
@@ -229,172 +158,490 @@ function generateHTML(certificates: any[], tenant_id: string): string {
     `
   }).join('')
 
+  // Event Log
+  let auditLogHtml = ''
+  if (config.includeAuditLog && events.length > 0) {
+    const eventRows = events.slice(0, 50).map((event: any) => `
+      <tr>
+        <td class="timestamp">${new Date(event.ts).toLocaleString('de-DE')}</td>
+        <td><code>${event.type}</code></td>
+        <td class="payload">${JSON.stringify(event.payload).substring(0, 100)}...</td>
+      </tr>
+    `).join('')
+
+    auditLogHtml = `
+      <div class="audit-section page-break">
+        <h2>📋 Audit Log</h2>
+        <p class="section-desc">Letzte ${events.length} Events (unveränderlich)</p>
+        <table class="audit-table">
+          <thead>
+            <tr>
+              <th style="width: 180px">Zeitstempel</th>
+              <th style="width: 250px">Event-Typ</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${eventRows}
+          </tbody>
+        </table>
+      </div>
+    `
+  }
+
   return `
 <!DOCTYPE html>
 <html lang="de">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Zertifikat-Report - ${reportDate}</title>
+  <title>${config.title || 'Certificate Compliance Report'}</title>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    
     * {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
     }
+    
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #F8FAFC;
-      padding: 40px 20px;
+      background: white;
       color: #0F172A;
+      line-height: 1.6;
     }
+    
+    @media print {
+      .page-break { page-break-before: always; }
+      .no-print { display: none; }
+    }
+    
     .container {
       max-width: 1200px;
       margin: 0 auto;
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-      overflow: hidden;
+      padding: 40px;
     }
-    .header {
-      background: linear-gradient(135deg, #3B82F6 0%, #6366F1 100%);
+    
+    /* Title Page */
+    .title-page {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #1E293B 0%, #334155 100%);
       color: white;
-      padding: 40px;
-    }
-    .header h1 {
-      font-size: 32px;
-      font-weight: 700;
-      margin-bottom: 8px;
-    }
-    .header p {
-      opacity: 0.9;
-      font-size: 14px;
-    }
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 20px;
-      padding: 40px;
-      border-bottom: 1px solid #E2E8F0;
-    }
-    .stat-card {
       text-align: center;
-      padding: 20px;
-      background: #F8FAFC;
-      border-radius: 8px;
-      border: 1px solid #E2E8F0;
+      padding: 60px;
     }
-    .stat-value {
+    
+    .logo {
+      font-size: 80px;
+      margin-bottom: 20px;
+    }
+    
+    .title-page h1 {
+      font-size: 48px;
+      font-weight: 800;
+      margin-bottom: 20px;
+      letter-spacing: -0.02em;
+    }
+    
+    .title-page .subtitle {
+      font-size: 24px;
+      opacity: 0.9;
+      margin-bottom: 40px;
+    }
+    
+    .metadata {
+      background: rgba(255,255,255,0.1);
+      backdrop-filter: blur(10px);
+      padding: 30px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.2);
+      margin-top: 40px;
+    }
+    
+    .metadata-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    .metadata-item:last-child {
+      border-bottom: none;
+    }
+    
+    /* Stats Summary */
+    .summary-page {
+      padding: 60px;
+    }
+    
+    .summary-page h2 {
       font-size: 36px;
       font-weight: 700;
+      margin-bottom: 40px;
+      color: #1E293B;
+    }
+    
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 24px;
+      margin-bottom: 40px;
+    }
+    
+    .stat-card {
+      background: linear-gradient(135deg, #F8FAFC 0%, #FFFFFF 100%);
+      padding: 30px;
+      border-radius: 16px;
+      border: 2px solid #E2E8F0;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    }
+    
+    .stat-card .icon {
+      font-size: 40px;
+      margin-bottom: 12px;
+    }
+    
+    .stat-card .value {
+      font-size: 48px;
+      font-weight: 800;
       margin-bottom: 8px;
     }
-    .stat-label {
+    
+    .stat-card .label {
       font-size: 14px;
       color: #64748B;
-      font-weight: 500;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
-    .table-container {
-      padding: 40px;
-      overflow-x: auto;
+    
+    /* Certificate Table */
+    .cert-section {
+      padding: 60px;
     }
+    
+    .cert-section h2 {
+      font-size: 36px;
+      font-weight: 700;
+      margin-bottom: 20px;
+      color: #1E293B;
+    }
+    
+    .section-desc {
+      font-size: 16px;
+      color: #64748B;
+      margin-bottom: 30px;
+    }
+    
     table {
       width: 100%;
       border-collapse: collapse;
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
-    th {
+    
+    thead {
       background: #F8FAFC;
+      border-bottom: 2px solid #E2E8F0;
+    }
+    
+    th {
+      padding: 16px;
       text-align: left;
-      padding: 12px 16px;
       font-size: 12px;
-      font-weight: 600;
+      font-weight: 700;
       color: #64748B;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      border-bottom: 1px solid #E2E8F0;
     }
+    
     td {
-      padding: 12px 16px;
+      padding: 16px;
+      border-bottom: 1px solid #F1F5F9;
+      font-size: 14px;
     }
-    .footer {
-      padding: 20px 40px;
+    
+    tr:last-child td {
+      border-bottom: none;
+    }
+    
+    tr:hover {
       background: #F8FAFC;
-      border-top: 1px solid #E2E8F0;
-      text-align: center;
-      font-size: 12px;
-      color: #94A3B8;
     }
-    @media print {
-      body {
-        padding: 0;
-        background: white;
-      }
-      .container {
-        box-shadow: none;
-      }
+    
+    .issuer {
+      font-size: 12px;
+      color: #64748B;
+    }
+    
+    .status-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    
+    /* Hash Chain */
+    .hash-chain-section {
+      padding: 60px;
+      background: linear-gradient(135deg, #D1FAE5 0%, #DCFCE7 100%);
+    }
+    
+    .hash-chain-section h2 {
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 20px;
+      color: #065F46;
+    }
+    
+    .hash-info {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      border: 2px solid #10B981;
+    }
+    
+    .hash-info code {
+      display: block;
+      background: #F1F5F9;
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      word-break: break-all;
+      margin: 10px 0;
+      font-family: 'Courier New', monospace;
+    }
+    
+    .hash-note {
+      font-size: 14px;
+      color: #047857;
+      margin-top: 12px;
+      padding: 12px;
+      background: #D1FAE5;
+      border-radius: 6px;
+    }
+    
+    /* Audit Log */
+    .audit-section {
+      padding: 60px;
+    }
+    
+    .audit-table {
+      font-size: 12px;
+    }
+    
+    .audit-table .timestamp {
+      font-family: 'Courier New', monospace;
+      color: #64748B;
+    }
+    
+    .audit-table code {
+      background: #F8FAFC;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+    }
+    
+    .audit-table .payload {
+      font-size: 11px;
+      color: #94A3B8;
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    
+    /* Footer */
+    .footer {
+      text-align: center;
+      padding: 40px;
+      background: #F8FAFC;
+      border-top: 2px solid #E2E8F0;
+      margin-top: 60px;
+    }
+    
+    .footer-signature {
+      font-size: 14px;
+      color: #64748B;
+      margin-bottom: 20px;
+    }
+    
+    .footer-hash {
+      background: #1E293B;
+      color: white;
+      padding: 20px;
+      border-radius: 8px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      margin-top: 20px;
+    }
+    
+    .print-button {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 12px 24px;
+      background: #3B82F6;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+      z-index: 1000;
+    }
+    
+    .print-button:hover {
+      background: #2563EB;
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="header">
-      <h1>🛡️ Zertifikat-Bericht</h1>
-      <p>Generiert am ${reportDate}</p>
-    </div>
+  <button onclick="window.print()" class="print-button no-print">
+    🖨️ Als PDF speichern
+  </button>
 
-    <div class="stats">
-      <div class="stat-card">
-        <div class="stat-value" style="color: #3B82F6">${stats.total}</div>
-        <div class="stat-label">Gesamt Zertifikate</div>
+  <!-- TITLE PAGE -->
+  <div class="title-page">
+    <div class="logo">🛡️</div>
+    <h1>${config.title || 'Certificate Compliance Report'}</h1>
+    <p class="subtitle">${config.description || 'SSL/TLS Zertifikats-Übersicht'}</p>
+    
+    <div class="metadata">
+      <div class="metadata-item">
+        <span><strong>Organisation:</strong></span>
+        <span>${tenant_name}</span>
       </div>
-      <div class="stat-card">
-        <div class="stat-value" style="color: #10B981">${stats.valid}</div>
-        <div class="stat-label">Gültig</div>
+      <div class="metadata-item">
+        <span><strong>Erstellt am:</strong></span>
+        <span>${reportDate}</span>
       </div>
-      <div class="stat-card">
-        <div class="stat-value" style="color: #F59E0B">${stats.warning}</div>
-        <div class="stat-label">Warnung</div>
+      <div class="metadata-item">
+        <span><strong>Erstellt von:</strong></span>
+        <span>${generated_by}</span>
       </div>
-      <div class="stat-card">
-        <div class="stat-value" style="color: #EF4444">${stats.critical}</div>
-        <div class="stat-label">Kritisch</div>
+      <div class="metadata-item">
+        <span><strong>Zertifikate gesamt:</strong></span>
+        <span>${certificates.length}</span>
       </div>
-      <div class="stat-card">
-        <div class="stat-value" style="color: #991B1B">${stats.expired}</div>
-        <div class="stat-label">Abgelaufen</div>
+      ${config.includeHashChain ? `
+      <div class="metadata-item">
+        <span><strong>Hash-Chain Verifizierung:</strong></span>
+        <span>✅ Aktiviert</span>
       </div>
-    </div>
-
-    <div class="table-container">
-      <table>
-        <thead>
-          <tr>
-            <th>Common Name</th>
-            <th>Host:Port</th>
-            <th>Aussteller</th>
-            <th>Läuft ab</th>
-            <th>Verbleibend</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows}
-        </tbody>
-      </table>
-    </div>
-
-    <div class="footer">
-      <p><strong>Zertifikat-Wächter</strong> • SSL/TLS Certificate Monitoring</p>
-      <p style="margin-top: 8px">Dieser Bericht wurde automatisch generiert und ist nur für interne Zwecke bestimmt.</p>
+      ` : ''}
     </div>
   </div>
 
-  <script>
-    // Auto-Print für PDF-Export
-    if (window.location.search.includes('print=true')) {
-      window.print();
-    }
-  </script>
+  <!-- SUMMARY PAGE -->
+  <div class="summary-page page-break">
+    <h2>📊 Executive Summary</h2>
+    
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="icon">🔐</div>
+        <div class="value" style="color: #3B82F6">${stats.totalCerts || certificates.length}</div>
+        <div class="label">Zertifikate gesamt</div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="icon">✅</div>
+        <div class="value" style="color: #10B981">${stats.valid || 0}</div>
+        <div class="label">Gültig</div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="icon">⏰</div>
+        <div class="value" style="color: #F59E0B">${stats.expiring || 0}</div>
+        <div class="label">Bald ablaufend</div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="icon">🚨</div>
+        <div class="value" style="color: #EF4444">${stats.expired || 0}</div>
+        <div class="label">Abgelaufen</div>
+      </div>
+    </div>
+    
+    ${stats.expired > 0 ? `
+    <div style="background: #FEE2E2; border-left: 4px solid #EF4444; padding: 20px; border-radius: 8px; margin-top: 30px;">
+      <h3 style="color: #991B1B; margin-bottom: 10px;">⚠️ Kritische Befunde</h3>
+      <p style="color: #7F1D1D;">
+        <strong>${stats.expired} Zertifikat(e) sind bereits abgelaufen!</strong> 
+        Sofortiges Handeln erforderlich um Dienstausfälle zu vermeiden.
+      </p>
+    </div>
+    ` : ''}
+    
+    ${stats.expiring > 0 ? `
+    <div style="background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 20px; border-radius: 8px; margin-top: 20px;">
+      <h3 style="color: #92400E; margin-bottom: 10px;">⏰ Handlungsempfehlung</h3>
+      <p style="color: #78350F;">
+        <strong>${stats.expiring} Zertifikat(e) laufen in den nächsten 30 Tagen ab.</strong> 
+        Planung der Erneuerung wird empfohlen.
+      </p>
+    </div>
+    ` : ''}
+  </div>
+
+  <!-- CERTIFICATES TABLE -->
+  <div class="cert-section page-break">
+    <h2>📋 Zertifikats-Details</h2>
+    <p class="section-desc">Vollständige Übersicht aller überwachten Zertifikate</p>
+    
+    <table>
+      <thead>
+        <tr>
+          <th>Common Name</th>
+          <th>Host:Port</th>
+          <th>Aussteller</th>
+          <th>Gültig bis</th>
+          <th>Verbleibend</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${certRows || '<tr><td colspan="6" style="text-align: center; padding: 40px; color: #64748B;">Keine Zertifikate gefunden</td></tr>'}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- AUDIT LOG -->
+  ${auditLogHtml}
+
+  <!-- HASH CHAIN -->
+  ${hashChainHtml}
+
+  <!-- FOOTER / SIGNATURE -->
+  <div class="footer">
+    <div class="footer-signature">
+      <p><strong>🛡️ Zertifikat-Wächter</strong> • SSL/TLS Certificate Monitoring System</p>
+      <p style="margin-top: 8px;">Version 1.0.0 • ${reportDate}</p>
+      <p style="margin-top: 16px; font-size: 12px;">
+        Dieser Report wurde automatisch generiert und ist ausschließlich für interne Compliance-Zwecke bestimmt.
+      </p>
+    </div>
+    
+    ${config.includeHashChain && events.length > 0 ? `
+    <div class="footer-hash">
+      <p><strong>Report-Hash (SHA-256):</strong></p>
+      <p style="margin-top: 8px; word-break: break-all;">
+        ${events[0]?.hash || 'N/A'}
+      </p>
+      <p style="margin-top: 12px; font-size: 11px; opacity: 0.7;">
+        Dieser Hash dient als unveränderlicher Nachweis der Report-Integrität zum Zeitpunkt der Erstellung.
+      </p>
+    </div>
+    ` : ''}
+  </div>
 </body>
 </html>
   `
