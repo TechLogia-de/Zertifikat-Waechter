@@ -52,11 +52,19 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       {/* Logo */}
       <div className="p-6 border-b border-[#334155] flex-shrink-0">
         <NavLink to="/" className="block">
-          <h1 className="text-xl font-bold text-white flex items-center space-x-2 hover:text-blue-300 transition-colors">
-            <span>🛡️</span>
-            <span>Zertifikat-Wächter</span>
-          </h1>
-          <p className="text-xs text-[#94A3B8] mt-1">SSL/TLS Monitoring</p>
+          <div className="flex items-center space-x-3 hover:opacity-80 transition-opacity">
+            <img 
+              src="/logo.png" 
+              alt="Zertifikat-Wächter Logo" 
+              className="w-10 h-10 object-contain"
+            />
+            <div>
+              <h1 className="text-xl font-bold text-white">
+                Zertifikat-Wächter
+              </h1>
+              <p className="text-xs text-[#94A3B8]">SSL/TLS Monitoring</p>
+            </div>
+          </div>
         </NavLink>
       </div>
 
