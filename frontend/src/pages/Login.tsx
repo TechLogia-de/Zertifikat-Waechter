@@ -157,14 +157,23 @@ export default function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-3 sm:p-4">
       <div className="max-w-md w-full bg-white rounded-xl shadow-2xl overflow-hidden">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-4 sm:px-8 py-5 sm:py-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-center text-white">
-            🛡️ Zertifikat-Wächter
-          </h1>
-          <p className="text-center text-blue-100 mt-2 text-xs sm:text-sm">
-            SSL/TLS Zertifikate überwachen
-          </p>
+        {/* Header mit Logo */}
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-4 sm:px-8 py-8 sm:py-10">
+          <div className="flex flex-col items-center">
+            <div className="bg-white rounded-2xl p-4 mb-4 shadow-lg">
+              <img 
+                src="/logo.png" 
+                alt="Zertifikat-Wächter Logo" 
+                className="w-20 h-20 object-contain"
+              />
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-center text-white">
+              Zertifikat-Wächter
+            </h1>
+            <p className="text-center text-blue-100 mt-2 text-sm">
+              SSL/TLS Certificate Monitoring Platform
+            </p>
+          </div>
         </div>
 
         <div className="p-4 sm:p-6 lg:p-8">
