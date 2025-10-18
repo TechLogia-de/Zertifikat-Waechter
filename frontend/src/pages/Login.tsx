@@ -12,20 +12,112 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
+  // MFA (TOTP) Login Flow
+  const [mfaRequired, setMfaRequired] = useState(false)
+  const [mfaLoading, setMfaLoading] = useState(false)
+  const [otpCode, setOtpCode] = useState('')
+  const [selectedFactorId, setSelectedFactorId] = useState<string | null>(null)
+  const [verifyingOtp, setVerifyingOtp] = useState(false)
+
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError(null)
 
-    const { error } = await supabase.auth.signInWithPassword({
+    // Reset MFA state before a new attempt
+    setMfaRequired(false)
+    setSelectedFactorId(null)
+    setOtpCode('')
+
+    const { data, error: signInError } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
 
-    if (error) {
-      setError(error.message)
+    if (!signInError && data?.session) {
+      // Erfolgreich eingeloggt, App leitet automatisch weiter
+      setLoading(false)
+      return
+    }
+
+    // Prüfe auf MFA-Anforderung
+    const isMfaError = !!signInError && (
+      // verschiedene mögliche Kennzeichen abdecken
+      (signInError.message && signInError.message.toLowerCase().includes('mfa')) ||
+      (signInError as any).name === 'AuthMFAError' ||
+      (signInError as any).status === 403 ||
+      (signInError as any).code === 'mfa_required'
+    )
+
+    if (isMfaError) {
+      try {
+        setMfaLoading(true)
+        // Verfügbare Faktoren für diese Anmeldesitzung abfragen
+        const { data: factorsData, error: factorsError } = await (supabase.auth as any).mfa.listFactors()
+        if (factorsError) throw factorsError
+
+        const factors: any[] = (factorsData?.factors as any[]) || []
+        const totp = factors.find((f) => f.factor_type === 'totp')
+        if (!totp) {
+          throw new Error('MFA ist aktiviert, aber kein TOTP‑Faktor gefunden. Bitte in den Einstellungen prüfen.')
+        }
+
+        const factorId: string = totp.id
+        setSelectedFactorId(factorId)
+
+        // Challenge starten (notwendig, bevor verifiziert werden kann)
+        const { error: challengeError } = await (supabase.auth as any).mfa.challenge({ factorId })
+        if (challengeError) throw challengeError
+
+        setMfaRequired(true)
+        setSuccess('MFA erforderlich – bitte den 6‑stelligen Code eingeben.')
+      } catch (mfaErr: any) {
+        console.error('MFA start failed:', mfaErr)
+        setError(mfaErr?.message || 'MFA konnte nicht gestartet werden')
+      } finally {
+        setMfaLoading(false)
+        setLoading(false)
+      }
+      return
+    }
+
+    // Kein MFA-Fehler, also „normaler“ Fehler anzeigen
+    if (signInError) {
+      setError(signInError.message || 'Anmeldung fehlgeschlagen')
     }
     setLoading(false)
+  }
+
+  async function verifyOtp() {
+    if (!selectedFactorId) {
+      setError('Kein TOTP‑Faktor ausgewählt')
+      return
+    }
+    if (otpCode.trim().length !== 6) {
+      setError('Bitte 6‑stelligen Code eingeben')
+      return
+    }
+    setVerifyingOtp(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      const { error: verifyError } = await (supabase.auth as any).mfa.verify({
+        factorId: selectedFactorId,
+        code: otpCode.trim(),
+      })
+      if (verifyError) throw verifyError
+
+      // Erfolgreich: Session wird gesetzt, App leitet automatisch weiter
+      setSuccess('Anmeldung erfolgreich')
+      setMfaRequired(false)
+      setOtpCode('')
+      setSelectedFactorId(null)
+    } catch (err: any) {
+      console.error('MFA verify failed:', err)
+      setError(err?.message || 'MFA‑Verifizierung fehlgeschlagen')
+    } finally {
+      setVerifyingOtp(false)
+    }
   }
 
   async function handleSignUp(e: React.FormEvent) {
@@ -220,6 +312,35 @@ export default function Login() {
           {error && (
             <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-3 sm:px-4 py-2 sm:py-3 rounded-lg text-sm sm:text-base">
               ❌ {error}
+            </div>
+          )}
+
+          {/* MFA Required: OTP Eingabe */}
+          {mfaRequired && (
+            <div className="mb-6 p-4 border border-yellow-300 bg-yellow-50 rounded-lg">
+              <p className="text-sm text-yellow-800 mb-3">
+                Zur Sicherheit ist eine Zwei‑Faktor‑Verifizierung erforderlich. Öffne deine Authenticator‑App und gib den 6‑stelligen Code ein.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={6}
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                  className="flex-1 px-4 py-3 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition"
+                  placeholder="123456"
+                />
+                <button
+                  type="button"
+                  onClick={verifyOtp}
+                  disabled={verifyingOtp || otpCode.length !== 6}
+                  className="px-4 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {verifyingOtp ? '⏳ Prüfe…' : 'Bestätigen'}
+                </button>
+              </div>
             </div>
           )}
 
