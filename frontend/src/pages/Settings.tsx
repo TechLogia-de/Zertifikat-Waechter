@@ -41,6 +41,10 @@ export default function Settings() {
   const [verifying, setVerifying] = useState<boolean>(false)
   const [disabling, setDisabling] = useState<boolean>(false)
   const [qrImageUrl, setQrImageUrl] = useState<string | null>(null)
+  const [totpUri, setTotpUri] = useState<string | null>(null)
+  const [totpSecret, setTotpSecret] = useState<string | null>(null)
+  const [totpIssuer, setTotpIssuer] = useState<string | null>(null)
+  const [totpLabel, setTotpLabel] = useState<string | null>(null)
   const [verificationCode, setVerificationCode] = useState<string>('')
   const [mfaError, setMfaError] = useState<string | null>(null)
   const [mfaSuccess, setMfaSuccess] = useState<string | null>(null)
@@ -115,6 +119,10 @@ export default function Settings() {
     setMfaError(null)
     setMfaSuccess(null)
     setQrImageUrl(null)
+    setTotpUri(null)
+    setTotpSecret(null)
+    setTotpIssuer(null)
+    setTotpLabel(null)
     setVerificationCode('')
     try {
       const { data, error } = await (supabase.auth as any).mfa.enroll({ factorType: 'totp' })
@@ -124,9 +132,46 @@ export default function Settings() {
       const totpData = data?.totp || {}
       const qrFromServer: string | undefined = totpData.qr_code
       const otpauthUri: string | undefined = totpData.uri
+      const secretFromServer: string | undefined = totpData.secret
 
       if (factorId) {
         setTotpFactor({ id: factorId, factor_type: 'totp', status: 'unverified' })
+      }
+
+      // Parse otpauth URI to extract secret/issuer/label for manual setup
+      function parseOtpAuthUri(uri: string): { secret: string | null; issuer: string | null; label: string | null } {
+        try {
+          const httpUri = uri.replace('otpauth://', 'http://')
+          const url = new URL(httpUri)
+          const params = new URLSearchParams(url.search)
+          const secret = params.get('secret')
+          const issuer = params.get('issuer')
+          const rawPath = url.pathname.replace(/^\//, '')
+          const label = rawPath ? decodeURIComponent(rawPath) : null
+          return { secret, issuer, label }
+        } catch (_) {
+          const secretMatch = uri.match(/secret=([^&]+)/i)
+          const issuerMatch = uri.match(/issuer=([^&]+)/i)
+          const labelMatch = uri.match(/^otpauth:\/\/totp\/([^?]+)/i)
+          return {
+            secret: secretMatch ? decodeURIComponent(secretMatch[1]) : null,
+            issuer: issuerMatch ? decodeURIComponent(issuerMatch[1]) : null,
+            label: labelMatch ? decodeURIComponent(labelMatch[1]) : null,
+          }
+        }
+      }
+
+      if (otpauthUri) {
+        setTotpUri(otpauthUri)
+        const parsed = parseOtpAuthUri(otpauthUri)
+        setTotpSecret(secretFromServer || parsed.secret)
+        setTotpIssuer(parsed.issuer)
+        setTotpLabel(parsed.label)
+      } else {
+        setTotpUri(null)
+        setTotpSecret(secretFromServer || null)
+        setTotpIssuer(null)
+        setTotpLabel(null)
       }
 
       if (qrFromServer) {
@@ -161,6 +206,10 @@ export default function Settings() {
       setTotpEnabled(true)
       setTotpFactor({ ...totpFactor, status: 'verified' })
       setQrImageUrl(null)
+      setTotpUri(null)
+      setTotpSecret(null)
+      setTotpIssuer(null)
+      setTotpLabel(null)
       setVerificationCode('')
     } catch (err: any) {
       console.error('Failed to verify MFA:', err)
@@ -182,6 +231,10 @@ export default function Settings() {
       // ignore cleanup errors
     } finally {
       setQrImageUrl(null)
+      setTotpUri(null)
+      setTotpSecret(null)
+      setTotpIssuer(null)
+      setTotpLabel(null)
       setVerificationCode('')
       setTotpFactor(null)
       setTotpEnabled(false)
@@ -459,6 +512,51 @@ export default function Settings() {
                     <p className="text-sm text-[#64748B] mt-3 text-center">
                       Scanne den QR‑Code mit deiner Authenticator‑App (z. B. Google Authenticator, 1Password, Authy).
                     </p>
+                    <div className="w-full mt-4 p-4 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg">
+                      <p className="text-sm font-semibold text-[#0F172A] mb-2">Manuelle Einrichtung</p>
+                      {totpSecret ? (
+                        <div className="space-y-2">
+                          {totpIssuer || totpLabel ? (
+                            <p className="text-xs text-[#64748B]">
+                              {(totpIssuer && totpLabel) ? `${totpIssuer} – ${totpLabel}` : (totpIssuer || totpLabel)}
+                            </p>
+                          ) : null}
+                          <div className="flex gap-2">
+                            <input
+                              readOnly
+                              value={totpSecret}
+                              className="flex-1 px-3 py-2 border border-[#E2E8F0] rounded font-mono text-sm bg-white"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => { if (totpSecret) navigator.clipboard?.writeText(totpSecret).catch(() => {}) }}
+                              className="px-3 py-2 bg-[#3B82F6] text-white rounded hover:bg-[#2563EB] text-sm"
+                            >
+                              Kopieren
+                            </button>
+                          </div>
+                          <p className="text-xs text-[#64748B]">In deiner Authenticator‑App „Schlüssel eingeben“ wählen. Typ: TOTP, 6 Ziffern, 30s.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <p className="text-xs text-[#64748B]">Falls kein Schlüssel sichtbar ist, kannst du die otpauth‑URI kopieren:</p>
+                          <div className="flex gap-2">
+                            <input
+                              readOnly
+                              value={totpUri ?? ''}
+                              className="flex-1 px-3 py-2 border border-[#E2E8F0] rounded font-mono text-xs bg-white"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => { if (totpUri) navigator.clipboard?.writeText(totpUri).catch(() => {}) }}
+                              className="px-3 py-2 bg-[#3B82F6] text-white rounded hover:bg-[#2563EB] text-sm"
+                            >
+                              Kopieren
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="space-y-3">
                     <label className="block text-sm font-semibold text-[#0F172A]">6‑stelligen Code eingeben</label>
