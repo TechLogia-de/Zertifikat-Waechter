@@ -262,12 +262,20 @@ echo -e "${CYAN}═════════════════════�
 echo ""
 
 cd $APP_DIR/frontend
+
+# Erstelle .env für Frontend-Build (WICHTIG!)
+echo -e "${YELLOW}Erstelle Frontend .env...${NC}"
+cat > .env <<FRONTENDENVEOF
+VITE_SUPABASE_URL=$SUPABASE_URL
+VITE_SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
+FRONTENDENVEOF
+
 echo -e "${YELLOW}Installing npm packages...${NC}"
 npm install --silent --no-progress > /dev/null 2>&1
 echo -e "${YELLOW}Building React app...${NC}"
 npm run build
 
-echo -e "${GREEN}✅ Frontend gebaut${NC}"
+echo -e "${GREEN}✅ Frontend gebaut (mit Supabase-Config)${NC}"
 sleep 1
 
 # =====================================================
