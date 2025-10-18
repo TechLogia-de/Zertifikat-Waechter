@@ -101,10 +101,24 @@ echo -e "${GREEN}✅ Projekt bereit in: $APP_DIR${NC}"
 # Frontend bauen
 echo -e "${YELLOW}[6/9] Baue Frontend...${NC}"
 cd $FRONTEND_DIR
+
+# WICHTIG: Prüfe ob .env existiert (mit VITE_ Variablen)
+if [ ! -f ".env" ] || ! grep -q "VITE_SUPABASE_URL" .env; then
+    echo -e "${YELLOW}⚠️  .env fehlt oder ist leer!${NC}"
+    echo -e "${YELLOW}   Erstelle Frontend .env mit Platzhaltern...${NC}"
+    echo -e "${YELLOW}   WICHTIG: Nach dem Deployment .env mit echten Werten füllen und neu bauen!${NC}"
+    cat > .env <<'PLACEHOLDEREOF'
+# WICHTIG: Trage deine echten Werte ein!
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key-here
+PLACEHOLDEREOF
+fi
+
 npm install
 npm run build
 
 echo -e "${GREEN}✅ Frontend gebaut in: $FRONTEND_DIR/dist${NC}"
+echo -e "${YELLOW}⚠️  Falls .env Platzhalter hatte: Später echte Werte eintragen und neu bauen!${NC}"
 
 # Worker einrichten
 echo -e "${YELLOW}[7/10] Richte Worker ein...${NC}"
