@@ -25,6 +25,9 @@ interface SlackConfig {
 interface WebhookConfig {
   url: string
   secret: string
+  timeout_seconds?: number
+  retry_count?: number
+  validate_ssl?: boolean
 }
 
 export default function Integrations() {
@@ -57,10 +60,12 @@ export default function Integrations() {
   // Webhook State
   const [webhookConfig, setWebhookConfig] = useState<WebhookConfig>({
     url: '',
-    secret: ''
+    secret: '',
+    timeout_seconds: 5,
+    retry_count: 3,
+    validate_ssl: true
   })
 
-  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -99,15 +104,20 @@ export default function Integrations() {
             } else if (integration.type === 'slack' && integration.config) {
               setSlackConfig(integration.config as SlackConfig)
             } else if (integration.type === 'webhook' && integration.config) {
-              setWebhookConfig(integration.config as WebhookConfig)
+              const config = integration.config as any
+              setWebhookConfig({
+                url: config.url || '',
+                secret: config.secret || '',
+                timeout_seconds: config.timeout_seconds || 5,
+                retry_count: config.retry_count || 3,
+                validate_ssl: config.validate_ssl !== undefined ? config.validate_ssl : true
+              })
             }
           })
         }
       }
     } catch (err) {
       console.error('Failed to load integrations:', err)
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -303,6 +313,67 @@ export default function Integrations() {
     }
   }
 
+  // Hilfsfunktion: URL-Validierung (keine privaten IPs erlauben)
+  function validateWebhookUrl(url: string): boolean {
+    try {
+      const parsed = new URL(url)
+      
+      // Nur HTTPS erlauben (außer localhost für Dev)
+      if (parsed.protocol !== 'https:' && !parsed.hostname.includes('localhost')) {
+        throw new Error('Nur HTTPS URLs sind erlaubt (außer localhost)')
+      }
+
+      // Blockiere private IP-Ranges
+      const hostname = parsed.hostname.toLowerCase()
+      const privatePatterns = [
+        /^localhost$/,
+        /^127\./,
+        /^10\./,
+        /^172\.(1[6-9]|2[0-9]|3[0-1])\./,
+        /^192\.168\./,
+        /^169\.254\./,
+        /^::1$/,
+        /^fe80:/,
+        /^fc00:/
+      ]
+
+      // localhost ist OK für Development
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        return true
+      }
+
+      // Blockiere private IPs in Produktion
+      if (privatePatterns.some(pattern => pattern.test(hostname))) {
+        throw new Error('Private IP-Adressen sind nicht erlaubt')
+      }
+
+      return true
+    } catch (err: any) {
+      throw new Error(`Ungültige URL: ${err.message}`)
+    }
+  }
+
+  // Hilfsfunktion: HMAC-SHA256 Signatur berechnen
+  async function generateWebhookSignature(payload: string, secret: string): Promise<string> {
+    const encoder = new TextEncoder()
+    const keyData = encoder.encode(secret)
+    const messageData = encoder.encode(payload)
+
+    const key = await crypto.subtle.importKey(
+      'raw',
+      keyData,
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    )
+
+    const signature = await crypto.subtle.sign('HMAC', key, messageData)
+    const hashArray = Array.from(new Uint8Array(signature))
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+    
+    return hashHex
+  }
+
   async function testWebhookConnection() {
     setError(null)
     setSaving(true)
@@ -312,38 +383,116 @@ export default function Integrations() {
         throw new Error('Bitte gib eine Webhook URL ein')
       }
 
-      setSuccess('🔗 Sende Test-Payload an Webhook...')
+      // URL-Validierung
+      validateWebhookUrl(webhookConfig.url)
+
+      setSuccess('🔗 Validiere Webhook und sende Test-Payload...')
 
       // Sende Test-Payload
       const testPayload = {
         event: 'connection.test',
         tenant_id: tenantId,
-        message: 'Test von Zertifikat-Wächter',
-        timestamp: new Date().toISOString()
+        certificate: null,
+        message: '✅ Webhook-Integration erfolgreich konfiguriert!',
+        timestamp: new Date().toISOString(),
+        test: true
       }
 
-      const response = await fetch(webhookConfig.url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(webhookConfig.secret && {
-            'X-Webhook-Secret': webhookConfig.secret
-          })
-        },
-        body: JSON.stringify(testPayload)
-      })
-
-      if (!response.ok) {
-        throw new Error(`Webhook antwortet mit Status ${response.status}`)
+      const payloadString = JSON.stringify(testPayload)
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'User-Agent': 'Zertifikat-Waechter/1.0',
+        'X-Webhook-Event': 'connection.test'
       }
 
-      setSuccess(`✅ Test-Payload erfolgreich an Webhook gesendet! Status: ${response.status}`)
-      await saveWebhook()
-      setTimeout(() => setSuccess(null), 5000)
+      // HMAC-Signatur hinzufügen wenn Secret vorhanden
+      if (webhookConfig.secret) {
+        const signature = await generateWebhookSignature(payloadString, webhookConfig.secret)
+        headers['X-Webhook-Signature'] = `sha256=${signature}`
+        headers['X-Webhook-Signature-Timestamp'] = new Date().toISOString()
+      }
+
+      // Sende mit Timeout
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), (webhookConfig.timeout_seconds || 5) * 1000)
+
+      try {
+        const response = await fetch(webhookConfig.url, {
+          method: 'POST',
+          headers,
+          body: payloadString,
+          signal: controller.signal
+        })
+
+        clearTimeout(timeoutId)
+
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Keine Details verfügbar')
+          throw new Error(`Webhook antwortete mit Status ${response.status}: ${errorText}`)
+        }
+
+        // Webhook erfolgreich
+        console.log('✅ Webhook test successful:', {
+          url: webhookConfig.url,
+          status: response.status,
+          has_signature: !!webhookConfig.secret
+        })
+
+        setSuccess(`✅ Webhook erfolgreich getestet!\n\n• Status: ${response.status}\n• Signatur: ${webhookConfig.secret ? 'HMAC-SHA256 ✅' : 'Keine'}\n• Timeout: ${webhookConfig.timeout_seconds}s`)
+        await saveWebhook()
+        setTimeout(() => setSuccess(null), 7000)
+
+      } catch (fetchErr: any) {
+        clearTimeout(timeoutId)
+        
+        if (fetchErr.name === 'AbortError') {
+          throw new Error(`Webhook Timeout nach ${webhookConfig.timeout_seconds} Sekunden`)
+        }
+        throw fetchErr
+      }
 
     } catch (err: any) {
-      setError(err.message || 'Webhook-Test fehlgeschlagen')
-      setTimeout(() => setError(null), 5000)
+      // Log Fehler nur in Console
+      console.error('❌ Webhook test failed:', {
+        url: webhookConfig.url,
+        error: err.message
+      })
+
+      let errorMessage = err.message
+
+      // Bessere Fehlermeldungen für häufige Probleme
+      if (err.message.includes('NetworkError') || err.message.includes('Failed to fetch')) {
+        const isLocalhost = webhookConfig.url.includes('localhost')
+        
+        if (isLocalhost) {
+          errorMessage = `❌ Lokaler Webhook-Server nicht erreichbar!\n\n` +
+            `Bitte starte den Test-Server:\n\n` +
+            `1️⃣ Öffne ein Terminal im Projekt-Root\n` +
+            `2️⃣ Führe aus: node test-webhook-server.js\n` +
+            `3️⃣ Warte bis "Test-Webhook-Server gestartet!" erscheint\n` +
+            `4️⃣ Klicke erneut auf "Test senden"\n\n` +
+            `Verwendete URL: ${webhookConfig.url}\n` +
+            `Erwartete URL: http://localhost:3333/webhook`
+        } else {
+          errorMessage = `Verbindung zum Webhook fehlgeschlagen.\n\n` +
+            `Mögliche Ursachen:\n` +
+            `• Webhook-Server läuft nicht oder ist nicht erreichbar\n` +
+            `• Firewall blockiert die Verbindung\n` +
+            `• CORS-Header fehlen auf dem Server\n` +
+            `• URL ist falsch: ${webhookConfig.url}\n\n` +
+            `Prüfe ob der Server läuft:\n` +
+            `curl -X POST ${webhookConfig.url} -d '{"test": true}'`
+        }
+      } else if (err.message.includes('Timeout')) {
+        errorMessage = `Webhook antwortet nicht (Timeout nach ${webhookConfig.timeout_seconds}s).\n\n` +
+          `Mögliche Ursachen:\n` +
+          `• Server ist langsam oder nicht erreichbar\n` +
+          `• Erhöhe den Timeout in den Einstellungen\n` +
+          `• Prüfe Firewall-Regeln`
+      }
+
+      setError(`❌ Webhook-Test fehlgeschlagen:\n\n${errorMessage}`)
+      setTimeout(() => setError(null), 10000)
     } finally {
       setSaving(false)
     }
@@ -653,14 +802,73 @@ export default function Integrations() {
               </div>
               <div>
                 <h2 className="text-xl font-bold text-[#0F172A]">Custom Webhook</h2>
-                <p className="text-sm text-[#64748B]">Verbinde mit deinen eigenen Systemen</p>
+                <p className="text-sm text-[#64748B]">Verbinde mit deinen eigenen Systemen (HMAC-SHA256 signiert)</p>
+              </div>
+            </div>
+
+            {/* Security Info Banner */}
+            <div className="mb-6 bg-[#DBEAFE] border border-[#3B82F6] rounded-lg p-4">
+              <div className="flex items-start">
+                <svg className="w-5 h-5 text-[#3B82F6] mr-3 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                <div className="text-sm text-[#1E40AF]">
+                  <p className="font-semibold mb-1">🔒 Sicherheitshinweise:</p>
+                  <ul className="list-disc list-inside space-y-1 text-xs">
+                    <li>Nur HTTPS URLs erlaubt (außer localhost für Tests)</li>
+                    <li>Private IP-Adressen werden blockiert (10.x, 192.168.x, 172.16-31.x)</li>
+                    <li>HMAC-SHA256 Signatur im Header: <code className="bg-white px-1 rounded">X-Webhook-Signature</code></li>
+                    <li>Secret wird verschlüsselt in der Datenbank gespeichert</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Test Server Hinweis */}
+            <div className="mb-6 bg-[#FEF3C7] border border-[#F59E0B] rounded-lg p-4">
+              <div className="flex items-start">
+                <span className="text-xl mr-3 flex-shrink-0">💡</span>
+                <div className="text-sm text-[#92400E] flex-1">
+                  <p className="font-semibold mb-2">Lokale Tests - Test-Server starten:</p>
+                  
+                  <div className="bg-[#1E293B] rounded p-3 font-mono text-xs text-white mb-3">
+                    <div className="mb-2 text-[#10B981]"># Im Projekt-Root ausführen:</div>
+                    <div>node test-webhook-server.js</div>
+                  </div>
+                  
+                  <div className="mb-3">
+                    <p className="font-semibold mb-1">Dann diese URL verwenden:</p>
+                    <div className="flex items-center gap-2">
+                      <code className="bg-white px-3 py-1.5 rounded font-mono text-sm flex-1">
+                        http://localhost:3333/webhook
+                      </code>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setWebhookConfig({ 
+                            ...webhookConfig, 
+                            url: 'http://localhost:3333/webhook',
+                            secret: 'test-secret-12345'
+                          })
+                        }}
+                        className="px-3 py-1.5 bg-[#3B82F6] text-white rounded text-xs font-semibold hover:bg-[#2563EB] transition-colors whitespace-nowrap"
+                      >
+                        📋 Übernehmen
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <p className="text-xs">
+                    ⚠️ <strong>Wichtig:</strong> Der Test-Server muss laufen, damit der Test funktioniert!
+                  </p>
+                </div>
               </div>
             </div>
 
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-[#0F172A] mb-2">
-                  Webhook URL
+                  Webhook URL *
                 </label>
                 <input
                   type="url"
@@ -669,38 +877,134 @@ export default function Integrations() {
                   placeholder="https://your-api.com/webhook/alerts"
                   className="w-full px-4 py-3 border border-[#E2E8F0] rounded-lg focus:ring-2 focus:ring-[#3B82F6] focus:border-[#3B82F6]"
                 />
+                <p className="text-xs text-[#64748B] mt-1">
+                  Muss HTTPS verwenden (außer localhost für Development)
+                </p>
               </div>
 
               <div>
                 <label className="block text-sm font-semibold text-[#0F172A] mb-2">
-                  Secret (optional)
+                  Secret (empfohlen)
                 </label>
                 <input
                   type="password"
                   value={webhookConfig.secret}
                   onChange={(e) => setWebhookConfig({ ...webhookConfig, secret: e.target.value })}
-                  placeholder="Webhook Signing Secret"
+                  placeholder="Generiere ein starkes Secret (min. 32 Zeichen)"
                   className="w-full px-4 py-3 border border-[#E2E8F0] rounded-lg focus:ring-2 focus:ring-[#3B82F6] focus:border-[#3B82F6]"
                 />
-                <p className="text-xs text-[#64748B] mt-1">
-                  Für HMAC-Signatur-Validierung
-                </p>
+                <div className="flex items-center justify-between mt-2">
+                  <p className="text-xs text-[#64748B]">
+                    Für HMAC-SHA256 Signatur-Validierung
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const randomSecret = Array.from(crypto.getRandomValues(new Uint8Array(32)))
+                        .map(b => b.toString(16).padStart(2, '0'))
+                        .join('')
+                      setWebhookConfig({ ...webhookConfig, secret: randomSecret })
+                    }}
+                    className="text-xs text-[#3B82F6] hover:underline font-medium"
+                  >
+                    🎲 Zufälliges Secret generieren
+                  </button>
+                </div>
               </div>
 
-              {/* Payload Example */}
-              <div className="bg-[#1E293B] rounded-lg p-4">
-                <p className="text-sm font-semibold text-white mb-2">Beispiel Payload:</p>
-                <pre className="text-xs text-[#94A3B8] font-mono overflow-x-auto">
+              {/* Advanced Settings */}
+              <div className="border-t border-[#E2E8F0] pt-4">
+                <h3 className="text-sm font-bold text-[#0F172A] mb-3">⚙️ Erweiterte Einstellungen</h3>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-[#0F172A] mb-2">
+                      Timeout (Sekunden)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="30"
+                      value={webhookConfig.timeout_seconds || 5}
+                      onChange={(e) => setWebhookConfig({ ...webhookConfig, timeout_seconds: parseInt(e.target.value) || 5 })}
+                      className="w-full px-4 py-3 border border-[#E2E8F0] rounded-lg focus:ring-2 focus:ring-[#3B82F6] focus:border-[#3B82F6]"
+                    />
+                    <p className="text-xs text-[#64748B] mt-1">Standard: 5 Sekunden</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-[#0F172A] mb-2">
+                      Retry-Versuche
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="10"
+                      value={webhookConfig.retry_count || 3}
+                      onChange={(e) => setWebhookConfig({ ...webhookConfig, retry_count: parseInt(e.target.value) || 3 })}
+                      className="w-full px-4 py-3 border border-[#E2E8F0] rounded-lg focus:ring-2 focus:ring-[#3B82F6] focus:border-[#3B82F6]"
+                    />
+                    <p className="text-xs text-[#64748B] mt-1">Standard: 3 Versuche</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-3 p-4 bg-[#F8FAFC] rounded-lg mt-4">
+                  <input
+                    type="checkbox"
+                    id="webhook-validate-ssl"
+                    checked={webhookConfig.validate_ssl !== false}
+                    onChange={(e) => setWebhookConfig({ ...webhookConfig, validate_ssl: e.target.checked })}
+                    className="w-5 h-5 text-[#3B82F6] border-[#CBD5E1] rounded focus:ring-[#3B82F6]"
+                  />
+                  <label htmlFor="webhook-validate-ssl" className="text-sm font-medium text-[#0F172A]">
+                    SSL-Zertifikate validieren (empfohlen)
+                  </label>
+                </div>
+              </div>
+
+              {/* Payload Documentation */}
+              <div className="border-t border-[#E2E8F0] pt-4">
+                <h3 className="text-sm font-bold text-[#0F172A] mb-3">📋 Payload Format</h3>
+                
+                <div className="bg-[#1E293B] rounded-lg p-4 mb-3">
+                  <p className="text-sm font-semibold text-white mb-2">Beispiel Payload:</p>
+                  <pre className="text-xs text-[#94A3B8] font-mono overflow-x-auto">
 {`{
   "event": "certificate.expiring",
+  "tenant_id": "uuid",
   "certificate": {
+    "id": "uuid",
     "subject_cn": "example.com",
+    "issuer": "Let's Encrypt",
     "expires_at": "2025-12-31T23:59:59Z",
-    "days_left": 14
+    "days_left": 14,
+    "fingerprint": "sha256:abcd..."
   },
-  "severity": "warning"
+  "severity": "warning",
+  "timestamp": "2025-10-18T12:00:00Z"
 }`}
-                </pre>
+                  </pre>
+                </div>
+
+                <div className="bg-[#1E293B] rounded-lg p-4">
+                  <p className="text-sm font-semibold text-white mb-2">Headers:</p>
+                  <pre className="text-xs text-[#94A3B8] font-mono">
+{`Content-Type: application/json
+User-Agent: Zertifikat-Waechter/1.0
+X-Webhook-Event: certificate.expiring
+X-Webhook-Signature: sha256=<hmac_hex>
+X-Webhook-Signature-Timestamp: 2025-10-18T12:00:00Z`}
+                  </pre>
+                </div>
+
+                <div className="mt-3 text-xs text-[#64748B] bg-[#F8FAFC] p-3 rounded-lg">
+                  <p className="font-semibold mb-2">🔐 Signatur verifizieren (Pseudocode):</p>
+                  <code className="block text-[#0F172A] font-mono">
+                    expected_sig = hmac_sha256(secret, request_body)<br />
+                    received_sig = request.headers['X-Webhook-Signature'].split('=')[1]<br />
+                    if expected_sig == received_sig: # ✅ Valid
+                  </code>
+                </div>
               </div>
 
               <div className="flex space-x-3 pt-4">
@@ -716,7 +1020,7 @@ export default function Integrations() {
                   disabled={saving}
                   className="px-6 py-3 bg-[#10B981] text-white rounded-lg font-semibold hover:bg-[#059669] disabled:opacity-50 transition-colors"
                 >
-                  {saving ? '⏳ Teste...' : '🔗 Test-Payload'}
+                  {saving ? '⏳ Teste...' : '🔗 Test senden'}
                 </button>
               </div>
             </div>

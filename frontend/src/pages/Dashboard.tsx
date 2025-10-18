@@ -14,6 +14,10 @@ interface Stats {
   totalAgents: number
   hostsDiscovered: number
   servicesFound: number
+  acmeAccounts: number
+  acmeOrders: number
+  acmeActive: number
+  acmePending: number
 }
 
 interface RecentCertificate {
@@ -37,7 +41,11 @@ export default function Dashboard() {
     activeAgents: 0,
     totalAgents: 0,
     hostsDiscovered: 0,
-    servicesFound: 0
+    servicesFound: 0,
+    acmeAccounts: 0,
+    acmeOrders: 0,
+    acmeActive: 0,
+    acmePending: 0
   })
   const [tenantName, setTenantName] = useState<string>('')
   const [tenantId, setTenantId] = useState<string>('')
@@ -128,6 +136,29 @@ export default function Dashboard() {
           return sum + (result.services?.length || 0)
         }, 0) || 0
 
+        // Get ACME stats
+        const { count: acmeAccountsCount } = await supabase
+          .from('acme_accounts')
+          .select('*', { count: 'exact', head: true })
+          .eq('tenant_id', tenantId)
+
+        const { count: acmeOrdersCount } = await supabase
+          .from('acme_orders')
+          .select('*', { count: 'exact', head: true })
+          .eq('tenant_id', tenantId)
+
+        const { count: acmeActiveCount } = await supabase
+          .from('acme_orders')
+          .select('*', { count: 'exact', head: true })
+          .eq('tenant_id', tenantId)
+          .in('status', ['valid', 'processing'])
+
+        const { count: acmePendingCount } = await supabase
+          .from('acme_orders')
+          .select('*', { count: 'exact', head: true })
+          .eq('tenant_id', tenantId)
+          .eq('status', 'pending')
+
         setStats({
           totalCertificates: totalCount || 0,
           expiringSoon: expiringCount || 0,
@@ -136,7 +167,11 @@ export default function Dashboard() {
           activeAgents,
           totalAgents,
           hostsDiscovered,
-          servicesFound
+          servicesFound,
+          acmeAccounts: acmeAccountsCount || 0,
+          acmeOrders: acmeOrdersCount || 0,
+          acmeActive: acmeActiveCount || 0,
+          acmePending: acmePendingCount || 0
         })
 
         // Get recent certificates
@@ -165,22 +200,34 @@ export default function Dashboard() {
   return (
     <div className="flex flex-col h-full bg-[#F8FAFC]">
       {/* Page Header - FIXIERT */}
-      <div className="flex-shrink-0 bg-white border-b border-[#E2E8F0] px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+      <div className="flex-shrink-0 bg-gradient-to-r from-[#1E293B] to-[#334155] border-b-4 border-[#3B82F6] px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-[#0F172A]">Dashboard</h1>
+            <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">
+              Dashboard 📊
+            </h1>
             {tenantName && (
-              <p className="text-[#64748B] mt-1 flex flex-wrap items-center gap-2">
-                <span className="text-sm sm:text-base">Organisation:</span>
-                <span className="px-2 sm:px-3 py-1 bg-[#DBEAFE] text-[#1E40AF] rounded-lg text-xs sm:text-sm font-medium">
-                  {tenantName}
-                </span>
-              </p>
+              <div className="flex items-center gap-2 text-white/80">
+                <span className="text-sm">🏢</span>
+                <span className="text-sm sm:text-base font-medium">{tenantName}</span>
+              </div>
             )}
           </div>
-          <div className="text-left sm:text-right">
-            <p className="text-sm font-medium text-[#0F172A] truncate">{user?.email}</p>
-            <p className="text-xs text-[#64748B]">Administrator</p>
+          <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 border border-white/20">
+            <div className="w-10 h-10 bg-gradient-to-br from-[#3B82F6] to-[#8B5CF6] rounded-full flex items-center justify-center text-white font-bold text-lg">
+              {user?.email?.charAt(0).toUpperCase()}
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-semibold text-white truncate max-w-[200px]">
+                {user?.user_metadata?.full_name || user?.email?.split('@')[0]}
+              </p>
+              <p className="text-xs text-white/70 flex items-center gap-1">
+                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                </svg>
+                Administrator
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -188,14 +235,19 @@ export default function Dashboard() {
       {/* Main Content - SCROLLBAR */}
       <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {/* Welcome Section */}
-        <div className="mb-6 sm:mb-8">
-          <h2 className="text-2xl sm:text-3xl font-bold text-[#0F172A] mb-2">
-            Willkommen zurück! 👋
-          </h2>
-          <p className="text-sm sm:text-base text-[#64748B]">
-            Zentrale Übersicht aller SSL/TLS-Zertifikate, Agents und Netzwerk-Discovery.
-            Alle Daten werden in Echtzeit aktualisiert.
-          </p>
+        <div className="bg-gradient-to-r from-[#DBEAFE] via-[#E0E7FF] to-[#DDD6FE] rounded-2xl p-6 sm:p-8 mb-6 sm:mb-8 border-2 border-[#3B82F6]/20 shadow-lg">
+          <div className="flex items-center gap-4 mb-3">
+            <div className="text-5xl">👋</div>
+            <div>
+              <h2 className="text-2xl sm:text-3xl font-bold text-[#1E40AF]">
+                Willkommen zurück, {user?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0]}!
+              </h2>
+              <p className="text-sm sm:text-base text-[#1E3A8A] mt-1">
+                Zentrale Übersicht aller SSL/TLS-Zertifikate, Agents und ACME Auto-Renewals. 
+                Alle Daten werden in Echtzeit aktualisiert.
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Stats Cards */}
@@ -305,6 +357,77 @@ export default function Dashboard() {
           </Link>
         </div>
 
+        {/* ACME Auto-Renewal Section */}
+        {stats.acmeAccounts > 0 && (
+          <div className="mb-6 sm:mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg sm:text-xl font-bold text-[#0F172A] flex items-center gap-2">
+                <span>🔄</span>
+                <span>ACME Auto-Renewal</span>
+              </h3>
+              <Link 
+                to="/acme"
+                className="text-sm text-[#3B82F6] hover:text-[#2563EB] font-medium flex items-center gap-1"
+              >
+                Details anzeigen
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+              {/* ACME Accounts */}
+              <div className="bg-gradient-to-br from-[#D1FAE5] to-[#DCFCE7] rounded-xl border-2 border-[#10B981] p-4 sm:p-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-2xl">🔑</span>
+                  <p className="text-xs font-semibold text-[#065F46]">Accounts</p>
+                </div>
+                <p className="text-3xl sm:text-4xl font-bold text-[#065F46]">
+                  {stats.acmeAccounts}
+                </p>
+                <p className="text-xs text-[#047857] mt-1">Let's Encrypt & Co.</p>
+              </div>
+
+              {/* Total Orders */}
+              <div className="bg-white rounded-xl border-2 border-[#E2E8F0] p-4 sm:p-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-2xl">📋</span>
+                  <p className="text-xs font-semibold text-[#64748B]">Renewal Orders</p>
+                </div>
+                <p className="text-3xl sm:text-4xl font-bold text-[#0F172A]">
+                  {stats.acmeOrders}
+                </p>
+                <p className="text-xs text-[#64748B] mt-1">Gesamt</p>
+              </div>
+
+              {/* Active Orders */}
+              <div className="bg-gradient-to-br from-[#DBEAFE] to-[#E0E7FF] rounded-xl border-2 border-[#3B82F6] p-4 sm:p-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-2xl">✅</span>
+                  <p className="text-xs font-semibold text-[#1E40AF]">Aktiv</p>
+                </div>
+                <p className="text-3xl sm:text-4xl font-bold text-[#1E40AF]">
+                  {stats.acmeActive}
+                </p>
+                <p className="text-xs text-[#1E3A8A] mt-1">Gültig & Processing</p>
+              </div>
+
+              {/* Pending Orders */}
+              <div className="bg-gradient-to-br from-[#FEF3C7] to-[#FED7AA] rounded-xl border-2 border-[#F59E0B] p-4 sm:p-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-2xl">⏳</span>
+                  <p className="text-xs font-semibold text-[#92400E]">Ausstehend</p>
+                </div>
+                <p className="text-3xl sm:text-4xl font-bold text-[#92400E]">
+                  {stats.acmePending}
+                </p>
+                <p className="text-xs text-[#78350F] mt-1">In Bearbeitung</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Quick Actions */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
           {/* Quick Actions Card */}
@@ -360,6 +483,36 @@ export default function Dashboard() {
                     </svg>
                   </div>
                   <span className="font-medium text-[#0F172A]">Alerts ansehen</span>
+                </div>
+                <svg className="w-5 h-5 text-[#64748B]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
+
+              <Link 
+                to="/acme"
+                className="w-full flex items-center justify-between p-4 bg-[#F8FAFC] hover:bg-[#F1F5F9] rounded-lg transition-colors group cursor-pointer"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-[#D1FAE5] rounded-lg group-hover:bg-[#10B981] transition-colors">
+                    <span className="text-xl text-[#10B981] group-hover:text-white">🔄</span>
+                  </div>
+                  <span className="font-medium text-[#0F172A]">ACME Auto-Renewal</span>
+                </div>
+                <svg className="w-5 h-5 text-[#64748B]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
+
+              <Link 
+                to="/profile"
+                className="w-full flex items-center justify-between p-4 bg-[#F8FAFC] hover:bg-[#F1F5F9] rounded-lg transition-colors group cursor-pointer"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-[#E0E7FF] rounded-lg group-hover:bg-[#6366F1] transition-colors">
+                    <span className="text-xl text-[#6366F1] group-hover:text-white">👤</span>
+                  </div>
+                  <span className="font-medium text-[#0F172A]">Mein Profil</span>
                 </div>
                 <svg className="w-5 h-5 text-[#64748B]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

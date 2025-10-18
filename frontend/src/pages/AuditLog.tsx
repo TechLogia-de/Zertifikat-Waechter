@@ -22,10 +22,18 @@ export default function AuditLog() {
   const [tenantId, setTenantId] = useState<string>('')
   const [filter, setFilter] = useState<string>('all')
   const [searchTerm, setSearchTerm] = useState('')
+  const [showOnlyBroken, setShowOnlyBroken] = useState(false)
+  const [brokenEvents, setBrokenEvents] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     loadEvents()
   }, [user, filter])
+
+  useEffect(() => {
+    if (events.length > 0) {
+      verifyHashChain(events)
+    }
+  }, [events])
 
   async function loadEvents() {
     if (!user) return
@@ -70,14 +78,25 @@ export default function AuditLog() {
     if (type.startsWith('user.')) return '👤'
     if (type.startsWith('scan.')) return '🔍'
     if (type.startsWith('integration.')) return '🔗'
+    if (type.startsWith('acme.')) return '🔄'
+    if (type.startsWith('ssl_health.')) return '🔐'
+    if (type.startsWith('compliance.')) return '✅'
+    if (type.startsWith('api_key.')) return '🔑'
+    if (type.startsWith('notification_rule.')) return '📢'
+    if (type.startsWith('tag.')) return '🏷️'
+    if (type.startsWith('auto_remediation.')) return '🤖'
+    if (type.startsWith('report.')) return '📄'
+    if (type.startsWith('settings.')) return '⚙️'
+    if (type.startsWith('policy.')) return '📋'
     return '📝'
   }
 
   function getEventColor(type: string): string {
-    if (type.includes('error') || type.includes('expired')) return '#EF4444'
-    if (type.includes('warning')) return '#F59E0B'
-    if (type.includes('success') || type.includes('created')) return '#10B981'
-    return '#3B82F6'
+    if (type.includes('error') || type.includes('failed') || type.includes('expired') || type.includes('revoked') || type.includes('deleted')) return '#EF4444'
+    if (type.includes('warning') || type.includes('violation')) return '#F59E0B'
+    if (type.includes('success') || type.includes('created') || type.includes('completed') || type.includes('passed')) return '#10B981'
+    if (type.includes('started') || type.includes('processing')) return '#3B82F6'
+    return '#6B7280'
   }
 
   function formatEventType(type: string): string {
@@ -88,28 +107,49 @@ export default function AuditLog() {
   }
 
   function verifyHashChain(events: Event[]): boolean {
+    const broken = new Set<string>()
+    
     for (let i = events.length - 1; i > 0; i--) {
       const currentEvent = events[i]
       const nextEvent = events[i - 1]
       
       if (nextEvent.prev_hash !== currentEvent.hash) {
         console.warn(`Hash chain broken at event ${nextEvent.id}`)
-        return false
+        broken.add(nextEvent.id)
       }
     }
-    return true
+    
+    setBrokenEvents(broken)
+    return broken.size === 0
+  }
+
+  function isEventHashValid(event: Event, index: number): boolean {
+    if (index === events.length - 1) return true // Letztes Event hat keinen Vorgänger
+    const prevEvent = events[index + 1]
+    return event.prev_hash === prevEvent.hash
   }
 
   const filteredEvents = events.filter(event => {
-    if (!searchTerm) return true
-    const searchLower = searchTerm.toLowerCase()
-    return (
-      event.type.toLowerCase().includes(searchLower) ||
-      JSON.stringify(event.payload).toLowerCase().includes(searchLower)
-    )
+    // Filter: Nur kaputte Hash-Chain
+    if (showOnlyBroken && !brokenEvents.has(event.id)) {
+      return false
+    }
+
+    // Filter: Suchbegriff
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase()
+      if (!(
+        event.type.toLowerCase().includes(searchLower) ||
+        JSON.stringify(event.payload).toLowerCase().includes(searchLower)
+      )) {
+        return false
+      }
+    }
+
+    return true
   })
 
-  const isChainValid = verifyHashChain(events)
+  const isChainValid = brokenEvents.size === 0
 
   return (
     <div className="flex flex-col h-full bg-[#F8FAFC]">
@@ -128,7 +168,7 @@ export default function AuditLog() {
                 ? 'bg-[#D1FAE5] text-[#065F46]' 
                 : 'bg-[#FEE2E2] text-[#991B1B]'
             }`}>
-              {isChainValid ? '✓ Hash-Kette valide' : '✗ Hash-Kette beschädigt'}
+              {isChainValid ? '✓ Hash-Kette valide' : `✗ ${brokenEvents.size} Event(s) ungültig`}
             </div>
             <button
               onClick={() => {
@@ -178,17 +218,64 @@ export default function AuditLog() {
                 className="w-full px-4 py-2 border border-[#E2E8F0] rounded-lg focus:outline-none focus:border-[#3B82F6] text-sm"
               >
                 <option value="all">Alle Events</option>
-                <option value="certificate">Zertifikate</option>
-                <option value="connector">Agents</option>
-                <option value="discovery">Network Discovery</option>
-                <option value="alert">Alerts</option>
-                <option value="user">Benutzer</option>
-                <option value="scan">Scans</option>
-                <option value="integration">Integrationen</option>
+                <option value="certificate">🔐 Zertifikate</option>
+                <option value="ssl_health">🔐 SSL Health Checks</option>
+                <option value="compliance">✅ Compliance</option>
+                <option value="auto_remediation">🤖 Auto-Remediation</option>
+                <option value="alert">🔔 Alerts</option>
+                <option value="notification_rule">📢 Notification Rules</option>
+                <option value="api_key">🔑 API Keys</option>
+                <option value="tag">🏷️ Tags</option>
+                <option value="connector">🤖 Agents</option>
+                <option value="discovery">🌐 Network Discovery</option>
+                <option value="acme">🔄 ACME Auto-Renewal</option>
+                <option value="scan">🔍 Scans</option>
+                <option value="integration">🔗 Integrationen</option>
+                <option value="report">📄 Reports</option>
+                <option value="settings">⚙️ Einstellungen</option>
+                <option value="policy">📋 Policies</option>
+                <option value="user">👤 Benutzer</option>
               </select>
             </div>
           </div>
+
+          {/* Additional Filters */}
+          <div className="mt-4 flex flex-wrap gap-3">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showOnlyBroken}
+                onChange={(e) => setShowOnlyBroken(e.target.checked)}
+                className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+              />
+              <span className="text-sm text-gray-700">
+                ⚠️ Nur Events mit Hash-Problemen anzeigen
+              </span>
+            </label>
+          </div>
         </div>
+
+        {/* Broken Hash Warning */}
+        {brokenEvents.size > 0 && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <span className="text-red-600 text-xl">⚠️</span>
+              <div>
+                <h3 className="font-semibold text-red-900 mb-1">Hash-Kette beschädigt!</h3>
+                <p className="text-sm text-red-800 mb-2">
+                  {brokenEvents.size} Event{brokenEvents.size > 1 ? 's' : ''} mit ungültiger Hash-Verkettung gefunden.
+                  Dies könnte auf Manipulation oder Datenbank-Inkonsistenz hinweisen.
+                </p>
+                <button
+                  onClick={() => setShowOnlyBroken(true)}
+                  className="text-sm text-red-600 hover:text-red-700 font-medium underline"
+                >
+                  Nur betroffene Events anzeigen
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Events List */}
         {loading ? (
@@ -246,6 +333,11 @@ export default function AuditLog() {
                           <code className="bg-[#F1F5F9] px-2 py-1 rounded text-[#334155] font-mono break-all">
                             {event.hash.substring(0, 16)}...
                           </code>
+                          {brokenEvents.has(event.id) && (
+                            <span className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-semibold">
+                              ⚠️ Hash ungültig
+                            </span>
+                          )}
                         </div>
                         {index < filteredEvents.length - 1 && (
                           <div className="flex items-center gap-2">
@@ -253,10 +345,10 @@ export default function AuditLog() {
                             <code className="bg-[#F1F5F9] px-2 py-1 rounded text-[#334155] font-mono break-all">
                               {event.prev_hash.substring(0, 16)}...
                             </code>
-                            {event.prev_hash === filteredEvents[index + 1].hash ? (
-                              <span className="text-[#10B981]">✓</span>
+                            {isEventHashValid(event, index) ? (
+                              <span className="text-[#10B981] font-bold">✓ Valid</span>
                             ) : (
-                              <span className="text-[#EF4444]">✗</span>
+                              <span className="text-[#EF4444] font-bold">✗ Ungültig</span>
                             )}
                           </div>
                         )}
@@ -302,4 +394,5 @@ export default function AuditLog() {
     </div>
   )
 }
+
 

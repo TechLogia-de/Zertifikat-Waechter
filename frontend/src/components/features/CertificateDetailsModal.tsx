@@ -85,9 +85,6 @@ export default function CertificateDetailsModal({
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
                 <h3 className="text-2xl font-bold text-[#0F172A]">{host}</h3>
-                <Badge variant="success" size="sm" icon="✓">
-                  Echte Daten
-                </Badge>
               </div>
               <p className="text-[#64748B]">Port {port} • HTTPS</p>
             </div>

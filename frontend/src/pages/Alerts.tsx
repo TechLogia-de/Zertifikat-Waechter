@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
 import LoadingState from '../components/ui/LoadingState'
+import NotificationRules from './NotificationRules'
 
 interface Alert {
   id: string
@@ -24,6 +25,7 @@ export default function Alerts() {
   const { user } = useAuth()
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState<'alerts' | 'rules'>('alerts')
 
   useEffect(() => {
     loadAlerts()
@@ -97,10 +99,34 @@ export default function Alerts() {
       <div className="flex-shrink-0 bg-white border-b border-[#E2E8F0] px-4 md:px-8 py-4 md:py-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-[#0F172A]">Alerts</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-[#0F172A]">Alerts & Regeln</h1>
             <p className="text-sm md:text-base text-[#64748B] mt-1">
               Ablauf-Warnungen • Multi-Channel-Benachrichtigungen (Email, Slack, Webhook) • Quittierung
             </p>
+            
+            {/* Tabs */}
+            <div className="flex gap-4 mt-4 border-b border-gray-200">
+              <button
+                onClick={() => setActiveTab('alerts')}
+                className={`pb-2 px-1 font-medium text-sm transition-colors ${
+                  activeTab === 'alerts'
+                    ? 'border-b-2 border-blue-600 text-blue-600'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                🔔 Aktive Alerts
+              </button>
+              <button
+                onClick={() => setActiveTab('rules')}
+                className={`pb-2 px-1 font-medium text-sm transition-colors ${
+                  activeTab === 'rules'
+                    ? 'border-b-2 border-blue-600 text-blue-600'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                📢 Benachrichtigungsregeln
+              </button>
+            </div>
           </div>
           <Link 
             to="/settings"
@@ -113,7 +139,9 @@ export default function Alerts() {
 
       {/* Content - SCROLLBAR */}
       <main className="flex-1 overflow-y-auto px-4 md:px-8 py-6 md:py-8">
-        {loading ? (
+        {activeTab === 'rules' ? (
+          <NotificationRules />
+        ) : loading ? (
           <div className="py-12">
             <LoadingState size="md" text="Lade Alerts..." />
           </div>

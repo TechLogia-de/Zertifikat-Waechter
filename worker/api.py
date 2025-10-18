@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 import hashlib
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
+from urllib.parse import urlparse
 
 load_dotenv()
 
@@ -100,6 +101,9 @@ def scan_certificate():
                 'error': 'Host parameter fehlt'
             }), 400
 
+        # ✅ URL-Parsing: Entferne Protokoll und Pfad
+        host = parse_hostname(host)
+        
         print(f"🔍 Scanning certificate for {host}:{port}...")
 
         # TLS-Verbindung aufbauen und Zertifikat abrufen
@@ -116,6 +120,34 @@ def scan_certificate():
             'success': False,
             'error': str(e)
         }), 500
+
+
+def parse_hostname(host: str) -> str:
+    """
+    Extrahiert den Hostnamen aus einer URL oder gibt den Host direkt zurück
+    
+    Beispiele:
+        https://example.com/path -> example.com
+        http://example.com:8080 -> example.com
+        example.com -> example.com
+    """
+    # Entferne Whitespace
+    host = host.strip()
+    
+    # Wenn es wie eine URL aussieht (mit Protokoll)
+    if '://' in host:
+        parsed = urlparse(host)
+        return parsed.hostname or parsed.netloc.split(':')[0]
+    
+    # Entferne Pfad wenn vorhanden
+    if '/' in host:
+        host = host.split('/')[0]
+    
+    # Entferne Port wenn vorhanden
+    if ':' in host:
+        host = host.split(':')[0]
+    
+    return host
 
 
 def get_certificate(hostname, port=443, timeout=10):
