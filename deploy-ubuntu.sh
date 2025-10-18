@@ -238,19 +238,27 @@ nginx -t
 # Systemd Services erstellen
 echo -e "${YELLOW}[9/9] Erstelle Systemd Services...${NC}"
 
-# Worker Service
+# Worker Service mit Gunicorn (Production WSGI Server)
 cat > /etc/systemd/system/zertifikat-waechter-worker.service <<EOF
 [Unit]
 Description=Zertifikat-Wächter Worker API
 After=network.target
 
 [Service]
-Type=simple
+Type=notify
 User=www-data
 WorkingDirectory=$WORKER_DIR
 Environment="PATH=$VENV_DIR/bin"
 EnvironmentFile=$APP_DIR/.env.production
-ExecStart=$VENV_DIR/bin/python api.py
+ExecStart=$VENV_DIR/bin/gunicorn \\
+    --bind 127.0.0.1:5000 \\
+    --workers 4 \\
+    --threads 2 \\
+    --timeout 60 \\
+    --access-logfile /var/log/zertifikat-waechter/gunicorn-access.log \\
+    --error-logfile /var/log/zertifikat-waechter/gunicorn-error.log \\
+    --log-level info \\
+    api:app
 
 # Restart Policy
 Restart=always

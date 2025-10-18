@@ -450,12 +450,20 @@ Description=Zertifikat-Wächter Worker API
 After=network.target
 
 [Service]
-Type=simple
+Type=notify
 User=www-data
 WorkingDirectory=$APP_DIR/worker
 Environment="PATH=$APP_DIR/worker/venv/bin"
 EnvironmentFile=$APP_DIR/.env.production
-ExecStart=$APP_DIR/worker/venv/bin/python api.py
+ExecStart=$APP_DIR/worker/venv/bin/gunicorn \\
+    --bind 127.0.0.1:5000 \\
+    --workers $WORKER_COUNT \\
+    --threads 2 \\
+    --timeout 60 \\
+    --access-logfile /var/log/zertifikat-waechter/gunicorn-access.log \\
+    --error-logfile /var/log/zertifikat-waechter/gunicorn-error.log \\
+    --log-level info \\
+    api:app
 
 # Restart Policy
 Restart=always
