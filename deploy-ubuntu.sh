@@ -122,13 +122,13 @@ pip install -r requirements.txt
 echo -e "${GREEN}✅ Worker eingerichtet${NC}"
 
 # Nginx konfigurieren
-echo -e "${YELLOW}[8/10] Konfiguriere Nginx...${NC}"
-cat > /etc/nginx/sites-available/zertifikat-waechter <<'EOF'
+echo -e "${YELLOW}[8/9] Konfiguriere Nginx...${NC}"
+cat > /etc/nginx/sites-available/zertifikat-waechter <<EOF
 # Zertifikat-Wächter Nginx Configuration
 
 # Rate Limiting
-limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;
-limit_req_zone $binary_remote_addr zone=general_limit:10m rate=100r/s;
+limit_req_zone \$binary_remote_addr zone=api_limit:10m rate=10r/s;
+limit_req_zone \$binary_remote_addr zone=general_limit:10m rate=100r/s;
 
 upstream worker_api {
     server 127.0.0.1:5000;
@@ -188,7 +188,7 @@ server {
 
     # SPA Routing
     location / {
-        try_files $uri $uri/ /index.html;
+        try_files \$uri \$uri/ /index.html;
         limit_req zone=general_limit burst=20 nodelay;
     }
 
@@ -199,10 +199,10 @@ server {
         proxy_pass http://worker_api/;
         proxy_http_version 1.1;
         
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
         
         # Timeouts
         proxy_connect_timeout 30s;
@@ -242,7 +242,7 @@ rm -f /etc/nginx/sites-enabled/default
 nginx -t
 
 # Systemd Services erstellen
-echo -e "${YELLOW}[9/10] Erstelle Systemd Services...${NC}"
+echo -e "${YELLOW}[9/9] Erstelle Systemd Services...${NC}"
 
 # Worker Service
 cat > /etc/systemd/system/zertifikat-waechter-worker.service <<EOF
