@@ -61,28 +61,45 @@ if [ "$NODE_VERSION" -lt 18 ]; then
     apt install -y nodejs
 fi
 
-# App-Verzeichnis erstellen
-echo -e "${YELLOW}[5/9] Lade Projekt von GitHub...${NC}"
+# App-Verzeichnis vorbereiten
+echo -e "${YELLOW}[5/9] Prüfe Projekt-Verzeichnis...${NC}"
 
-# Prüfe ob Verzeichnis bereits existiert
-if [ -d "$APP_DIR" ]; then
-    echo -e "${YELLOW}Verzeichnis existiert bereits. Aktualisiere...${NC}"
-    cd $APP_DIR
-    git pull
+# Prüfe ob Script bereits im Projekt-Verzeichnis ausgeführt wird
+CURRENT_DIR=$(pwd)
+if [ -f "$CURRENT_DIR/deploy-ubuntu.sh" ] && [ -d "$CURRENT_DIR/frontend" ]; then
+    echo -e "${GREEN}✅ Script wird im Projekt-Verzeichnis ausgeführt${NC}"
+    
+    # Wenn nicht in /opt, dann kopieren/verschieben
+    if [ "$CURRENT_DIR" != "$APP_DIR" ]; then
+        echo -e "${YELLOW}Kopiere Projekt nach $APP_DIR...${NC}"
+        mkdir -p /opt
+        cp -r "$CURRENT_DIR" "$APP_DIR"
+        cd $APP_DIR
+    fi
+    
+    # Aktualisiere von Git falls möglich
+    if [ -d ".git" ]; then
+        echo -e "${YELLOW}Aktualisiere von Git...${NC}"
+        git pull || echo -e "${YELLOW}Git pull fehlgeschlagen, nutze lokale Version${NC}"
+    fi
 else
-    echo -e "${YELLOW}Clone Projekt von GitHub...${NC}"
-    cd /opt
-    git clone https://github.com/TechLogia-de/Zertifikat-Waechter.git zertifikat-waechter
-    cd $APP_DIR
+    # Script wird NICHT im Projekt ausgeführt
+    if [ -d "$APP_DIR" ]; then
+        echo -e "${YELLOW}Projekt existiert bereits in $APP_DIR. Aktualisiere...${NC}"
+        cd $APP_DIR
+        git pull
+    else
+        echo -e "${YELLOW}Clone Projekt von GitHub...${NC}"
+        cd /opt
+        git clone https://github.com/TechLogia-de/Zertifikat-Waechter.git zertifikat-waechter
+        cd $APP_DIR
+    fi
 fi
 
-echo -e "${GREEN}✅ Projekt geladen${NC}"
-
-# Optional: Zu einem bestimmten Branch/Tag wechseln
-# git checkout main
+echo -e "${GREEN}✅ Projekt bereit in: $APP_DIR${NC}"
 
 # Frontend bauen
-echo -e "${YELLOW}[6/10] Baue Frontend...${NC}"
+echo -e "${YELLOW}[6/9] Baue Frontend...${NC}"
 cd $FRONTEND_DIR
 npm install
 npm run build

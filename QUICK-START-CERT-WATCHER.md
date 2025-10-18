@@ -7,7 +7,7 @@
 - ✅ Domain: **cert-watcher.de** (bereits registriert)
 - ✅ Server-IP-Adresse notiert
 
-## 📋 Deployment in 5 Schritten
+## 📋 Deployment in 4 Schritten
 
 ### Schritt 1: DNS konfigurieren
 
@@ -33,13 +33,7 @@ nslookup cert-watcher.de
 # Sollte deine Server-IP anzeigen
 ```
 
-### Schritt 2: Projekt auf Server laden
-
-**Auf lokalem Rechner (Windows):**
-```powershell
-# Via Git clonen auf Server
-ssh root@<DEINE-SERVER-IP>
-```
+### Schritt 2: Projekt auf Server laden & Deploy starten
 
 **Auf dem Server:**
 ```bash
@@ -51,13 +45,15 @@ cd zertifikat-waechter
 # Scripts ausführbar machen
 chmod +x deploy-ubuntu.sh
 chmod +x start-production.sh
-```
 
-### Schritt 3: Deploy-Script ausführen
-
-```bash
+# Deploy direkt starten
 sudo ./deploy-ubuntu.sh
 ```
+
+**Das Script erkennt automatisch:**
+- ✅ Wird im Projekt-Verzeichnis ausgeführt → Nutzt aktuelles Verzeichnis
+- ✅ Projekt ist bereits in `/opt/zertifikat-waechter` → Aktualisiert es
+- ✅ Projekt existiert nicht → Klont von GitHub
 
 **Das Script installiert:**
 - ✅ Nginx Webserver
@@ -69,7 +65,7 @@ sudo ./deploy-ubuntu.sh
 
 **Dauer:** ca. 5-10 Minuten
 
-### Schritt 4: Environment Variables
+### Schritt 3: Environment Variables
 
 ```bash
 # Kopiere Template
@@ -109,7 +105,7 @@ LOG_LEVEL=INFO
 
 **Speichern:** Ctrl+O, Enter, Ctrl+X
 
-### Schritt 5: SSL & Services starten
+### Schritt 4: SSL & Services starten
 
 ```bash
 # Prüfe DNS (muss funktionieren!)
