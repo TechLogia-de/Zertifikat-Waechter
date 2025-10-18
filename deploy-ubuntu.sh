@@ -25,21 +25,21 @@ FRONTEND_DIR="$APP_DIR/frontend"
 WORKER_DIR="$APP_DIR/worker"
 VENV_DIR="$WORKER_DIR/venv"
 USER="www-data"
-DOMAIN="your-domain.com"  # ← Anpassen!
+DOMAIN="cert-watcher.de"
 
-echo -e "${YELLOW}[1/10] Prüfe Voraussetzungen...${NC}"
+echo -e "${YELLOW}[1/9] Prüfe Voraussetzungen...${NC}"
 if [ "$EUID" -ne 0 ]; then 
     echo -e "${RED}Bitte als root ausführen: sudo ./deploy-ubuntu.sh${NC}"
     exit 1
 fi
 
 # System Update
-echo -e "${YELLOW}[2/10] System Update...${NC}"
+echo -e "${YELLOW}[2/9] System Update...${NC}"
 apt update
 apt upgrade -y
 
 # Dependencies installieren
-echo -e "${YELLOW}[3/10] Installiere Dependencies...${NC}"
+echo -e "${YELLOW}[3/9] Installiere Dependencies...${NC}"
 apt install -y \
     nginx \
     python3 \
@@ -53,7 +53,7 @@ apt install -y \
     python3-certbot-nginx
 
 # Node.js auf neueste LTS Version updaten (falls nötig)
-echo -e "${YELLOW}[4/10] Prüfe Node.js Version...${NC}"
+echo -e "${YELLOW}[4/9] Prüfe Node.js Version...${NC}"
 NODE_VERSION=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
 if [ "$NODE_VERSION" -lt 18 ]; then
     echo "Installiere Node.js 20 LTS..."
@@ -62,17 +62,27 @@ if [ "$NODE_VERSION" -lt 18 ]; then
 fi
 
 # App-Verzeichnis erstellen
-echo -e "${YELLOW}[5/10] Erstelle App-Verzeichnis...${NC}"
-mkdir -p $APP_DIR
-cd $APP_DIR
+echo -e "${YELLOW}[5/9] Lade Projekt von GitHub...${NC}"
 
-# Projekt kopieren (angenommen es ist bereits hier)
-echo -e "${YELLOW}[6/10] Kopiere Projekt-Dateien...${NC}"
-# Wenn du Git verwendest:
-# git clone https://github.com/yourusername/zertifikat-waechter.git .
+# Prüfe ob Verzeichnis bereits existiert
+if [ -d "$APP_DIR" ]; then
+    echo -e "${YELLOW}Verzeichnis existiert bereits. Aktualisiere...${NC}"
+    cd $APP_DIR
+    git pull
+else
+    echo -e "${YELLOW}Clone Projekt von GitHub...${NC}"
+    cd /opt
+    git clone https://github.com/TechLogia-de/Zertifikat-Waechter.git zertifikat-waechter
+    cd $APP_DIR
+fi
+
+echo -e "${GREEN}✅ Projekt geladen${NC}"
+
+# Optional: Zu einem bestimmten Branch/Tag wechseln
+# git checkout main
 
 # Frontend bauen
-echo -e "${YELLOW}[7/10] Baue Frontend...${NC}"
+echo -e "${YELLOW}[6/10] Baue Frontend...${NC}"
 cd $FRONTEND_DIR
 npm install
 npm run build
@@ -80,7 +90,7 @@ npm run build
 echo -e "${GREEN}✅ Frontend gebaut in: $FRONTEND_DIR/dist${NC}"
 
 # Worker einrichten
-echo -e "${YELLOW}[8/10] Richte Worker ein...${NC}"
+echo -e "${YELLOW}[7/10] Richte Worker ein...${NC}"
 cd $WORKER_DIR
 
 # Python Virtual Environment
@@ -95,7 +105,7 @@ pip install -r requirements.txt
 echo -e "${GREEN}✅ Worker eingerichtet${NC}"
 
 # Nginx konfigurieren
-echo -e "${YELLOW}[9/10] Konfiguriere Nginx...${NC}"
+echo -e "${YELLOW}[8/10] Konfiguriere Nginx...${NC}"
 cat > /etc/nginx/sites-available/zertifikat-waechter <<'EOF'
 # Zertifikat-Wächter Nginx Configuration
 
@@ -111,7 +121,7 @@ upstream worker_api {
 server {
     listen 80;
     listen [::]:80;
-    server_name your-domain.com www.your-domain.com;  # ← Anpassen!
+    server_name $DOMAIN www.$DOMAIN;
 
     # Let's Encrypt Challenge
     location /.well-known/acme-challenge/ {
@@ -120,18 +130,18 @@ server {
 
     # Redirect zu HTTPS
     location / {
-        return 301 https://$server_name$request_uri;
+        return 301 https://\$server_name\$request_uri;
     }
 }
 
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
-    server_name your-domain.com www.your-domain.com;  # ← Anpassen!
+    server_name $DOMAIN www.$DOMAIN;
 
     # SSL Zertifikate (werden von certbot erstellt)
-    ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;  # ← Anpassen!
-    ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;  # ← Anpassen!
+    ssl_certificate /etc/letsencrypt/live/$DOMAIN/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/$DOMAIN/privkey.pem;
 
     # SSL Configuration (Modern)
     ssl_protocols TLSv1.2 TLSv1.3;
@@ -215,7 +225,7 @@ rm -f /etc/nginx/sites-enabled/default
 nginx -t
 
 # Systemd Services erstellen
-echo -e "${YELLOW}[10/10] Erstelle Systemd Services...${NC}"
+echo -e "${YELLOW}[9/10] Erstelle Systemd Services...${NC}"
 
 # Worker Service
 cat > /etc/systemd/system/zertifikat-waechter-worker.service <<EOF
@@ -264,18 +274,24 @@ echo ""
 echo "1. Environment Variables konfigurieren:"
 echo "   nano $APP_DIR/.env.production"
 echo ""
-echo "2. SSL-Zertifikat installieren (nach DNS-Setup):"
-echo "   certbot --nginx -d your-domain.com -d www.your-domain.com"
+echo "2. DNS prüfen (A-Record muss auf Server-IP zeigen):"
+echo "   nslookup $DOMAIN"
 echo ""
-echo "3. Services starten:"
+echo "3. SSL-Zertifikat installieren:"
+echo "   certbot --nginx -d $DOMAIN -d www.$DOMAIN"
+echo ""
+echo "4. Services starten:"
 echo "   systemctl start zertifikat-waechter-worker"
 echo "   systemctl restart nginx"
 echo ""
-echo "4. Status prüfen:"
+echo "5. Status prüfen:"
 echo "   systemctl status zertifikat-waechter-worker"
 echo "   systemctl status nginx"
 echo ""
-echo "5. Logs anschauen:"
+echo "6. App öffnen:"
+echo "   https://$DOMAIN"
+echo ""
+echo "7. Logs anschauen:"
 echo "   journalctl -u zertifikat-waechter-worker -f"
 echo "   tail -f /var/log/nginx/zertifikat-waechter-error.log"
 echo ""

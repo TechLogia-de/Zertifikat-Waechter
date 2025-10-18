@@ -88,6 +88,6 @@ echo "  Services neustarten:"
 echo "    systemctl restart zertifikat-waechter-worker"
 echo "    systemctl restart nginx"
 echo ""
-echo -e "${GREEN}App läuft jetzt auf: https://your-domain.com${NC}"
+echo -e "${GREEN}App läuft jetzt auf: https://cert-watcher.de${NC}"
 echo ""
 
