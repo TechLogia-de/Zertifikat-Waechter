@@ -17,11 +17,80 @@ import hashlib
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from urllib.parse import urlparse
+from functools import wraps
+from supabase import create_client, Client
 
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)  # Erlaube CORS für Frontend
+
+# Supabase Client
+supabase_url = os.getenv('SUPABASE_URL') or os.getenv('VITE_SUPABASE_URL')
+supabase_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+
+if supabase_url and supabase_key:
+    supabase: Client = create_client(supabase_url, supabase_key)
+else:
+    supabase = None
+    print("⚠️  Supabase not configured - API endpoints will be limited")
+
+# API-Key-Validierung Decorator
+def require_api_key(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # API-Key aus Header holen
+        auth_header = request.headers.get('Authorization', '')
+        
+        if not auth_header:
+            return jsonify({'error': 'Missing Authorization header'}), 401
+        
+        # Format: "Bearer cw_..."
+        parts = auth_header.split()
+        if len(parts) != 2 or parts[0] != 'Bearer':
+            return jsonify({'error': 'Invalid Authorization format. Use: Bearer <api_key>'}), 401
+        
+        api_key = parts[1]
+        
+        if not supabase:
+            return jsonify({'error': 'API not configured'}), 503
+        
+        # API-Key validieren
+        try:
+            # Hash den API-Key
+            key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+            
+            # Suche in DB
+            result = supabase.table('api_keys').select('*').eq('key_hash', key_hash).eq('is_active', True).execute()
+            
+            if not result.data or len(result.data) == 0:
+                return jsonify({'error': 'Invalid or inactive API key'}), 401
+            
+            key_data = result.data[0]
+            
+            # Prüfe Ablauf
+            if key_data.get('expires_at'):
+                expires_at = datetime.fromisoformat(key_data['expires_at'].replace('Z', '+00:00'))
+                if datetime.now(expires_at.tzinfo) > expires_at:
+                    return jsonify({'error': 'API key expired'}), 401
+            
+            # Update usage
+            supabase.table('api_keys').update({
+                'usage_count': key_data['usage_count'] + 1,
+                'last_used_at': datetime.utcnow().isoformat()
+            }).eq('id', key_data['id']).execute()
+            
+            # Füge tenant_id zum Request hinzu
+            request.tenant_id = key_data['tenant_id']
+            request.api_key_permissions = key_data.get('permissions', [])
+            
+            return f(*args, **kwargs)
+            
+        except Exception as e:
+            print(f"API-Key validation error: {e}")
+            return jsonify({'error': 'Authentication failed'}), 401
+    
+    return decorated_function
 
 @app.route('/send-email', methods=['POST'])
 def send_email():
@@ -253,17 +322,133 @@ def get_certificate(hostname, port=443, timeout=10):
             return result
 
 
+# =====================================================
+# RESTful API Endpoints (mit API-Key Auth)
+# =====================================================
+
+@app.route('/api/v1/certificates', methods=['GET'])
+@require_api_key
+def get_certificates():
+    """Liste alle Zertifikate des Tenants"""
+    try:
+        if not supabase:
+            return jsonify({'error': 'Database not configured'}), 503
+        
+        # Query-Parameter
+        limit = int(request.args.get('limit', 50))
+        offset = int(request.args.get('offset', 0))
+        status = request.args.get('status')  # active, expiring, expired
+        days_until_expiry = request.args.get('days_until_expiry')
+        
+        # Limit begrenzen
+        limit = min(limit, 100)
+        
+        # Query bauen
+        query = supabase.table('certificates').select('*').eq('tenant_id', request.tenant_id)
+        
+        # Filter anwenden
+        if status == 'active':
+            query = query.gte('not_after', datetime.utcnow().isoformat())
+        elif status == 'expired':
+            query = query.lt('not_after', datetime.utcnow().isoformat())
+        elif status == 'expiring' or days_until_expiry:
+            days = int(days_until_expiry) if days_until_expiry else 30
+            threshold = (datetime.utcnow() + timedelta(days=days)).isoformat()
+            query = query.lte('not_after', threshold).gte('not_after', datetime.utcnow().isoformat())
+        
+        # Execute mit Pagination
+        result = query.range(offset, offset + limit - 1).execute()
+        
+        # Total count (für Pagination)
+        count_result = supabase.table('certificates').select('id', count='exact').eq('tenant_id', request.tenant_id).execute()
+        total = count_result.count if count_result.count else 0
+        
+        return jsonify({
+            'data': result.data,
+            'total': total,
+            'limit': limit,
+            'offset': offset
+        })
+        
+    except Exception as e:
+        print(f"Error fetching certificates: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/certificates/<cert_id>', methods=['GET'])
+@require_api_key
+def get_certificate(cert_id):
+    """Hole ein spezifisches Zertifikat"""
+    try:
+        if not supabase:
+            return jsonify({'error': 'Database not configured'}), 503
+        
+        result = supabase.table('certificates').select('*').eq('id', cert_id).eq('tenant_id', request.tenant_id).execute()
+        
+        if not result.data or len(result.data) == 0:
+            return jsonify({'error': 'Certificate not found'}), 404
+        
+        return jsonify(result.data[0])
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/alerts', methods=['GET'])
+@require_api_key
+def get_alerts():
+    """Liste alle Alerts des Tenants"""
+    try:
+        if not supabase:
+            return jsonify({'error': 'Database not configured'}), 503
+        
+        limit = int(request.args.get('limit', 50))
+        offset = int(request.args.get('offset', 0))
+        acknowledged = request.args.get('acknowledged')  # true/false
+        
+        limit = min(limit, 100)
+        
+        query = supabase.table('alerts').select('*, certificate:certificates(*)').eq('tenant_id', request.tenant_id)
+        
+        if acknowledged == 'false':
+            query = query.is_('acknowledged_at', 'null')
+        elif acknowledged == 'true':
+            query = query.not_.is_('acknowledged_at', 'null')
+        
+        result = query.range(offset, offset + limit - 1).order('first_triggered_at', desc=True).execute()
+        
+        return jsonify({
+            'data': result.data,
+            'limit': limit,
+            'offset': offset
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/health', methods=['GET'])
 def health():
     """Health Check Endpoint"""
     return jsonify({
         'status': 'ok',
         'service': 'certificate-scanner',
-        'endpoints': [
-            'POST /send-email',
-            'POST /scan-certificate',
-            'GET /health'
-        ]
+        'version': '1.0.0',
+        'supabase_configured': supabase is not None,
+        'endpoints': {
+            'public': [
+                'GET /health'
+            ],
+            'internal': [
+                'POST /send-email',
+                'POST /scan-certificate'
+            ],
+            'api_v1': [
+                'GET /api/v1/certificates',
+                'GET /api/v1/certificates/{id}',
+                'GET /api/v1/alerts'
+            ]
+        }
     })
 
 
@@ -273,6 +458,7 @@ if __name__ == '__main__':
     print("=" * 60)
     print("📧 SMTP Email: POST http://localhost:5000/send-email")
     print("🔍 Cert Scanner: POST http://localhost:5000/scan-certificate")
+    print("🔑 REST API v1:  GET  http://localhost:5000/api/v1/certificates")
     print("❤️  Health Check: GET http://localhost:5000/health")
     print("=" * 60)
     app.run(host='0.0.0.0', port=5000, debug=True)
