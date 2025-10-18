@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
 import LoadingState from '../components/ui/LoadingState'
+import QRCode from 'qrcode'
 
 interface Policy {
   id: string
@@ -24,8 +25,29 @@ export default function Settings() {
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(false)
 
+  // MFA (TOTP) State
+  type FactorStatus = 'verified' | 'unverified' | 'pending' | 'errored'
+  interface TotpFactor {
+    id: string
+    factor_type: 'totp'
+    status: FactorStatus
+    friendly_name?: string | null
+  }
+
+  const [mfaLoading, setMfaLoading] = useState<boolean>(false)
+  const [totpFactor, setTotpFactor] = useState<TotpFactor | null>(null)
+  const [totpEnabled, setTotpEnabled] = useState<boolean>(false)
+  const [enrolling, setEnrolling] = useState<boolean>(false)
+  const [verifying, setVerifying] = useState<boolean>(false)
+  const [disabling, setDisabling] = useState<boolean>(false)
+  const [qrImageUrl, setQrImageUrl] = useState<string | null>(null)
+  const [verificationCode, setVerificationCode] = useState<string>('')
+  const [mfaError, setMfaError] = useState<string | null>(null)
+  const [mfaSuccess, setMfaSuccess] = useState<string | null>(null)
+
   useEffect(() => {
     loadSettings()
+    loadMfaStatus()
   }, [user])
 
   async function loadSettings() {
@@ -55,6 +77,135 @@ export default function Settings() {
       console.error('Failed to load settings:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function loadMfaStatus() {
+    if (!user) return
+    setMfaLoading(true)
+    setMfaError(null)
+    try {
+      const { data, error } = await (supabase.auth as any).mfa.listFactors()
+      if (error) throw error
+
+      const factors: any[] = (data?.factors as any[]) || []
+      const totp = factors.find((f) => f.factor_type === 'totp') || null
+      if (totp) {
+        setTotpFactor({
+          id: totp.id,
+          factor_type: 'totp',
+          status: totp.status as FactorStatus,
+          friendly_name: (totp as any).friendly_name ?? null,
+        })
+        setTotpEnabled(totp.status === 'verified')
+      } else {
+        setTotpFactor(null)
+        setTotpEnabled(false)
+      }
+    } catch (err: any) {
+      console.error('Failed to load MFA status:', err)
+      setMfaError(err.message || 'Fehler beim Laden des MFA-Status')
+    } finally {
+      setMfaLoading(false)
+    }
+  }
+
+  async function startMfaEnrollment() {
+    setEnrolling(true)
+    setMfaError(null)
+    setMfaSuccess(null)
+    setQrImageUrl(null)
+    setVerificationCode('')
+    try {
+      const { data, error } = await (supabase.auth as any).mfa.enroll({ factorType: 'totp' })
+      if (error) throw error
+
+      const factorId: string = data?.id
+      const totpData = data?.totp || {}
+      const qrFromServer: string | undefined = totpData.qr_code
+      const otpauthUri: string | undefined = totpData.uri
+
+      if (factorId) {
+        setTotpFactor({ id: factorId, factor_type: 'totp', status: 'unverified' })
+      }
+
+      if (qrFromServer) {
+        setQrImageUrl(qrFromServer)
+      } else if (otpauthUri) {
+        const dataUrl = await QRCode.toDataURL(otpauthUri, { width: 220, margin: 2 })
+        setQrImageUrl(dataUrl)
+      } else {
+        throw new Error('Kein QR-Code/URI vom Server erhalten')
+      }
+    } catch (err: any) {
+      console.error('Failed to start MFA enrollment:', err)
+      setMfaError(err.message || 'Fehler beim Aktivieren von MFA')
+    } finally {
+      setEnrolling(false)
+    }
+  }
+
+  async function verifyMfa() {
+    if (!totpFactor?.id || !verificationCode.trim()) return
+    setVerifying(true)
+    setMfaError(null)
+    setMfaSuccess(null)
+    try {
+      const { error } = await (supabase.auth as any).mfa.verify({
+        factorId: totpFactor.id,
+        code: verificationCode.trim(),
+      })
+      if (error) throw error
+
+      setMfaSuccess('✅ MFA (TOTP) aktiviert!')
+      setTotpEnabled(true)
+      setTotpFactor({ ...totpFactor, status: 'verified' })
+      setQrImageUrl(null)
+      setVerificationCode('')
+    } catch (err: any) {
+      console.error('Failed to verify MFA:', err)
+      setMfaError(err.message || 'Fehler bei der Verifizierung')
+    } finally {
+      setVerifying(false)
+    }
+  }
+
+  async function cancelEnrollment() {
+    if (!totpFactor?.id) {
+      setQrImageUrl(null)
+      setVerificationCode('')
+      return
+    }
+    try {
+      await (supabase.auth as any).mfa.unenroll({ factorId: totpFactor.id })
+    } catch (_) {
+      // ignore cleanup errors
+    } finally {
+      setQrImageUrl(null)
+      setVerificationCode('')
+      setTotpFactor(null)
+      setTotpEnabled(false)
+      setMfaSuccess(null)
+      setMfaError(null)
+    }
+  }
+
+  async function disableMfa() {
+    if (!totpFactor?.id) return
+    setDisabling(true)
+    setMfaError(null)
+    setMfaSuccess(null)
+    try {
+      const { error } = await (supabase.auth as any).mfa.unenroll({ factorId: totpFactor.id })
+      if (error) throw error
+      setMfaSuccess('✅ MFA wurde deaktiviert')
+      setTotpEnabled(false)
+      setTotpFactor(null)
+    } catch (err: any) {
+      console.error('Failed to disable MFA:', err)
+      setMfaError(err.message || 'Fehler beim Deaktivieren von MFA')
+    } finally {
+      setDisabling(false)
     }
   }
 
@@ -259,6 +410,99 @@ export default function Settings() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* MFA (TOTP) Settings */}
+            <div className="bg-white rounded-xl border border-[#E2E8F0] p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-[#0F172A]">Sicherheit: Zwei‑Faktor‑Authentifizierung (TOTP)</h2>
+                {mfaLoading && <span className="text-sm text-[#64748B]">Lade…</span>}
+              </div>
+
+              {mfaSuccess && (
+                <div className="bg-[#D1FAE5] border border-[#10B981] text-[#065F46] px-4 py-3 rounded-lg mb-4">
+                  {mfaSuccess}
+                </div>
+              )}
+              {mfaError && (
+                <div className="bg-[#FEE2E2] border border-[#EF4444] text-[#991B1B] px-4 py-3 rounded-lg mb-4">
+                  ❌ {mfaError}
+                </div>
+              )}
+
+              {totpEnabled ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-[#F8FAFC] rounded-lg">
+                    <div>
+                      <p className="font-semibold text-[#0F172A]">Status</p>
+                      <p className="text-sm text-[#64748B]">TOTP ist aktiviert für dein Konto.</p>
+                    </div>
+                    <span className="px-3 py-1 rounded bg-[#D1FAE5] text-[#065F46] text-sm font-medium">Aktiv</span>
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={disableMfa}
+                      disabled={disabling}
+                      className="px-4 py-2 bg-[#EF4444] text-white rounded-lg font-semibold hover:bg-[#DC2626] disabled:opacity-50 transition-colors shadow-sm"
+                    >
+                      {disabling ? '⏳ Deaktiviere…' : 'MFA deaktivieren'}
+                    </button>
+                  </div>
+                </div>
+              ) : qrImageUrl ? (
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="flex flex-col items-center">
+                    <div className="p-4 bg-white border border-[#E2E8F0] rounded-xl inline-block">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={qrImageUrl} alt="TOTP QR Code" className="w-56 h-56 object-contain" />
+                    </div>
+                    <p className="text-sm text-[#64748B] mt-3 text-center">
+                      Scanne den QR‑Code mit deiner Authenticator‑App (z. B. Google Authenticator, 1Password, Authy).
+                    </p>
+                  </div>
+                  <div className="space-y-3">
+                    <label className="block text-sm font-semibold text-[#0F172A]">6‑stelligen Code eingeben</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={6}
+                      value={verificationCode}
+                      onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))}
+                      className="w-full px-4 py-3 border border-[#E2E8F0] rounded-lg focus:ring-2 focus:ring-[#3B82F6] focus:border-[#3B82F6]"
+                      placeholder="123456"
+                    />
+                    <div className="flex gap-3 pt-1">
+                      <button
+                        onClick={verifyMfa}
+                        disabled={verifying || verificationCode.length !== 6}
+                        className="flex-1 px-4 py-3 bg-[#10B981] text-white rounded-lg font-semibold hover:bg-[#059669] disabled:opacity-50 transition-colors shadow-sm"
+                      >
+                        {verifying ? '⏳ Verifiziere…' : 'MFA aktivieren'}
+                      </button>
+                      <button
+                        onClick={cancelEnrollment}
+                        className="px-4 py-3 border border-[#E2E8F0] text-[#64748B] rounded-lg font-semibold hover:bg-[#F8FAFC]"
+                      >
+                        Abbrechen
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-sm text-[#64748B]">
+                    Schütze deinen Account mit einer zusätzlichen Sicherheitsstufe. Nach der Aktivierung benötigst du bei der Anmeldung einen Code aus deiner Authenticator‑App.
+                  </p>
+                  <button
+                    onClick={startMfaEnrollment}
+                    disabled={enrolling}
+                    className="px-4 py-2 bg-[#3B82F6] text-white rounded-lg font-semibold hover:bg-[#2563EB] disabled:opacity-50 transition-colors shadow-sm"
+                  >
+                    {enrolling ? '⏳ Starte…' : 'MFA (TOTP) aktivieren'}
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Save Button */}
