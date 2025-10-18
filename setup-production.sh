@@ -174,17 +174,35 @@ echo ""
 if [ -f "$CURRENT_DIR/deploy-ubuntu.sh" ] && [ -d "$CURRENT_DIR/frontend" ]; then
     echo -e "${GREEN}✅ Script läuft im Projekt-Verzeichnis${NC}"
     
-    if [ "$CURRENT_DIR" != "$APP_DIR" ]; then
-        echo -e "${YELLOW}Kopiere nach $APP_DIR...${NC}"
-        mkdir -p /opt
-        cp -r "$CURRENT_DIR" "$APP_DIR"
-        cd $APP_DIR
+    # Prüfe ob wir schon im Ziel-Verzeichnis sind
+    if [ "$CURRENT_DIR" = "$APP_DIR" ]; then
+        echo -e "${GREEN}✅ Bereits in $APP_DIR${NC}"
+        # Aktualisiere von Git falls möglich
+        if [ -d ".git" ]; then
+            git pull || true
+        fi
+    else
+        # Prüfe ob Ziel-Verzeichnis schon existiert
+        if [ -d "$APP_DIR" ]; then
+            echo -e "${YELLOW}$APP_DIR existiert bereits. Aktualisiere...${NC}"
+            cd $APP_DIR
+            if [ -d ".git" ]; then
+                git pull || true
+            fi
+        else
+            # Nur kopieren wenn Ziel nicht existiert
+            echo -e "${YELLOW}Kopiere nach $APP_DIR...${NC}"
+            mkdir -p /opt
+            cp -r "$CURRENT_DIR" "$APP_DIR"
+            cd $APP_DIR
+        fi
     fi
 else
+    # Script wird NICHT im Projekt ausgeführt
     if [ -d "$APP_DIR" ]; then
-        echo -e "${YELLOW}Projekt existiert. Aktualisiere...${NC}"
+        echo -e "${YELLOW}Projekt existiert in $APP_DIR. Aktualisiere...${NC}"
         cd $APP_DIR
-        git pull
+        git pull || true
     else
         echo -e "${YELLOW}Clone von GitHub...${NC}"
         cd /opt
