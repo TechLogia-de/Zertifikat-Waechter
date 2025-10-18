@@ -103,10 +103,14 @@ async function scanCertificateSimple(host: string, port: number) {
   try {
     console.log(`🔍 Scanning TLS certificate for ${host}:${port}...`)
     
-    // Methode 1: Python Worker API (localhost:5000) - ECHTE SCANS!
+    // Methode 1: Python Worker API - ECHTE SCANS!
+    // In Production: /api/ (Nginx Reverse Proxy)
+    // In Development: http://localhost:5000
+    const apiUrl = import.meta.env.VITE_WORKER_API_URL || '/api'
+    
     try {
-      console.log('Trying Worker API...')
-      const workerResponse = await fetch('http://localhost:5000/scan-certificate', {
+      console.log('Trying Worker API...', apiUrl)
+      const workerResponse = await fetch(`${apiUrl}/scan-certificate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -159,14 +163,19 @@ async function scanCertificateSimple(host: string, port: number) {
     }
 
     // KEIN Fallback mehr - zeige Fehler
+    const isDev = apiUrl.includes('localhost')
     throw new Error(
-      `❌ Scan fehlgeschlagen!\n\n` +
-      `Der Worker API ist nicht erreichbar.\n\n` +
-      `STARTE DEN WORKER:\n` +
-      `1. Öffne neues Terminal\n` +
-      `2. cd worker\n` +
-      `3. python api.py\n\n` +
-      `Der Worker läuft dann auf http://localhost:5000`
+      isDev 
+        ? `❌ Scan fehlgeschlagen!\n\n` +
+          `Der Worker API ist nicht erreichbar.\n\n` +
+          `STARTE DEN WORKER:\n` +
+          `1. Öffne neues Terminal\n` +
+          `2. cd worker\n` +
+          `3. python api.py\n\n` +
+          `Der Worker läuft dann auf http://localhost:5000`
+        : `❌ Scan fehlgeschlagen!\n\n` +
+          `Der Backend-Service ist nicht verfügbar.\n` +
+          `Bitte kontaktiere den Administrator.`
     )
   } catch (error) {
     throw error
