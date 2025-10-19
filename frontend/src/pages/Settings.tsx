@@ -149,7 +149,32 @@ export default function Settings() {
     setTotpLabel(null)
     setVerificationCode('')
     try {
-      const { data, error } = await (supabase.auth as any).mfa.enroll({ factorType: 'totp' })
+      // 0) Prüfe zuerst, ob bereits ein TOTP‑Faktor existiert
+      try {
+        const { data: preFactorsData, error: preFactorsErr } = await (supabase.auth as any).mfa.listFactors()
+        if (preFactorsErr) throw preFactorsErr
+        const preFactors: any[] = (preFactorsData?.factors as any[]) || []
+        const existingTotp: any | undefined = preFactors.find((f) => f.factor_type === 'totp')
+        if (existingTotp) {
+          // Wenn bereits vorhanden: Status in den State übernehmen und (falls unverified) direkt zur Verifizierung springen
+          setTotpFactor({ id: existingTotp.id, factor_type: 'totp', status: existingTotp.status })
+          setTotpEnabled(existingTotp.status === 'verified')
+          if (existingTotp.status !== 'verified') {
+            setMfaError('Es existiert bereits ein TOTP‑Faktor. Bitte Verifizierung abschließen oder abbrechen.')
+          }
+          return
+        }
+      } catch (preCheckErr) {
+        // Wenn das Vorab-Listing fehlschlägt, nicht hart abbrechen; wir versuchen dennoch das Enroll
+        console.warn('MFA pre-check failed, continue with enroll:', preCheckErr)
+      }
+
+      // 1) Eindeutigen friendlyName vergeben (hilft, doppelte Namen zu vermeiden)
+      const emailPart = user?.email ? user.email : 'user'
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+      const friendlyName = `TOTP ${emailPart} ${timestamp}`
+
+      const { data, error } = await (supabase.auth as any).mfa.enroll({ factorType: 'totp', friendlyName })
       if (error) throw error
 
       const factorId: string = data?.id
@@ -209,6 +234,18 @@ export default function Settings() {
     } catch (err: any) {
       console.error('Failed to start MFA enrollment:', err)
       const message: string = (err?.message || '').toLowerCase()
+      // Spezifischer Fall: "A factor with the friendly name \"\" for this user already exists"
+      if (message.includes('friendly name') && message.includes('already exists')) {
+        // Versuche bestehenden unverifizierten Faktor zu nutzen
+        const recovered = await recoverUnverifiedTotpFactor()
+        if (recovered) {
+          setMfaError('Ein TOTP‑Faktor mit ähnlichem Namen existiert bereits. Bitte Verifizierung abschließen oder abbrechen.')
+          return
+        }
+        // Falls nichts zu recovern ist, generische Meldung
+        setMfaError('TOTP‑Faktor existiert bereits. Bitte alte Faktoren entfernen oder Verifizierung abschließen.')
+        return
+      }
       if (message.includes('not enabled') || message.includes('disabled')) {
         setMfaError('MFA ist serverseitig deaktiviert. Bitte MFA/TOTP in Supabase aktivieren.')
       } else if (message.includes('too many') || message.includes('max')) {

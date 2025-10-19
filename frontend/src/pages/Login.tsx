@@ -57,7 +57,10 @@ export default function Login() {
         if (factorsError) throw factorsError
 
         const factors: any[] = (factorsData?.factors as any[]) || []
-        const totp = factors.find((f) => f.factor_type === 'totp')
+        // Bevorzugt verifizierten TOTP‑Faktor wählen; falls keiner verifiziert ist, ersten TOTP nehmen
+        const verifiedTotp = factors.find((f) => f.factor_type === 'totp' && f.status === 'verified')
+        const fallbackTotp = factors.find((f) => f.factor_type === 'totp')
+        const totp = verifiedTotp || fallbackTotp
         if (!totp) {
           throw new Error('MFA ist aktiviert, aber kein TOTP‑Faktor gefunden. Bitte in den Einstellungen prüfen.')
         }
@@ -73,7 +76,14 @@ export default function Login() {
         setSuccess('MFA erforderlich – bitte den 6‑stelligen Code eingeben.')
       } catch (mfaErr: any) {
         console.error('MFA start failed:', mfaErr)
-        setError(mfaErr?.message || 'MFA konnte nicht gestartet werden')
+        const msg = (mfaErr?.message || '').toLowerCase()
+        if (msg.includes('factor') && msg.includes('not found')) {
+          setError('Kein gültiger MFA‑Faktor gefunden. Bitte in den Einstellungen MFA erneut aktivieren.')
+        } else if (msg.includes('inactive') || msg.includes('unverified')) {
+          setError('MFA‑Faktor ist noch nicht verifiziert. Bitte in den Einstellungen abschließen.')
+        } else {
+          setError(mfaErr?.message || 'MFA konnte nicht gestartet werden')
+        }
       } finally {
         setMfaLoading(false)
         setLoading(false)
