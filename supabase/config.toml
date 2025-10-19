@@ -101,12 +101,13 @@ custom_access_token = { enabled = false }
 send_sms = { enabled = false }
 send_email = { enabled = false }
 
-# Uncomment to configure MFA
-# [auth.mfa]
-# max_enrolled_factors = 10
-# [auth.mfa.totp]
-# enroll_enabled = true
-# verify_enabled = true
+# Configure MFA (TOTP)
+[auth.mfa]
+max_enrolled_factors = 10
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
 
 [edge_runtime]
 enabled = true
