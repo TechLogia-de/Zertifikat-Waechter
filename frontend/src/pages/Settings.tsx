@@ -114,6 +114,30 @@ export default function Settings() {
     }
   }
 
+  // Versucht, einen vorhandenen, noch nicht verifizierten TOTP‑Faktor wiederzufinden
+  async function recoverUnverifiedTotpFactor(): Promise<TotpFactor | null> {
+    try {
+      const { data, error } = await (supabase.auth as any).mfa.listFactors()
+      if (error) throw error
+      const factors: any[] = (data?.factors as any[]) || []
+      const totp = factors.find((f) => f.factor_type === 'totp' && f.status !== 'verified')
+      if (totp) {
+        const recovered: TotpFactor = {
+          id: totp.id,
+          factor_type: 'totp',
+          status: totp.status as FactorStatus,
+          friendly_name: (totp as any).friendly_name ?? null,
+        }
+        setTotpFactor(recovered)
+        setTotpEnabled(false)
+        return recovered
+      }
+    } catch (e) {
+      console.error('Failed to recover TOTP factor:', e)
+    }
+    return null
+  }
+
   async function startMfaEnrollment() {
     setEnrolling(true)
     setMfaError(null)
@@ -188,7 +212,14 @@ export default function Settings() {
       if (message.includes('not enabled') || message.includes('disabled')) {
         setMfaError('MFA ist serverseitig deaktiviert. Bitte MFA/TOTP in Supabase aktivieren.')
       } else if (message.includes('too many') || message.includes('max')) {
-        setMfaError('Zu viele Faktoren registriert. Bitte zunächst alte Faktoren entfernen.')
+        // Falls bereits ein unverifizierter Faktor existiert, zur Verifizierung übergehen
+        recoverUnverifiedTotpFactor().then((recovered) => {
+          if (recovered) {
+            setMfaError('Es existiert bereits ein unverifizierter TOTP‑Faktor. Bitte Verifizierung abschließen oder abbrechen.')
+          } else {
+            setMfaError('Zu viele Faktoren registriert. Bitte zunächst alte Faktoren entfernen.')
+          }
+        })
       } else {
         setMfaError(err.message || 'Fehler beim Aktivieren von MFA')
       }
@@ -199,9 +230,17 @@ export default function Settings() {
 
   async function verifyMfa() {
     const code = verificationCode.trim()
-    if (!totpFactor?.id) {
-      setMfaError('Kein TOTP‑Faktor vorhanden. Bitte starte die Aktivierung erneut.')
-      return
+    let factorIdToUse: string | null = totpFactor?.id ?? null
+    if (!factorIdToUse) {
+      // Fallback: Versuche bestehenden unverifizierten Faktor zu finden
+      const recovered = await recoverUnverifiedTotpFactor()
+      factorIdToUse = recovered?.id ?? null
+      if (!factorIdToUse) {
+        setMfaError('Kein TOTP‑Faktor gefunden. Die Aktivierung wird neu gestartet – bitte QR‑Code erneut scannen.')
+        // Neu starten, damit der Nutzer einen neuen QR‑Code erhält
+        await startMfaEnrollment()
+        return
+      }
     }
     if (code.length !== 6) {
       setMfaError('Bitte den 6‑stelligen Code eingeben')
@@ -212,14 +251,14 @@ export default function Settings() {
     setMfaSuccess(null)
     try {
       const { error } = await (supabase.auth as any).mfa.verify({
-        factorId: totpFactor.id,
+        factorId: factorIdToUse,
         code,
       })
       if (error) throw error
 
       setMfaSuccess('✅ MFA (TOTP) aktiviert!')
       setTotpEnabled(true)
-      setTotpFactor({ ...totpFactor, status: 'verified' })
+      setTotpFactor((prev) => (prev ? { ...prev, status: 'verified' } : { id: factorIdToUse!, factor_type: 'totp', status: 'verified' }))
       setQrImageUrl(null)
       setTotpUri(null)
       setTotpSecret(null)
@@ -529,12 +568,18 @@ export default function Settings() {
                     </button>
                   </div>
                 </div>
-              ) : qrImageUrl ? (
+              ) : (qrImageUrl || totpFactor?.status === 'unverified') ? (
                 <div className="grid md:grid-cols-2 gap-6">
                   <div className="flex flex-col items-center">
                     <div className="p-4 bg-white border border-[#E2E8F0] rounded-xl inline-block">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={qrImageUrl} alt="TOTP QR Code" className="w-56 h-56 object-contain" />
+                      {qrImageUrl ? (
+                        <img src={qrImageUrl} alt="TOTP QR Code" className="w-56 h-56 object-contain" />
+                      ) : (
+                        <div className="w-56 h-56 flex items-center justify-center text-[#64748B]">
+                          Kein QR‑Code verfügbar
+                        </div>
+                      )}
                     </div>
                     <p className="text-sm text-[#64748B] mt-3 text-center">
                       Scanne den QR‑Code mit deiner Authenticator‑App (z. B. Google Authenticator, 1Password, Authy).
@@ -581,6 +626,9 @@ export default function Settings() {
                               Kopieren
                             </button>
                           </div>
+                          <p className="text-xs text-[#64748B]">
+                            Wenn du den QR‑Code bereits gescannt hast, gib unten einfach den 6‑stelligen Code ein. Andernfalls kannst du die Aktivierung über „Abbrechen" und anschließend „MFA (TOTP) aktivieren" neu starten.
+                          </p>
                         </div>
                       )}
                     </div>
