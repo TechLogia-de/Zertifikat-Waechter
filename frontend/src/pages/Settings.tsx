@@ -174,14 +174,48 @@ export default function Settings() {
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
       const friendlyName = `TOTP ${emailPart} ${timestamp}`
 
-      const { data, error } = await (supabase.auth as any).mfa.enroll({ factorType: 'totp', friendlyName })
+      // 2) Issuer für Microsoft Authenticator App festlegen (wichtig für Erkennbarkeit)
+      const issuer = 'Zertifikat-Wächter'
+
+      const { data, error } = await (supabase.auth as any).mfa.enroll({ 
+        factorType: 'totp', 
+        friendlyName,
+        issuer 
+      })
       if (error) throw error
 
       const factorId: string = data?.id
       const totpData = data?.totp || {}
       const qrFromServer: string | undefined = totpData.qr_code
-      const otpauthUri: string | undefined = totpData.uri
+      let otpauthUri: string | undefined = totpData.uri
       const secretFromServer: string | undefined = totpData.secret
+
+      // WICHTIG: otpauth URI korrigieren für Microsoft Authenticator
+      if (otpauthUri) {
+        // 1. Ersetze "localhost" im Label mit dem richtigen Issuer
+        otpauthUri = otpauthUri.replace(
+          /otpauth:\/\/totp\/(localhost|127\.0\.0\.1)(:|%3A)/gi,
+          `otpauth://totp/${encodeURIComponent(issuer)}:`
+        )
+        
+        // 2. Falls kein Issuer-Parameter vorhanden ist, hinzufügen
+        if (!otpauthUri.includes('issuer=')) {
+          const separator = otpauthUri.includes('?') ? '&' : '?'
+          otpauthUri = `${otpauthUri}${separator}issuer=${encodeURIComponent(issuer)}`
+        }
+        
+        // 3. Falls Issuer "localhost" ist, ersetzen
+        otpauthUri = otpauthUri.replace(
+          /issuer=(localhost|127\.0\.0\.1)/gi,
+          `issuer=${encodeURIComponent(issuer)}`
+        )
+        
+        console.log('📱 TOTP URI korrigiert:', {
+          original: totpData.uri?.substring(0, 80),
+          corrected: otpauthUri.substring(0, 80),
+          issuer
+        })
+      }
 
       if (factorId) {
         setTotpFactor({ id: factorId, factor_type: 'totp', status: 'unverified' })
@@ -226,8 +260,32 @@ export default function Settings() {
       if (qrFromServer) {
         setQrImageUrl(qrFromServer)
       } else if (otpauthUri) {
-        const dataUrl = await QRCode.toDataURL(otpauthUri, { width: 220, margin: 2 })
+        // Parse URI erst für QR-Code-Logging
+        const parsedForLog = parseOtpAuthUri(otpauthUri)
+        
+        // Generiere QR-Code mit optimalen Einstellungen für Microsoft Authenticator
+        // Größer für bessere Scan-Erkennung, Error Correction Level "M" für Stabilität
+        const dataUrl = await QRCode.toDataURL(otpauthUri, { 
+          width: 280, 
+          margin: 2,
+          errorCorrectionLevel: 'M',
+          color: {
+            dark: '#0F172A',  // Dunkle Farbe für hohen Kontrast
+            light: '#FFFFFF'   // Weißer Hintergrund
+          }
+        })
         setQrImageUrl(dataUrl)
+        
+        // Console-Log für Debugging (nur in Dev Mode)
+        if ((import.meta as any).env.DEV) {
+          console.log('✅ TOTP QR-Code generiert:', {
+            issuer: parsedForLog.issuer || issuer,
+            label: parsedForLog.label,
+            secret_length: (secretFromServer || parsedForLog.secret)?.length,
+            uri_length: otpauthUri.length,
+            uri_preview: `${otpauthUri.substring(0, 50)}...`
+          })
+        }
       } else {
         throw new Error('Kein QR-Code/URI vom Server erhalten')
       }
@@ -287,11 +345,19 @@ export default function Settings() {
     setMfaError(null)
     setMfaSuccess(null)
     try {
-      const { error } = await (supabase.auth as any).mfa.verify({
+      // WICHTIG: Erst Challenge erstellen, dann verifizieren!
+      // Ohne Challenge schlägt verify() fehl mit "challenge ID not found"
+      const { error: challengeError } = await (supabase.auth as any).mfa.challenge({ 
+        factorId: factorIdToUse 
+      })
+      if (challengeError) throw challengeError
+
+      // Jetzt mit dem Code verifizieren
+      const { error: verifyError } = await (supabase.auth as any).mfa.verify({
         factorId: factorIdToUse,
         code,
       })
-      if (error) throw error
+      if (verifyError) throw verifyError
 
       setMfaSuccess('✅ MFA (TOTP) aktiviert!')
       setTotpEnabled(true)
@@ -302,13 +368,18 @@ export default function Settings() {
       setTotpIssuer(null)
       setTotpLabel(null)
       setVerificationCode('')
+      
+      // Log success für Debugging
+      console.log('✅ MFA erfolgreich aktiviert für Faktor:', factorIdToUse)
     } catch (err: any) {
       console.error('Failed to verify MFA:', err)
       const message: string = (err?.message || '').toLowerCase()
       if (message.includes('not enabled') || message.includes('disabled')) {
         setMfaError('MFA ist serverseitig deaktiviert. Bitte MFA/TOTP in Supabase aktivieren.')
       } else if (message.includes('invalid') || message.includes('code')) {
-        setMfaError('Ungültiger Code. Bitte erneut versuchen.')
+        setMfaError('Ungültiger Code. Bitte prüfe, ob der Code aktuell ist und erneut versuchen.')
+      } else if (message.includes('challenge')) {
+        setMfaError('Challenge-Fehler. Bitte starte die Aktivierung neu (QR-Code erneut scannen).')
       } else {
         setMfaError(err?.message || 'Fehler bei der Verifizierung')
       }
@@ -608,19 +679,27 @@ export default function Settings() {
               ) : (qrImageUrl || totpFactor?.status === 'unverified') ? (
                 <div className="grid md:grid-cols-2 gap-6">
                   <div className="flex flex-col items-center">
-                    <div className="p-4 bg-white border border-[#E2E8F0] rounded-xl inline-block">
+                    <div className="p-4 bg-white border-2 border-[#3B82F6] rounded-xl shadow-lg inline-block">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       {qrImageUrl ? (
-                        <img src={qrImageUrl} alt="TOTP QR Code" className="w-56 h-56 object-contain" />
+                        <img src={qrImageUrl} alt="TOTP QR Code" className="w-72 h-72 object-contain" />
                       ) : (
-                        <div className="w-56 h-56 flex items-center justify-center text-[#64748B]">
-                          Kein QR‑Code verfügbar
+                        <div className="w-72 h-72 flex items-center justify-center text-[#64748B]">
+                          <div className="text-center">
+                            <div className="text-4xl mb-2">📱</div>
+                            <div>Kein QR‑Code verfügbar</div>
+                          </div>
                         </div>
                       )}
                     </div>
-                    <p className="text-sm text-[#64748B] mt-3 text-center">
-                      Scanne den QR‑Code mit deiner Authenticator‑App (z. B. Google Authenticator, 1Password, Authy).
-                    </p>
+                    <div className="text-sm text-[#64748B] mt-4 text-center space-y-2">
+                      <p className="font-semibold text-[#0F172A]">✅ Kompatible Apps:</p>
+                      <div className="flex flex-col gap-1 text-xs">
+                        <span>• Microsoft Authenticator</span>
+                        <span>• Google Authenticator</span>
+                        <span>• 1Password / Authy</span>
+                      </div>
+                    </div>
                     <div className="w-full mt-4 p-4 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg">
                       <p className="text-sm font-semibold text-[#0F172A] mb-2">Manuelle Einrichtung</p>
                       {totpSecret ? (
