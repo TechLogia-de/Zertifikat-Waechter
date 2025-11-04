@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
 import LoadingState from '../components/ui/LoadingState'
 import QRCode from 'qrcode'
+import { logMFASecurityEvent, checkMFABruteForce } from '../utils/mfaSecurityLogger'
 
 interface Policy {
   id: string
@@ -148,6 +149,13 @@ export default function Settings() {
     setTotpIssuer(null)
     setTotpLabel(null)
     setVerificationCode('')
+
+    // Log MFA enrollment started
+    await logMFASecurityEvent({
+      event_type: 'mfa.enrollment.started',
+      metadata: { method: 'TOTP' }
+    })
+
     try {
       // 0) Prüfe zuerst, ob bereits ein TOTP‑Faktor existiert
       try {
@@ -289,8 +297,28 @@ export default function Settings() {
       } else {
         throw new Error('Kein QR-Code/URI vom Server erhalten')
       }
+
+      // Log successful enrollment start
+      await logMFASecurityEvent({
+        event_type: 'mfa.enrollment.started',
+        factor_id: factorId,
+        metadata: {
+          method: 'TOTP',
+          issuer,
+          has_qr: !!qrImageUrl
+        }
+      })
+
     } catch (err: any) {
       console.error('Failed to start MFA enrollment:', err)
+
+      // Log failed enrollment
+      await logMFASecurityEvent({
+        event_type: 'mfa.enrollment.failed',
+        error_message: err?.message || 'Unknown error',
+        metadata: { method: 'TOTP' }
+      })
+
       const message: string = (err?.message || '').toLowerCase()
       // Spezifischer Fall: "A factor with the friendly name \"\" for this user already exists"
       if (message.includes('friendly name') && message.includes('already exists')) {
@@ -326,6 +354,24 @@ export default function Settings() {
   async function verifyMfa() {
     const code = verificationCode.trim()
     let factorIdToUse: string | null = totpFactor?.id ?? null
+
+    // Check for brute force attempts
+    if (user) {
+      const bruteForceCheck = await checkMFABruteForce(user.id)
+      if (bruteForceCheck.isBlocked) {
+        setMfaError(`⚠️ Zu viele Fehlversuche! Du hast ${bruteForceCheck.attemptCount} Versuche in 5 Minuten gemacht. Bitte warte.`)
+
+        await logMFASecurityEvent({
+          event_type: 'mfa.verification.failed',
+          factor_id: factorIdToUse || undefined,
+          error_message: 'Brute force protection triggered',
+          attempt_count: bruteForceCheck.attemptCount
+        })
+
+        return
+      }
+    }
+
     if (!factorIdToUse) {
       // Fallback: Versuche bestehenden unverifizierten Faktor zu finden
       const recovered = await recoverUnverifiedTotpFactor()
@@ -368,11 +414,32 @@ export default function Settings() {
       setTotpIssuer(null)
       setTotpLabel(null)
       setVerificationCode('')
-      
-      // Log success für Debugging
+
+      // Log success für Debugging und Security Monitoring
       console.log('✅ MFA erfolgreich aktiviert für Faktor:', factorIdToUse)
+
+      await logMFASecurityEvent({
+        event_type: 'mfa.enrollment.completed',
+        factor_id: factorIdToUse,
+        metadata: {
+          method: 'TOTP',
+          success: true
+        }
+      })
     } catch (err: any) {
       console.error('Failed to verify MFA:', err)
+
+      // Log failed verification
+      await logMFASecurityEvent({
+        event_type: 'mfa.verification.failed',
+        factor_id: factorIdToUse || undefined,
+        error_message: err?.message || 'Verification failed',
+        metadata: {
+          code_length: code.length,
+          method: 'TOTP'
+        }
+      })
+
       const message: string = (err?.message || '').toLowerCase()
       if (message.includes('not enabled') || message.includes('disabled')) {
         setMfaError('MFA ist serverseitig deaktiviert. Bitte MFA/TOTP in Supabase aktivieren.')
@@ -420,9 +487,20 @@ export default function Settings() {
     try {
       const { error } = await (supabase.auth as any).mfa.unenroll({ factorId: totpFactor.id })
       if (error) throw error
+
       setMfaSuccess('✅ MFA wurde deaktiviert')
       setTotpEnabled(false)
       setTotpFactor(null)
+
+      // Log MFA disabled
+      await logMFASecurityEvent({
+        event_type: 'mfa.disabled',
+        factor_id: totpFactor.id,
+        metadata: {
+          method: 'TOTP',
+          reason: 'User requested'
+        }
+      })
     } catch (err: any) {
       console.error('Failed to disable MFA:', err)
       setMfaError(err.message || 'Fehler beim Deaktivieren von MFA')
@@ -470,27 +548,32 @@ export default function Settings() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-[#F8FAFC]">
-      {/* Header - FIXIERT */}
-      <div className="flex-shrink-0 bg-white border-b border-[#E2E8F0] px-4 md:px-8 py-4 md:py-6">
-        <div className="flex items-center justify-between">
+    <div className="flex flex-col h-full">
+      {/* Page Header - FIXIERT */}
+      <div className="flex-shrink-0 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border-b border-slate-700/50 px-4 sm:px-6 lg:px-8 py-3 sm:py-4 shadow-lg">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-[#0F172A]">Einstellungen</h1>
-            <p className="text-sm md:text-base text-[#64748B] mt-1">
-              Alert-Policies • Warnschwellen (60/30/14/7/3/1 Tage) • Benachrichtigungs-Kanäle • Tenant-Config
+            <div className="flex items-center gap-2 mb-1">
+              <div className="p-1.5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg shadow-lg shadow-blue-500/20">
+                <span className="text-xl sm:text-2xl">⚙️</span>
+              </div>
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white">Einstellungen</h1>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-400 mt-0.5 ml-0.5">
+              Alert-Policies • Warnschwellen • Notification-Channels • MFA
             </p>
           </div>
-          <Link 
+          <Link
             to="/integrations"
-            className="px-4 py-2 bg-[#3B82F6] text-white rounded-lg font-medium hover:bg-[#2563EB] active:scale-95 transition-all shadow-md"
+            className="flex items-center justify-center space-x-1.5 px-3 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-medium text-sm hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg shadow-blue-500/20 whitespace-nowrap"
           >
-            🔗 Integrationen verwalten
+            <span>🔗 Integrationen verwalten</span>
           </Link>
         </div>
       </div>
 
       {/* Content - SCROLLBAR */}
-      <main className="flex-1 overflow-y-auto px-4 md:px-8 py-6 md:py-8">
+      <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 bg-[#F8FAFC]">
         <div className="max-w-4xl">
         {loading ? (
           <div className="py-12">

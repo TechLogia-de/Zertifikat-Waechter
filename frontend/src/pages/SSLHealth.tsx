@@ -228,22 +228,34 @@ export default function SSLHealth() {
   if (loading) return <LoadingState />
 
   return (
-    <div className="p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8 flex justify-between items-start">
+    <div className="flex flex-col h-full">
+      {/* Page Header - FIXIERT */}
+      <div className="flex-shrink-0 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border-b border-slate-700/50 px-4 sm:px-6 lg:px-8 py-3 sm:py-4 shadow-lg">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">SSL/TLS Health Dashboard</h1>
-            <p className="text-gray-600 mt-2">Detaillierte Analyse der SSL/TLS-Konfigurationen</p>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="p-1.5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg shadow-lg shadow-blue-500/20">
+                <span className="text-xl sm:text-2xl">🔐</span>
+              </div>
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white">SSL/TLS Health Dashboard</h1>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-400 mt-0.5 ml-0.5">
+              Detaillierte Analyse • Cipher-Suites • TLS-Versionen • Security-Scores
+            </p>
           </div>
           <button
             onClick={runBulkHealthChecks}
             disabled={loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center justify-center space-x-1.5 px-3 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-medium text-sm hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
           >
-            {loading ? '⏳ Prüfe...' : '🔍 Alle Assets prüfen'}
+            <span>{loading ? '⏳ Prüfe...' : '🔍 Alle Assets prüfen'}</span>
           </button>
         </div>
+      </div>
+
+      {/* Main Content - SCROLLBAR */}
+      <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        <div className="max-w-7xl mx-auto">
 
         {/* Summary Cards */}
         {summary && (
@@ -499,7 +511,8 @@ export default function SSLHealth() {
             </div>
           </div>
         )}
-      </div>
+        </div>
+      </main>
     </div>
   )
 }

@@ -94,51 +94,56 @@ export default function Alerts() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-[#F8FAFC]">
-      {/* Header - FIXIERT */}
-      <div className="flex-shrink-0 bg-white border-b border-[#E2E8F0] px-4 md:px-8 py-4 md:py-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-[#0F172A]">Alerts & Regeln</h1>
-            <p className="text-sm md:text-base text-[#64748B] mt-1">
-              Ablauf-Warnungen • Multi-Channel-Benachrichtigungen (Email, Slack, Webhook) • Quittierung
+    <div className="flex flex-col h-full">
+      {/* Page Header - FIXIERT */}
+      <div className="flex-shrink-0 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border-b border-slate-700/50 px-4 sm:px-6 lg:px-8 py-3 sm:py-4 shadow-lg">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="p-1.5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg shadow-lg shadow-blue-500/20">
+                <span className="text-xl sm:text-2xl">🔔</span>
+              </div>
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white">Alerts & Regeln</h1>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-400 mt-0.5 ml-0.5">
+              Ablauf-Warnungen • Multi-Channel • Quittierung • Benachrichtigungsregeln
             </p>
-            
+
             {/* Tabs */}
-            <div className="flex gap-4 mt-4 border-b border-gray-200">
+            <div className="flex gap-2 mt-2 ml-0.5">
               <button
                 onClick={() => setActiveTab('alerts')}
-                className={`pb-2 px-1 font-medium text-sm transition-colors ${
+                className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all duration-200 ${
                   activeTab === 'alerts'
-                    ? 'border-b-2 border-blue-600 text-blue-600'
-                    : 'text-gray-500 hover:text-gray-700'
+                    ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
                 }`}
               >
                 🔔 Aktive Alerts
               </button>
               <button
                 onClick={() => setActiveTab('rules')}
-                className={`pb-2 px-1 font-medium text-sm transition-colors ${
+                className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all duration-200 ${
                   activeTab === 'rules'
-                    ? 'border-b-2 border-blue-600 text-blue-600'
-                    : 'text-gray-500 hover:text-gray-700'
+                    ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
                 }`}
               >
                 📢 Benachrichtigungsregeln
               </button>
             </div>
           </div>
-          <Link 
+          <Link
             to="/settings"
-            className="px-4 py-2 bg-[#F1F5F9] text-[#64748B] rounded-lg font-medium hover:bg-[#E2E8F0] active:scale-95 transition-all"
+            className="flex items-center justify-center space-x-1.5 px-3 py-2 bg-slate-700/50 border border-slate-600/50 text-white rounded-lg font-medium text-sm hover:bg-slate-700 hover:border-slate-500 transition-all duration-200 whitespace-nowrap"
           >
-            ⚙️ Alert-Einstellungen
+            <span>⚙️ Alert-Einstellungen</span>
           </Link>
         </div>
       </div>
 
       {/* Content - SCROLLBAR */}
-      <main className="flex-1 overflow-y-auto px-4 md:px-8 py-6 md:py-8">
+      <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {activeTab === 'rules' ? (
           <NotificationRules />
         ) : loading ? (

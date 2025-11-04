@@ -185,18 +185,25 @@ export default function APIKeys() {
   if (loading) return <LoadingState />
 
   return (
-    <div className="p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8 flex justify-between items-start">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">API Keys & Dokumentation</h1>
-            <p className="text-gray-600 mt-2">Verwalte API-Zugänge und entdecke unsere RESTful API</p>
-            
+    <div className="flex flex-col h-full">
+      {/* Page Header - FIXIERT */}
+      <div className="flex-shrink-0 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border-b border-slate-700/50 px-4 sm:px-6 lg:px-8 py-3 sm:py-4 shadow-lg">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="p-1.5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg shadow-lg shadow-blue-500/20">
+                <span className="text-xl sm:text-2xl">🔑</span>
+              </div>
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white">API Keys & Dokumentation</h1>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-400 mt-0.5 ml-0.5">
+              RESTful API • Authentication • Permissions • Scopes
+            </p>
+
             {/* API Endpoint Info */}
-            <div className="mt-3 flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
-              <span className="text-blue-600 font-semibold text-sm">🌐 API Endpoint:</span>
-              <code className="text-sm font-mono text-blue-800 bg-white px-3 py-1 rounded border border-blue-300">
+            <div className="mt-2 flex items-center gap-2 bg-blue-500/10 border border-blue-500/30 rounded-lg px-3 py-2 ml-0.5 backdrop-blur-sm">
+              <span className="text-blue-300 font-semibold text-xs">🌐 API:</span>
+              <code className="text-xs font-mono text-blue-200 bg-slate-800/50 px-2 py-0.5 rounded border border-blue-500/20">
                 https://api.cert-watcher.de
               </code>
               <button
@@ -204,30 +211,30 @@ export default function APIKeys() {
                   navigator.clipboard.writeText('https://api.cert-watcher.de')
                   alert('API-URL kopiert!')
                 }}
-                className="ml-auto text-xs text-blue-600 hover:text-blue-700 font-medium"
+                className="ml-auto text-xs text-blue-300 hover:text-blue-200 font-medium"
               >
                 📋 Kopieren
               </button>
             </div>
-            
+
             {/* Tabs */}
-            <div className="flex gap-4 mt-4 border-b border-gray-200">
+            <div className="flex gap-2 mt-2 ml-0.5">
               <button
                 onClick={() => setActiveTab('keys')}
-                className={`pb-2 px-1 font-medium text-sm transition-colors ${
+                className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all duration-200 ${
                   activeTab === 'keys'
-                    ? 'border-b-2 border-blue-600 text-blue-600'
-                    : 'text-gray-500 hover:text-gray-700'
+                    ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
                 }`}
               >
                 🔑 API Keys
               </button>
               <button
                 onClick={() => setActiveTab('docs')}
-                className={`pb-2 px-1 font-medium text-sm transition-colors ${
+                className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all duration-200 ${
                   activeTab === 'docs'
-                    ? 'border-b-2 border-blue-600 text-blue-600'
-                    : 'text-gray-500 hover:text-gray-700'
+                    ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
                 }`}
               >
                 📚 API Dokumentation
@@ -240,12 +247,17 @@ export default function APIKeys() {
                 console.log('Opening modal, current state:', showCreateModal)
                 setShowCreateModal(true)
               }}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+              className="flex items-center justify-center space-x-1.5 px-3 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-medium text-sm hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg shadow-blue-500/20 whitespace-nowrap"
             >
-              + Neuer API Key
+              <span>+ Neuer API Key</span>
             </button>
           )}
         </div>
+      </div>
+
+      {/* Main Content - SCROLLBAR */}
+      <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        <div className="max-w-7xl mx-auto">
 
         {/* Tab Content */}
         {activeTab === 'docs' ? (
@@ -375,7 +387,8 @@ export default function APIKeys() {
             </div>
           </>
         )}
-      </div>
+        </div>
+      </main>
 
       {/* Modals außerhalb des Tab-Contents */}
       <Modal 
