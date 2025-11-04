@@ -10,7 +10,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const { signOut } = useAuth()
 
   const navigation = [
-    { name: 'Dashboard', href: '/', icon: '📊', exact: true },
+    { name: 'Dashboard', href: '/dashboard', icon: '📊', exact: true },
     { name: 'Zertifikate & Assets', href: '/certificates', icon: '🔒' },
     { name: 'SSL Health Check', href: '/ssl-health', icon: '🔐' },
     { name: 'Compliance', href: '/compliance', icon: '✅' },
@@ -51,7 +51,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       `}>
       {/* Logo */}
       <div className="p-6 border-b border-[#334155] flex-shrink-0">
-        <NavLink to="/" className="block">
+        <NavLink to="/dashboard" className="block">
           <div className="flex items-center space-x-3 hover:opacity-80 transition-opacity">
             <div className="bg-white rounded-lg p-2 flex-shrink-0">
               <img 
@@ -118,7 +118,10 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
 
         {/* Logout */}
         <button
-          onClick={signOut}
+          onClick={async () => {
+            await signOut()
+            window.location.href = '/'
+          }}
           className="w-full flex items-center space-x-3 px-4 py-3 text-[#94A3B8] hover:bg-red-500/20 hover:text-red-400 rounded-lg transition-colors group"
         >
           <svg className="w-5 h-5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">

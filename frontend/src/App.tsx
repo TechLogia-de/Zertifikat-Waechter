@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import Layout from './components/layout/Layout'
 import Login from './pages/Login'
+import LandingPage from './pages/LandingPage'
+import Documentation from './pages/Documentation'
 import Dashboard from './pages/Dashboard'
 import Certificates from './pages/Certificates'
 import Alerts from './pages/Alerts'
@@ -31,9 +33,18 @@ function App() {
     <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
       <LoadingBar />
       <Routes>
-        <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
+        {/* Landing Page - shown when not logged in */}
+        <Route path="/" element={!user ? <LandingPage /> : <Navigate to="/dashboard" />} />
+
+        {/* Documentation - accessible for everyone */}
+        <Route path="/docs" element={<Documentation />} />
+
+        {/* Login Page */}
+        <Route path="/login" element={!user ? <Login /> : <Navigate to="/dashboard" />} />
+
+        {/* Dashboard - main app route when logged in */}
         <Route
-          path="/"
+          path="/dashboard"
           element={
             user ? (
               <Layout>
@@ -212,7 +223,8 @@ function App() {
             )
           }
         />
-        <Route path="*" element={<Navigate to="/" />} />
+        {/* Catch-all route */}
+        <Route path="*" element={<Navigate to={user ? "/dashboard" : "/"} />} />
       </Routes>
     </BrowserRouter>
   )
