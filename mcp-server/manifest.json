@@ -1,0 +1,161 @@
+{
+  "name": "cert-watcher-mcp",
+  "version": "1.0.0",
+  "description": "MCP-Server für TLS-Zertifikatsüberwachung, Sicherheitsanalyse und Compliance",
+  "author": "Cert-Watcher Team",
+  "homepage": "https://cert-watcher.de",
+  "tools": [
+    {
+      "name": "cert.scan",
+      "description": "TLS-Handshake durchführen und Zertifikat scannen",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "host": {
+            "type": "string",
+            "description": "Hostname oder IP-Adresse"
+          },
+          "port": {
+            "type": "number",
+            "default": 443,
+            "description": "Port für TLS-Verbindung"
+          },
+          "timeoutMs": {
+            "type": "number",
+            "default": 5000,
+            "description": "Timeout in Millisekunden"
+          }
+        },
+        "required": ["host"]
+      }
+    },
+    {
+      "name": "cert.chain",
+      "description": "Vollständige Zertifikatskette abrufen und validieren",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "host": {
+            "type": "string",
+            "description": "Hostname oder IP-Adresse"
+          },
+          "port": {
+            "type": "number",
+            "default": 443
+          }
+        },
+        "required": ["host"]
+      }
+    },
+    {
+      "name": "cert.expiry",
+      "description": "Ablaufdatum prüfen und Vorwarnzeit berechnen",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "host": {
+            "type": "string",
+            "description": "Hostname oder IP-Adresse"
+          },
+          "warnDays": {
+            "type": "number",
+            "default": 30,
+            "description": "Tage vor Ablauf für Warnung"
+          }
+        },
+        "required": ["host"]
+      }
+    },
+    {
+      "name": "security.anomalyScan",
+      "description": "Heuristische Analyse auf TLS-Anomalien und Sicherheitsprobleme",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "host": {
+            "type": "string",
+            "description": "Hostname oder IP-Adresse"
+          }
+        },
+        "required": ["host"]
+      }
+    },
+    {
+      "name": "domains.register",
+      "description": "Domain für kontinuierliche Überwachung registrieren",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Domain-Name"
+          },
+          "port": {
+            "type": "number",
+            "default": 443
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tags für Kategorisierung"
+          }
+        },
+        "required": ["name"]
+      }
+    },
+    {
+      "name": "domains.list",
+      "description": "Liste aller registrierten Domains mit Status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "filter": {
+            "type": "string",
+            "enum": ["all", "expiring", "expired", "valid"],
+            "default": "all"
+          },
+          "limit": {
+            "type": "number",
+            "default": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "alerts.subscribe",
+      "description": "Echtzeit-Event-Stream für Zertifikats-Alerts abonnieren",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "filter": {
+            "type": "string",
+            "enum": ["all", "critical", "high", "medium"],
+            "default": "all"
+          }
+        }
+      }
+    },
+    {
+      "name": "compliance.report",
+      "description": "Compliance-Report für alle überwachten Zertifikate generieren",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "format": {
+            "type": "string",
+            "enum": ["json", "csv"],
+            "default": "json"
+          }
+        }
+      }
+    }
+  ],
+  "capabilities": {
+    "realtime": true,
+    "context_awareness": true,
+    "batch_operations": true
+  }
+}
+

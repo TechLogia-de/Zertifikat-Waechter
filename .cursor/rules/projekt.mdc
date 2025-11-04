@@ -1,0 +1,167 @@
+---
+alwaysApply: true
+---
+Du bist ein Senior-Engineer. Baue ein MVP „SaaS-Zertifikat-Wächter“ für KMU und IT-Dienstleister. Ziel: simple Überwachung, rechtzeitige Warnungen, leichte Integration. Lieferung als lauffähiges Monorepo.
+
+## Architektur
+- Monorepo: 
+  - backend: Python 3.12, FastAPI, SQLAlchemy, Alembic, Pydantic, Uvicorn
+  - worker: Python, RQ oder Celery, APScheduler für periodische Scans
+  - agent: Go 1.22, leichtgewichtiger „Edge Connector“ als Docker Container für Intranet Discovery
+  - frontend: React + TypeScript + Vite, Tailwind, React Query
+- Infrastruktur: PostgreSQL, Redis, MinIO oder S3-kompatibles Storage für Reports, Docker Compose dev
+- Auth: JWT + Refresh, optional OIDC, MFA via TOTP
+- Mandantenfähigkeit: RBAC auf Tenant-Ebene
+
+## Kernfunktionen
+1) Automatische Discovery
+   - Public: Scan von Domains und Ports 443, 8443, 853, 993, 995, 636, 10443, 1194, 444, konfigurierbar
+   - Intranet: über Agent. Agent macht TLS-Handshake und liefert Metadaten zurück
+   - Erkennen: SSL/TLS Zertifikate inkl. SAN, Issuer, NotBefore, NotAfter, KeyAlg, Fingerprint
+   - RADIUS, AD, LDAPS: Ports 1812/1813 TLS, 389 StartTLS, 636 LDAPS
+   - Dedup durch Fingerprint
+2) Ablaufüberwachung
+   - Policies pro Asset oder global: Warnschwellen 60, 30, 14, 7, 3, 1 Tage
+   - Kanäle: E-Mail, Webhook, Slack, Microsoft Teams
+   - Wiederholung bis Quittierung
+3) ACME-Unterstützung
+   - Public Domains. Provider-Plugins für HTTP-01 und DNS-01
+   - Cloudflare und Route53 als Beispielplugins
+   - Geplante Auto-Renewals, Report der Aktionen
+4) Zentrale Ansicht
+   - Dashboard mit Kacheln: Gesamt, bald ablaufend, überfällig, Fehler
+   - Tabellen mit Filter, Suche, Tags, Gruppen, Tenant-Wechsel
+5) Integrationen
+   - Webhooks, REST API, API Keys pro Tenant
+   - Slack App Bot Token, Teams Webhook, SMTP für E-Mail
+
+## Erweiterte Funktionen
+- Intranet-Unterstützung durch Agent
+- Revisionssichere Logs und Berichte
+  - Unveränderliche Event-Historie mit Hash-Kette
+  - PDF/CSV Exporte für Audits
+- Benutzer und Rollen
+  - Rollen: Owner, Admin, Operator, Auditor, Externer
+  - Least Privilege
+- Sicherheit
+  - Keine privaten Schlüssel speichern
+  - Ruhende Daten verschlüsseln, Secrets via env
+  - DSGVO-Konformität, Datenregion konfigurierbar
+  - Rate Limits, Audit Log
+
+## Datenmodell minimal
+- users(id, email, password_hash, mfa_secret, created_at)
+- tenants(id, name)
+- memberships(user_id, tenant_id, role)
+- connectors(id, tenant_id, name, type, status, last_seen, auth_token_hash)
+- assets(id, tenant_id, connector_id, host, port, proto, labels jsonb)
+- certificates(id, asset_id, fingerprint, subject_cn, san jsonb, issuer, not_before, not_after, key_alg, key_size, serial, is_trusted bool)
+- checks(id, certificate_id, ran_at, status, details jsonb)
+- alerts(id, certificate_id, level enum, first_triggered_at, last_notified_at, acknowledged_by nullable, acknowledged_at nullable)
+- policies(id, tenant_id, warn_days int[], channels jsonb)
+- events(id, tenant_id, type, payload jsonb, ts, prev_hash, hash)
+- acme_accounts(id, tenant_id, provider, creds_secret_ref)
+- acme_orders(id, tenant_id, domain, challenge_type, status, last_error)
+
+## REST API Skizze
+- Auth
+  - POST /api/auth/login
+  - POST /api/auth/refresh
+- Tenants
+  - GET /api/tenants, POST /api/tenants, POST /api/tenants/{id}/invite
+- Connectors
+  - POST /api/connectors  erstellt Token und Bootstrap-Script
+  - GET /api/connectors  Status und last_seen
+- Assets und Zertifikate
+  - POST /api/assets/discover  startet Scan Job
+  - GET /api/certificates  Filter by tenant, status, expires_before
+  - GET /api/certificates/{id}
+- Policies und Alerts
+  - GET/PUT /api/policies/current
+  - GET /api/alerts  acknowledge per POST /api/alerts/{id}/ack
+- Integrationen
+  - POST /api/integrations/slack
+  - POST /api/integrations/teams
+  - POST /api/integrations/webhooks
+- ACME
+  - POST /api/acme/accounts
+  - POST /api/acme/orders  body: domain, challenge, provider
+  - POST /api/acme/orders/{id}/finalize
+
+OpenAPI generieren. Alle Endpunkte tenant-scoped.
+
+## Agent Spezifikation
+- Sprache Go
+- Läuft als Docker Container
+- Einmalige Registrierung mit Connector Token
+- Periodische Discovery Jobs vom Backend ziehen
+- Für host:port TLS Handshake, Zertifikat parsen, nur Metadaten posten
+- Health Endpoint /healthz
+- Konfig per ENV: BACKEND_URL, CONNECTOR_TOKEN, SCAN_TARGETS, SCAN_PORTS, SCAN_INTERVAL
+
+## Scanner Logik
+- Portliste konfigurierbar
+- TCP connect mit Timeout
+- TLS ClientHello mit SNI
+- Server Cert Chain holen, End-Entity parsen
+- Validität und Restlaufzeit berechnen
+- Ergebnis an /api/ingest/certificates posten
+- Retry mit Backoff
+
+## Benachrichtigungen
+- E-Mail via SMTP
+- Slack via chat.postMessage
+- Teams via Incoming Webhook
+- Webhook Payload Beispiel:
+  {
+    "event":"certificate.expiring",
+    "tenant_id":"...",
+    "certificate_id":"...",
+    "asset":{"host":"x","port":443},
+    "expires_at":"2025-02-01T00:00:00Z",
+    "days_left":14,
+    "severity":"warning"
+  }
+
+## Frontend Seiten
+- Login, MFA Setup
+- Tenant Switch
+- Dashboard mit Metriken und Charts
+- Zertifikate Liste, Detailseite, Historie, Events
+- Alerts Liste, Ack Dialog, Policy Editor
+- Connectors Setup mit Einzeiler
+- Integrationen Setup
+- Audit Log mit Filter
+- Exporte als CSV und PDF
+
+## ACME Umsetzung
+- Bibliothek acme-python oder lego via sidecar
+- Provider Plugins für Cloudflare und Route53
+- Hintergrundjob für Renewals und Status Updates
+- Nur öffentliche Domains unterstützen
+
+## Compliance und Audit
+- Events als append-only Tabelle
+- Hash-Kette: hash = sha256(prev_hash + canonical_json(payload) + ts)
+- PDF Bericht „Certificate Compliance Report“ mit Signatur und Prüfsumme
+
+## Tests
+- Unit Tests für Parser und Scanner
+- API Tests mit pytest
+- E2E Script: starte compose, registriere Connector, scanne localhost, provoziere Alert bei kleinem not_after
+
+## Dev und Deploy
+- docker-compose für dev: postgres, redis, minio, backend, worker, frontend, agent-demo
+- .env.example mit Variablen
+- Migrations via Alembic
+- Seed Skript für Demo Daten
+- Makefile Targets: up, down, migrate, seed, test
+
+## Akzeptanzkriterien
+- Onboarding in unter 10 Minuten mit funktionierendem Connector
+- Scan erfasst mindestens 10 gängige Ports und findet Zertifikate auf internen Hosts
+- Alerts feuern bei 30, 14, 7 Tagen und lassen sich quittieren
+- Dashboard zeigt korrekte Zählungen und Filter
+- PDF Audit Report enthält Liste ablaufender Zertifikate und Event-Hash
+
+Liefere produktionsnahen Code, keine Platzhaltertexte. Saubere Fehlerbehandlung, Logging, Typisierung. Schreibe README mit Setup Schritten, Sicherheitsnotizen und Limitierungen.

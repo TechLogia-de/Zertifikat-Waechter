@@ -194,10 +194,13 @@ func startConfigPolling(ctx context.Context, client *supabase.Client, cfg *confi
 }
 
 func runNetworkDiscovery(ctx context.Context, networkScanner *scanner.NetworkScanner, certScanner *scanner.Scanner, client *supabase.Client, cfg *config.Config) {
+	startTime := time.Now()
 	log.Info("Starting network discovery...")
 	
 	// Send Log zu UI
-	client.SendLog(ctx, cfg.ConnectorName, "info", "🌐 Netzwerk-Scan gestartet...", nil)
+	client.SendLog(ctx, cfg.ConnectorName, "info", "🌐 Netzwerk-Scan gestartet... Scanne alle privaten IP-Bereiche", map[string]interface{}{
+		"scan_mode": "auto-discovery",
+	})
 	
 	// Progress Callback
 	progressCallback := func(current, total int) {
@@ -212,9 +215,14 @@ func runNetworkDiscovery(ctx context.Context, networkScanner *scanner.NetworkSca
 		return
 	}
 
-	log.WithField("hosts_found", len(hosts)).Info("Network discovery completed")
-	client.SendLog(ctx, cfg.ConnectorName, "info", fmt.Sprintf("✅ Netzwerk-Scan abgeschlossen: %d Hosts gefunden", len(hosts)), map[string]interface{}{
+	scanDuration := time.Since(startTime)
+	log.WithFields(logrus.Fields{
 		"hosts_found": len(hosts),
+		"duration":    scanDuration,
+	}).Info("Network discovery completed")
+	client.SendLog(ctx, cfg.ConnectorName, "info", fmt.Sprintf("✅ Netzwerk-Scan abgeschlossen: %d Hosts in %s gefunden", len(hosts), scanDuration.Round(time.Second)), map[string]interface{}{
+		"hosts_found": len(hosts),
+		"duration_ms": scanDuration.Milliseconds(),
 	})
 
 	// Für jeden gefundenen Host
@@ -302,10 +310,13 @@ func runNetworkDiscovery(ctx context.Context, networkScanner *scanner.NetworkSca
 	}).Info("Network discovery and certificate scan completed")
 	
 	// Send Final Log
-	client.SendLog(ctx, cfg.ConnectorName, "info", fmt.Sprintf("✅ Scan abgeschlossen: %d Hosts, %d Zertifikate gefunden, %d Fehler", len(hosts), successCount, failCount), map[string]interface{}{
-		"hosts_found": len(hosts),
-		"certificates": successCount,
-		"errors":      failCount,
+	totalDuration := time.Since(startTime)
+	client.SendLog(ctx, cfg.ConnectorName, "info", fmt.Sprintf("✅ Scan abgeschlossen: %d Hosts, %d Zertifikate gefunden, %d Fehler (Dauer: %s)", len(hosts), successCount, failCount, totalDuration.Round(time.Second)), map[string]interface{}{
+		"hosts_found":   len(hosts),
+		"certificates":  successCount,
+		"errors":        failCount,
+		"duration_ms":   totalDuration.Milliseconds(),
+		"scan_mode":     "auto-discovery",
 	})
 	
 	// Clear Progress

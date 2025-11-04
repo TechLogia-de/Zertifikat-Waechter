@@ -1,0 +1,132 @@
+---
+alwaysApply: true
+---
+
+Rolle: Du bist Senior Full-Stack Engineer. Baue für cert-watcher.de eine MCP-fähige Plattform für Zertifikatsüberwachung, TLS-Sicherheit und Compliance. Fokus: kontextabhängige Zustandsverwaltung, Zugriffskontrolle, Echtzeit-Kontext, dynamische Tool-Erkennung, Interop.
+
+Tech-Stack
+
+Next.js 14 mit App Router, TypeScript.
+
+Node 20, Express für MCP-Server.
+
+PostgreSQL via Prisma. Redis für Kontextzustand.
+
+WebSocket oder SSE für Echtzeit.
+
+JSON Web Tokens. Optional mTLS für Machine-zu-Machine.
+
+Docker Compose lokal. Vercel oder Fly.io Deploy.
+
+Deliverables
+
+/apps/web Next.js UI.
+
+/apps/mcp MCP-Server mit Tools und Manifest.
+
+/packages/shared geteilte Types.
+
+Vollständige API-Verträge, Tests, Seed-Daten.
+
+README mit Startbefehlen.
+
+Datenmodell (Prisma)
+
+// apps/mcp/manifest.json
+{
+  "name": "cert-watcher-mcp",
+  "version": "1.0.0",
+  "tools": [
+    { "name": "cert.scan", "description": "TLS-Handshake und Zertifikat scannen", "input_schema": { "type": "object", "properties": { "host": {"type":"string"}, "port":{"type":"number","default":443}, "timeoutMs":{"type":"number","default":5000} }, "required":["host"] } },
+    { "name": "cert.chain", "description": "Zertifikatskette abrufen und validieren", "input_schema": { "type":"object", "properties": { "host":{"type":"string"}, "port":{"type":"number","default":443} }, "required":["host"] } },
+    { "name": "cert.expiry", "description": "Ablauf prüfen. Liefert Vorwarnzeit", "input_schema": { "type":"object", "properties": { "host":{"type":"string"}, "warnDays":{"type":"number","default":30} }, "required":["host"] } },
+    { "name": "security.anomalyScan", "description": "Heuristiken zu Anomalien im TLS-Handshake", "input_schema": { "type":"object", "properties": { "host":{"type":"string"} }, "required":["host"] } },
+    { "name": "domains.register", "description": "Domain registrieren und überwachen", "input_schema": { "type":"object", "properties": { "name":{"type":"string"} }, "required":["name"] } },
+    { "name": "domains.list", "description": "Registrierte Domains listen", "input_schema": { "type":"object", "properties": {} } },
+    { "name": "alerts.subscribe", "description": "Echtzeit-Events streamen", "input_schema": { "type":"object", "properties": { "filter":{"type":"string","default":"all"} } } }
+  ]
+}
+
+
+// apps/mcp/src/server.ts
+import express from "express";
+import jwt from "jsonwebtoken";
+import { createClient } from "redis";
+import { WebSocketServer } from "ws";
+import tls from "tls";
+import { PrismaClient } from "@prisma/client";
+
+const app = express();
+app.use(express.json());
+const prisma = new PrismaClient();
+const redis = createClient({ url: process.env.REDIS_URL });
+await redis.connect();
+
+function auth(req, res, next) {
+  const key = req.header("X-API-Key");
+  const bearer = req.header("Authorization")?.replace("Bearer ","");
+  if (!key && !bearer) return res.status(401).json({ error: "unauthorized" });
+  if (bearer) try { jwt.verify(bearer, process.env.JWT_PUBLIC!, { algorithms:["RS256"] }); } catch { return res.status(401).json({ error:"invalid token" }); }
+  next();
+}
+
+app.post("/mcp/tools/cert.scan", auth, async (req,res) => {
+  const { host, port = 443, timeoutMs = 5000 } = req.body;
+  const socket = tls.connect({ host, port, servername: host, rejectUnauthorized:false, timeout: timeoutMs });
+  await new Promise((resolve,reject)=>{ socket.once("secureConnect", resolve); socket.once("error", reject); });
+  const cert = socket.getPeerCertificate(true);
+  const chain = [];
+  let c = cert; while (c) { chain.push({ subject: c.subject, issuer: c.issuer, valid_from: c.valid_from, valid_to: c.valid_to, fingerprint256: c.fingerprint256 }); c = c.issuerCertificate === c ? null : c.issuerCertificate; }
+  socket.end();
+  await redis.hSet(`mcp:ctx:${req.headers["x-session-id"]||"default"}`, { lastHost: host, lastChain: JSON.stringify(chain) });
+  res.json({ host, chain });
+});
+
+app.post("/mcp/tools/cert.expiry", auth, async (req,res) => {
+  const { host, warnDays = 30 } = req.body;
+  // reuse from context if vorhanden
+  const ctx = await redis.hGet(`mcp:ctx:${req.headers["x-session-id"]||"default"}`, "lastChain");
+  const chain = ctx ? JSON.parse(ctx) : null;
+  const leaf = chain?.[0];
+  const exp = leaf ? new Date(leaf.valid_to) : null;
+  if (!exp) return res.status(400).json({ error:"no chain" });
+  const daysLeft = Math.ceil((+exp - Date.now())/86400000);
+  const severity = daysLeft <= 0 ? "critical" : daysLeft <= warnDays ? "high" : "ok";
+  res.json({ host, expiresAt: exp.toISOString(), daysLeft, severity });
+});
+
+// Alerts via SSE
+app.get("/mcp/alerts/stream", auth, async (req,res)=>{
+  res.setHeader("Content-Type","text/event-stream");
+  res.setHeader("Cache-Control","no-cache");
+  res.flushHeaders();
+  // Demo ticker
+  const id = setInterval(()=>{ res.write(`event: keepalive\ndata: {}\n\n`); }, 15000);
+  req.on("close", ()=>clearInterval(id));
+});
+
+const server = app.listen(process.env.PORT||8787);
+const wss = new WebSocketServer({ server });
+
+
+Dynamische Tool-Erkennung
+
+Bereitstelle GET /mcp/manifest mit obigem Manifest.
+
+Endpoint wird in eine Registry eingetragen. Liefert health: ok, updatedAt.
+
+Sicherheit
+
+JWT RS256. Schlüsselrotation. JTI prüfen.
+
+API-Key mit Hash in DB. Nur verifizierte Clients. Scope-Prüfung pro Tool.
+
+DSGVO: Logging mit Minimierung. PII vermeiden. Löschroutine per userId.
+
+Echtzeit
+
+SSE unter /mcp/alerts/stream. WebSocket optional.
+
+Eventtypen: CERT_EXPIRES_SOON, CERT_EXPIRED, ANOMALY_DETECTED, SCAN_FAILED.
+
+UI zeigt Toast und schreibt Event in DB.

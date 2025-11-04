@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"strings"
 	"sync"
 	"time"
 
@@ -24,6 +23,24 @@ type NetworkScanner struct {
 	log     *logrus.Logger
 }
 
+// ScanPriority für intelligente Scan-Reihenfolge
+type ScanPriority int
+
+const (
+	PriorityHigh   ScanPriority = 1 // Gateway, wichtige IPs
+	PriorityMedium ScanPriority = 2 // Häufige Server-IPs
+	PriorityLow    ScanPriority = 3 // Restliche IPs
+)
+
+// HostProfile für adaptive Scan-Strategie
+type HostProfile struct {
+	IPAddress    string
+	Priority     ScanPriority
+	OSType       string // "linux", "windows", "network-device", "unknown"
+	IsServer     bool
+	ServicePorts []int // Ports basierend auf erkannten Services
+}
+
 func NewNetworkScanner(timeout time.Duration, log *logrus.Logger) *NetworkScanner {
 	return &NetworkScanner{
 		timeout: timeout,
@@ -31,66 +48,126 @@ func NewNetworkScanner(timeout time.Duration, log *logrus.Logger) *NetworkScanne
 	}
 }
 
-// DiscoverLocalNetwork scannt ALLE lokalen Netzwerke nach Hosts
+// DiscoverLocalNetwork scannt ALLE lokalen Netzwerke nach Hosts mit Hacker-Intelligenz
 func (ns *NetworkScanner) DiscoverLocalNetwork(ctx context.Context, progressCallback func(current, total int)) ([]DiscoveryResult, error) {
 	results := []DiscoveryResult{}
 	mu := &sync.Mutex{}
 	
-	// Hole ALLE lokalen Netzwerke
-	networks, err := getAllLocalNetworks()
+	// Hole ALLE lokalen Netzwerke mit intelligenter CIDR-Erkennung
+	networkInfos, err := getLocalNetworksWithCIDR()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get local networks: %w", err)
 	}
 
 	ns.log.WithFields(logrus.Fields{
-		"networks_found": len(networks),
-		"networks":       networks,
-	}).Info("Starting network discovery on ALL networks")
+		"networks_found": len(networkInfos),
+		"networks":       networkInfos,
+	}).Info("🧠 Starting INTELLIGENT network discovery (Hacker-Mode)")
 
-	// Scanne alle IPs in ALLEN Netzwerken (parallel, aber limitiert)
-	sem := make(chan struct{}, 50) // Max 50 parallel für schnelleres Scanning
+	// Scanne mit intelligenter Priorisierung (parallel, aber limitiert)
+	sem := make(chan struct{}, 100) // Max 100 parallel
 	var wg sync.WaitGroup
 	scanned := 0
-	total := len(networks) * 254
+	total := 0
+	for _, netInfo := range networkInfos {
+		total += len(netInfo.ScanIPs)
+	}
 
-	for _, network := range networks {
-		for i := 1; i < 255; i++ {
-			ip := fmt.Sprintf("%s.%d", network, i)
-		
+	ns.log.WithFields(logrus.Fields{
+		"total_ips":    total,
+		"strategy":     "prioritized-scan",
+		"gateway_first": true,
+	}).Info("🎯 Scan-Strategie: Gateway → Server-IPs → Rest")
+
+	for _, netInfo := range networkInfos {
+		ns.log.WithFields(logrus.Fields{
+			"network": netInfo.Network,
+			"cidr":    netInfo.CIDR,
+			"gateway": netInfo.Gateway,
+			"own_ip":  netInfo.OwnIP,
+		}).Info("🌐 Scanning network with Hacker-Intelligence")
+
+		// PHASE 1: Quick Scan aller IPs (priorisiert)
+		quickResults := make(map[string]*DiscoveryResult)
+		quickMu := &sync.Mutex{}
+
+		for idx, ip := range netInfo.ScanIPs {
 			wg.Add(1)
 			go func(targetIP string, index int) {
 				defer wg.Done()
-				sem <- struct{}{}        // Acquire
+				sem <- struct{}{}
 				defer func() { 
-					<-sem // Release
+					<-sem
 					mu.Lock()
 					scanned++
-					if progressCallback != nil && scanned%10 == 0 {
+					if progressCallback != nil && scanned%5 == 0 {
 						progressCallback(scanned, total)
 					}
 					mu.Unlock()
 				}()
 
-				// Quick Ping-Check (ICMP oder TCP)
+				// Quick Alive-Check
 				if !ns.isHostAlive(ctx, targetIP) {
 					return
 				}
 
-				// Host ist erreichbar - scanne Ports
+				// Host ist erreichbar - Basic Scan
 				result := ns.scanHost(ctx, targetIP)
 				if len(result.OpenPorts) > 0 {
-					mu.Lock()
-					results = append(results, result)
-					mu.Unlock()
+					quickMu.Lock()
+					quickResults[targetIP] = &result
+					quickMu.Unlock()
 
 					ns.log.WithFields(logrus.Fields{
-						"host":       result.Host,
 						"ip":         result.IPAddress,
-						"open_ports": result.OpenPorts,
+						"open_ports": len(result.OpenPorts),
 						"services":   result.Services,
-					}).Info("Host discovered")
+					}).Info("✓ Host discovered")
 				}
-			}(ip, i)
+			}(ip, idx)
+		}
+
+		wg.Wait()
+
+		// PHASE 2: Deep Scan für interessante Hosts (Adaptive Scanning)
+		ns.log.WithField("hosts_found", len(quickResults)).Info("🔬 Starting DEEP scan for interesting hosts...")
+
+		for ip, quickResult := range quickResults {
+			// Erkenne OS-Typ
+			osType := detectOSType(quickResult.OpenPorts, quickResult.Services)
+			
+			// Ist das ein Server? (viele Ports oder wichtige Services)
+			isServer := len(quickResult.OpenPorts) >= 3
+
+			if isServer || osType != "unknown" {
+				ns.log.WithFields(logrus.Fields{
+					"ip":        ip,
+					"os_type":   osType,
+					"is_server": isServer,
+				}).Info("🎯 Interesting host → Deep scan")
+
+				// Adaptive Port-Liste basierend auf Services
+				adaptivePorts := getAdaptivePortList(quickResult.OpenPorts, quickResult.Services)
+				
+				// Deep Scan mit erweiterten Ports
+				deepResult := ns.scanHostWithPorts(ctx, ip, adaptivePorts)
+				
+				// Merge Results
+				if len(deepResult.OpenPorts) > len(quickResult.OpenPorts) {
+					ns.log.WithFields(logrus.Fields{
+						"ip":         ip,
+						"new_ports":  len(deepResult.OpenPorts) - len(quickResult.OpenPorts),
+						"total":      len(deepResult.OpenPorts),
+					}).Info("💎 Deep scan found additional ports!")
+					
+					*quickResult = deepResult
+				}
+			}
+
+			// Final Result speichern
+			mu.Lock()
+			results = append(results, *quickResult)
+			mu.Unlock()
 		}
 	}
 
@@ -102,8 +179,8 @@ func (ns *NetworkScanner) DiscoverLocalNetwork(ctx context.Context, progressCall
 	
 	ns.log.WithFields(logrus.Fields{
 		"hosts_found": len(results),
-		"networks_scanned": len(networks),
-	}).Info("Network discovery completed on ALL networks")
+		"networks_scanned": len(networkInfos),
+	}).Info("🎉 Intelligent network discovery completed!")
 	
 	return results, nil
 }
@@ -111,11 +188,13 @@ func (ns *NetworkScanner) DiscoverLocalNetwork(ctx context.Context, progressCall
 // isHostAlive prüft schnell ob Host erreichbar ist
 func (ns *NetworkScanner) isHostAlive(ctx context.Context, ip string) bool {
 	// Versuche TCP-Connect auf gängige Ports (schneller als ICMP)
-	quickPorts := []int{80, 443, 22, 3389, 445} // HTTP, HTTPS, SSH, RDP, SMB
+	// Erweiterte Port-Liste für bessere Erkennung
+	quickPorts := []int{80, 443, 22, 3389, 445, 8080, 8443, 21, 25, 23} // HTTP, HTTPS, SSH, RDP, SMB, Alt-HTTP, FTP, SMTP, Telnet
 	
 	for _, port := range quickPorts {
 		address := fmt.Sprintf("%s:%d", ip, port)
-		conn, err := net.DialTimeout("tcp", address, 500*time.Millisecond)
+		// Schnellerer Timeout für Alive-Check (300ms statt 500ms)
+		conn, err := net.DialTimeout("tcp", address, 300*time.Millisecond)
 		if err == nil {
 			conn.Close()
 			return true
@@ -125,16 +204,9 @@ func (ns *NetworkScanner) isHostAlive(ctx context.Context, ip string) bool {
 	return false
 }
 
-// scanHost scannt einen einzelnen Host nach offenen Ports und Services
+// scanHost scannt einen einzelnen Host nach offenen Ports und Services (Standard-Ports)
 func (ns *NetworkScanner) scanHost(ctx context.Context, ip string) DiscoveryResult {
-	result := DiscoveryResult{
-		Host:      ip,
-		IPAddress: ip,
-		OpenPorts: []int{},
-		Services:  []string{},
-	}
-
-	// Wichtige Ports für IT-Infrastruktur
+	// Standard-Ports für Quick Scan
 	portsToScan := []int{
 		21,   // FTP
 		22,   // SSH
@@ -162,11 +234,23 @@ func (ns *NetworkScanner) scanHost(ctx context.Context, ip string) DiscoveryResu
 		9200, // Elasticsearch
 		27017, // MongoDB
 	}
+	
+	return ns.scanHostWithPorts(ctx, ip, portsToScan)
+}
+
+// scanHostWithPorts scannt mit custom Port-Liste (für adaptive Scans)
+func (ns *NetworkScanner) scanHostWithPorts(ctx context.Context, ip string, portsToScan []int) DiscoveryResult {
+	result := DiscoveryResult{
+		Host:      ip,
+		IPAddress: ip,
+		OpenPorts: []int{},
+		Services:  []string{},
+	}
 
 	startTime := time.Now()
 	
 	// Scanne Ports parallel
-	sem := make(chan struct{}, 5) // Max 5 parallel pro Host
+	sem := make(chan struct{}, 10) // Max 10 parallel für Deep Scan
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 
@@ -182,7 +266,7 @@ func (ns *NetworkScanner) scanHost(ctx context.Context, ip string) DiscoveryResu
 				
 				mu.Lock()
 				result.OpenPorts = append(result.OpenPorts, p)
-				if service != "" {
+				if service != "" && !contains(result.Services, service) {
 					result.Services = append(result.Services, service)
 				}
 				mu.Unlock()
@@ -194,6 +278,16 @@ func (ns *NetworkScanner) scanHost(ctx context.Context, ip string) DiscoveryResu
 	result.ResponseTime = time.Since(startTime).Milliseconds()
 
 	return result
+}
+
+// contains prüft ob String in Slice vorhanden
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
 }
 
 // isPortOpen prüft ob Port offen ist
@@ -243,71 +337,5 @@ func identifyService(port int) string {
 	return fmt.Sprintf("TCP/%d", port)
 }
 
-// getAllLocalNetworks findet ALLE privaten Netzwerke (nicht nur eins!)
-func getAllLocalNetworks() ([]string, error) {
-	addrs, err := net.InterfaceAddrs()
-	if err != nil {
-		return nil, err
-	}
-
-	networksMap := make(map[string]bool)
-
-	for _, addr := range addrs {
-		ipNet, ok := addr.(*net.IPNet)
-		if !ok || ipNet.IP.IsLoopback() {
-			continue
-		}
-
-		// IPv4 Adressen
-		if ipNet.IP.To4() != nil {
-			ip := ipNet.IP.String()
-			
-			// Prüfe ob private IP
-			if isPrivateIP(ipNet.IP) {
-				// Ermittle Netzwerk-Prefix (z.B. 192.168.1)
-				parts := strings.Split(ip, ".")
-				if len(parts) == 4 {
-					network := fmt.Sprintf("%s.%s.%s", parts[0], parts[1], parts[2])
-					
-					// Ignoriere Docker-Netzwerke (bekannte Ranges)
-					if !strings.HasPrefix(network, "172.17.") && // Docker default
-					   !strings.HasPrefix(network, "172.18.") && // Docker custom
-					   !strings.HasPrefix(network, "192.168.65.") { // Docker Desktop
-						networksMap[network] = true
-					}
-				}
-			}
-		}
-	}
-
-	// Konvertiere Map zu Slice
-	networks := make([]string, 0, len(networksMap))
-	for network := range networksMap {
-		networks = append(networks, network)
-	}
-
-	if len(networks) == 0 {
-		return nil, fmt.Errorf("no valid private networks found (filtered Docker networks)")
-	}
-
-	return networks, nil
-}
-
-// isPrivateIP prüft ob IP privat ist
-func isPrivateIP(ip net.IP) bool {
-	privateRanges := []string{
-		"10.0.0.0/8",
-		"172.16.0.0/12",
-		"192.168.0.0/16",
-	}
-
-	for _, cidr := range privateRanges {
-		_, subnet, _ := net.ParseCIDR(cidr)
-		if subnet.Contains(ip) {
-			return true
-		}
-	}
-	
-	return false
-}
+// Alte Funktionen entfernt - jetzt in intelligence.go mit CIDR-Support!
 
