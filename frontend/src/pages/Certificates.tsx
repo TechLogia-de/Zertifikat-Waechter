@@ -199,85 +199,80 @@ export default function Certificates() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-[#F8FAFC]">
+    <div className="flex flex-col h-full">
       {/* Page Header - FIXIERT */}
-      <div className="flex-shrink-0 bg-white border-b border-[#E2E8F0] px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-[#0F172A]">Domains & Zertifikate</h1>
-            <p className="text-sm sm:text-base text-[#64748B] mt-1">
-              SSL/TLS-Zertifikat-Monitoring • Automatische Scans • Ablauf-Tracking • x509-Metadaten
-            </p>
-            
-            {/* Erfolgs-Banner falls gerade gescannt wurde */}
-            {assets.length > 0 && assets.some(a => a.certificates && a.certificates.length > 0) && (
-              <div className="mt-3 bg-green-50 border border-green-200 rounded-lg px-4 py-2 flex items-center gap-2">
-                <span className="text-green-600 text-lg">✅</span>
-                <span className="text-sm text-green-800 font-medium">
-                  {assets.filter(a => a.certificates && a.certificates.length > 0).length} Domain(s) erfolgreich überwacht
-                </span>
+      <div className="flex-shrink-0 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border-b border-slate-700/50 px-4 sm:px-6 lg:px-8 py-3 sm:py-4 shadow-lg">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="p-1.5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg shadow-lg shadow-blue-500/20">
+                <span className="text-xl sm:text-2xl">🔒</span>
               </div>
-            )}
-            
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white">Domains & Zertifikate</h1>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-400 mt-0.5 ml-0.5">
+              SSL/TLS-Monitoring • Auto-Scans • x509-Metadaten
+            </p>
+
             {/* Tabs */}
-            <div className="flex gap-4 mt-4 border-b border-gray-200">
+            <div className="flex gap-2 mt-2 ml-0.5">
               <button
                 onClick={() => setActiveTab('certificates')}
-                className={`pb-2 px-1 font-medium text-sm transition-colors ${
+                className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all duration-200 ${
                   activeTab === 'certificates'
-                    ? 'border-b-2 border-blue-600 text-blue-600'
-                    : 'text-gray-500 hover:text-gray-700'
+                    ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
                 }`}
               >
                 🔒 Zertifikate
               </button>
               <button
                 onClick={() => setActiveTab('assets')}
-                className={`pb-2 px-1 font-medium text-sm transition-colors ${
+                className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all duration-200 ${
                   activeTab === 'assets'
-                    ? 'border-b-2 border-blue-600 text-blue-600'
-                    : 'text-gray-500 hover:text-gray-700'
+                    ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
                 }`}
               >
                 🖥️ Assets & SSL Status
               </button>
             </div>
           </div>
-          <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex flex-col sm:flex-row gap-2 mt-2 sm:mt-0">
             {/* Export Dropdown */}
             <div className="relative group">
               <button
                 type="button"
                 disabled={exporting || assets.length === 0}
-                className="flex items-center justify-center space-x-2 px-4 py-3 bg-white border border-[#E2E8F0] text-[#0F172A] rounded-lg font-medium hover:bg-[#F8FAFC] hover:border-[#3B82F6] transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                className="flex items-center justify-center space-x-1.5 px-3 py-2 bg-slate-700/50 border border-slate-600/50 text-white rounded-lg font-medium text-sm hover:bg-slate-700 hover:border-slate-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
                 </svg>
-                <span>{exporting ? 'Exportiere...' : 'Export'}</span>
+                <span className="text-xs">{exporting ? 'Exportiere...' : 'Export'}</span>
               </button>
               {!exporting && assets.length > 0 && (
-                <div className="hidden group-hover:block absolute right-0 mt-2 w-48 bg-white border border-[#E2E8F0] rounded-lg shadow-lg z-10">
+                <div className="hidden group-hover:block absolute right-0 mt-1 w-40 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl z-10 overflow-hidden">
                   <button
                     onClick={() => exportData('csv')}
-                    className="w-full text-left px-4 py-3 text-sm hover:bg-[#F8FAFC] transition-colors rounded-t-lg flex items-center space-x-2"
+                    className="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-700 transition-colors flex items-center space-x-2"
                   >
                     <span>📊</span>
-                    <span>CSV Export</span>
+                    <span>CSV</span>
                   </button>
                   <button
                     onClick={() => exportData('json')}
-                    className="w-full text-left px-4 py-3 text-sm hover:bg-[#F8FAFC] transition-colors flex items-center space-x-2"
+                    className="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-700 transition-colors flex items-center space-x-2"
                   >
                     <span>📋</span>
-                    <span>JSON Export</span>
+                    <span>JSON</span>
                   </button>
                   <button
                     onClick={() => exportData('html')}
-                    className="w-full text-left px-4 py-3 text-sm hover:bg-[#F8FAFC] transition-colors rounded-b-lg flex items-center space-x-2"
+                    className="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-700 transition-colors flex items-center space-x-2"
                   >
                     <span>📄</span>
-                    <span>HTML Report</span>
+                    <span>HTML</span>
                   </button>
                 </div>
               )}
@@ -290,7 +285,7 @@ export default function Certificates() {
                 e.preventDefault()
                 setShowAddModal(true)
               }}
-              className="flex items-center justify-center space-x-2 px-4 py-3 bg-[#3B82F6] text-white rounded-lg font-medium hover:bg-[#2563EB] transition-colors shadow-md cursor-pointer whitespace-nowrap"
+              className="flex items-center justify-center space-x-1.5 px-3 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-medium text-sm hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg shadow-blue-500/20 cursor-pointer whitespace-nowrap"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />

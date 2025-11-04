@@ -20,12 +20,17 @@ import {
   HelpCircle,
   ArrowRight,
   Download,
+  Menu,
+  X,
+  ChevronDown,
 } from 'lucide-react'
 import { useState } from 'react'
 
 const Documentation = () => {
   const navigate = useNavigate()
   const [activeSection, setActiveSection] = useState('getting-started')
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
 
   const sections = [
     { id: 'getting-started', title: 'Erste Schritte', icon: Rocket },
@@ -53,14 +58,15 @@ const Documentation = () => {
               <img
                 src="/logo.png"
                 alt="Zertifikat-Wächter Logo"
-                className="w-8 h-8 object-contain"
+                className="w-7 h-7 sm:w-8 sm:h-8 object-contain"
               />
-              <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+              <span className="text-base sm:text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
                 Zertifikat-Wächter
               </span>
             </motion.div>
 
-            <div className="flex items-center space-x-6">
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex items-center space-x-6">
               <motion.button
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -82,16 +88,100 @@ const Documentation = () => {
                 Anmelden
               </motion.button>
             </div>
+
+            {/* Mobile Menu Button */}
+            <motion.button
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="md:hidden p-2 text-gray-700 hover:text-blue-600 transition-colors"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </motion.button>
           </div>
         </div>
+
+        {/* Mobile Menu */}
+        {mobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="md:hidden bg-white border-t border-gray-200"
+          >
+            <div className="px-4 py-4 space-y-3">
+              <button
+                onClick={() => {
+                  navigate('/')
+                  setMobileMenuOpen(false)
+                }}
+                className="w-full text-left px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg font-medium transition-colors flex items-center space-x-2"
+              >
+                <Home className="w-4 h-4" />
+                <span>Home</span>
+              </button>
+              <button
+                onClick={() => {
+                  navigate('/login')
+                  setMobileMenuOpen(false)
+                }}
+                className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-medium shadow-lg text-center"
+              >
+                Anmelden
+              </button>
+            </div>
+          </motion.div>
+        )}
       </nav>
 
       {/* Content */}
-      <div className="pt-24 pb-20 px-4 sm:px-6 lg:px-8">
+      <div className="pt-20 sm:pt-24 pb-12 sm:pb-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col lg:flex-row gap-8">
-            {/* Sidebar */}
-            <aside className="lg:w-64 flex-shrink-0">
+          {/* Mobile Section Selector */}
+          <div className="lg:hidden mb-6">
+            <button
+              onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
+              className="w-full flex items-center justify-between px-4 py-3 bg-white rounded-xl shadow-lg border border-gray-200"
+            >
+              <div className="flex items-center space-x-3">
+                <Book className="w-5 h-5 text-blue-600" />
+                <span className="font-medium text-gray-900">
+                  {sections.find(s => s.id === activeSection)?.title}
+                </span>
+              </div>
+              <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${mobileSidebarOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {mobileSidebarOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-2 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden"
+              >
+                {sections.map((section) => (
+                  <button
+                    key={section.id}
+                    onClick={() => {
+                      setActiveSection(section.id)
+                      setMobileSidebarOpen(false)
+                    }}
+                    className={`w-full flex items-center space-x-3 px-4 py-3 transition-all border-b border-gray-100 last:border-b-0 ${
+                      activeSection === section.id
+                        ? 'bg-blue-100 text-blue-700 font-medium'
+                        : 'text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    <section.icon className="w-4 h-4" />
+                    <span className="text-sm">{section.title}</span>
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </div>
+
+          <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+            {/* Desktop Sidebar */}
+            <aside className="hidden lg:block lg:w-64 flex-shrink-0">
               <div className="sticky top-24 bg-white rounded-2xl shadow-lg p-6">
                 <div className="flex items-center space-x-2 mb-6">
                   <Book className="w-5 h-5 text-blue-600" />
@@ -123,31 +213,31 @@ const Documentation = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3 }}
-                className="bg-white rounded-2xl shadow-lg p-8"
+                className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6 md:p-8"
               >
                 {activeSection === 'getting-started' && (
-                  <div className="space-y-6">
+                  <div className="space-y-4 sm:space-y-6">
                     <div>
-                      <h1 className="text-4xl font-bold mb-4 text-gray-900">Erste Schritte</h1>
-                      <p className="text-lg text-gray-600">
+                      <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4 text-gray-900">Erste Schritte</h1>
+                      <p className="text-base sm:text-lg text-gray-600">
                         Willkommen bei Zertifikat-Wächter! Diese Anleitung hilft dir beim Einstieg.
                       </p>
                     </div>
 
-                    <div className="border-l-4 border-blue-500 pl-6 py-4 bg-blue-50 rounded-r-lg">
-                      <h3 className="font-bold text-blue-900 mb-2">Was ist Zertifikat-Wächter?</h3>
-                      <p className="text-blue-800">
+                    <div className="border-l-4 border-blue-500 pl-4 sm:pl-6 py-3 sm:py-4 bg-blue-50 rounded-r-lg">
+                      <h3 className="text-sm sm:text-base font-bold text-blue-900 mb-2">Was ist Zertifikat-Wächter?</h3>
+                      <p className="text-sm sm:text-base text-blue-800">
                         Ein Enterprise-Grade System zur Überwachung von SSL/TLS-Zertifikaten mit automatischer
                         Discovery, ACME-Integration und Compliance-Reporting.
                       </p>
                     </div>
 
-                    <div className="space-y-4">
-                      <h2 className="text-2xl font-bold text-gray-900">Quick Start</h2>
+                    <div className="space-y-3 sm:space-y-4">
+                      <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Quick Start</h2>
 
-                      <div className="bg-gray-900 rounded-xl p-6 text-white font-mono text-sm overflow-x-auto">
+                      <div className="bg-gray-900 rounded-lg sm:rounded-xl p-4 sm:p-6 text-white font-mono text-xs sm:text-sm overflow-x-auto">
                         <div className="mb-2 text-gray-400"># Installation</div>
-                        <div>git clone https://github.com/your-org/zertifikat-wachter.git</div>
+                        <div className="break-all">git clone https://github.com/your-org/zertifikat-wachter.git</div>
                         <div>cd zertifikat-wachter</div>
                         <div className="mt-4 mb-2 text-gray-400"># Konfiguration</div>
                         <div>cp .env.example .env</div>
@@ -155,7 +245,7 @@ const Documentation = () => {
                         <div>docker-compose up -d</div>
                       </div>
 
-                      <div className="grid md:grid-cols-3 gap-4 mt-6">
+                      <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 mt-4 sm:mt-6">
                         {[
                           { icon: Globe, title: 'Frontend', text: 'http://localhost:5173' },
                           { icon: Server, title: 'MCP Server', text: 'http://localhost:8787' },
@@ -163,11 +253,11 @@ const Documentation = () => {
                         ].map((item) => (
                           <div
                             key={item.title}
-                            className="bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-lg"
+                            className="bg-gradient-to-br from-blue-50 to-indigo-50 p-3 sm:p-4 rounded-lg"
                           >
-                            <item.icon className="w-8 h-8 text-blue-600 mb-2" />
-                            <h3 className="font-bold text-gray-900">{item.title}</h3>
-                            <p className="text-sm text-gray-600">{item.text}</p>
+                            <item.icon className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 mb-2" />
+                            <h3 className="text-sm sm:text-base font-bold text-gray-900">{item.title}</h3>
+                            <p className="text-xs sm:text-sm text-gray-600 break-all">{item.text}</p>
                           </div>
                         ))}
                       </div>
@@ -176,10 +266,10 @@ const Documentation = () => {
                 )}
 
                 {activeSection === 'features' && (
-                  <div className="space-y-6">
-                    <h1 className="text-4xl font-bold mb-4 text-gray-900">Features</h1>
+                  <div className="space-y-4 sm:space-y-6">
+                    <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4 text-gray-900">Features</h1>
 
-                    <div className="grid md:grid-cols-2 gap-6">
+                    <div className="grid sm:grid-cols-2 gap-4 sm:gap-6">
                       {[
                         {
                           icon: Globe,

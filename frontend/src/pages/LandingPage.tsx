@@ -20,10 +20,14 @@ import {
   Settings,
   FileCheck,
   Terminal,
+  Menu,
+  X,
 } from 'lucide-react'
+import { useState } from 'react'
 
 const LandingPage = () => {
   const navigate = useNavigate()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const fadeInUp = {
     initial: { opacity: 0, y: 20 },
@@ -122,14 +126,15 @@ const LandingPage = () => {
               <img
                 src="/logo.png"
                 alt="Zertifikat-Wächter Logo"
-                className="w-8 h-8 object-contain"
+                className="w-7 h-7 sm:w-8 sm:h-8 object-contain"
               />
-              <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+              <span className="text-base sm:text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
                 Zertifikat-Wächter
               </span>
             </motion.div>
 
-            <div className="flex items-center space-x-6">
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex items-center space-x-6">
               <motion.button
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -150,8 +155,49 @@ const LandingPage = () => {
                 Anmelden
               </motion.button>
             </div>
+
+            {/* Mobile Menu Button */}
+            <motion.button
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="md:hidden p-2 text-gray-700 hover:text-blue-600 transition-colors"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </motion.button>
           </div>
         </div>
+
+        {/* Mobile Menu */}
+        {mobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="md:hidden bg-white border-t border-gray-200"
+          >
+            <div className="px-4 py-4 space-y-3">
+              <button
+                onClick={() => {
+                  navigate('/docs')
+                  setMobileMenuOpen(false)
+                }}
+                className="w-full text-left px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg font-medium transition-colors"
+              >
+                Dokumentation
+              </button>
+              <button
+                onClick={() => {
+                  navigate('/login')
+                  setMobileMenuOpen(false)
+                }}
+                className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-medium shadow-lg text-center"
+              >
+                Anmelden
+              </button>
+            </div>
+          </motion.div>
+        )}
       </nav>
 
       {/* Hero Section */}
@@ -165,15 +211,15 @@ const LandingPage = () => {
           >
             <motion.div
               variants={fadeInUp}
-              className="inline-flex items-center space-x-2 bg-blue-100 text-blue-700 px-4 py-2 rounded-full mb-6"
+              className="inline-flex items-center space-x-2 bg-blue-100 text-blue-700 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full mb-4 sm:mb-6"
             >
-              <Sparkles className="w-4 h-4" />
-              <span className="text-sm font-medium">Enterprise-Grade SSL/TLS Monitoring</span>
+              <Sparkles className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="text-xs sm:text-sm font-medium">Enterprise-Grade SSL/TLS Monitoring</span>
             </motion.div>
 
             <motion.h1
               variants={fadeInUp}
-              className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-gray-900 via-blue-900 to-indigo-900 bg-clip-text text-transparent"
+              className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-bold mb-4 sm:mb-6 bg-gradient-to-r from-gray-900 via-blue-900 to-indigo-900 bg-clip-text text-transparent px-4 sm:px-0"
             >
               Nie wieder abgelaufene
               <br />
@@ -182,28 +228,29 @@ const LandingPage = () => {
 
             <motion.p
               variants={fadeInUp}
-              className="text-xl md:text-2xl text-gray-600 mb-10 max-w-3xl mx-auto"
+              className="text-base sm:text-lg md:text-xl lg:text-2xl text-gray-600 mb-8 sm:mb-10 max-w-3xl mx-auto px-4 sm:px-0"
             >
               Vollautomatische Überwachung, intelligente Warnungen und ACME-Integration
               für eine sichere und unterbrechungsfreie Online-Präsenz
             </motion.p>
 
-            <motion.div variants={fadeInUp} className="flex flex-col sm:flex-row gap-4 justify-center">
+            <motion.div variants={fadeInUp} className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center px-4 sm:px-0">
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => navigate('/login')}
-                className="px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold text-lg shadow-2xl hover:shadow-blue-500/50 transition-all flex items-center justify-center space-x-2"
+                className="px-6 py-3 sm:px-8 sm:py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold text-base sm:text-lg shadow-2xl hover:shadow-blue-500/50 transition-all flex items-center justify-center space-x-2"
               >
                 <span>Jetzt starten</span>
-                <ArrowRight className="w-5 h-5" />
+                <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
               </motion.button>
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="px-8 py-4 bg-white text-gray-700 rounded-xl font-semibold text-lg shadow-xl hover:shadow-2xl transition-all border-2 border-gray-200"
+                onClick={() => navigate('/docs')}
+                className="px-6 py-3 sm:px-8 sm:py-4 bg-white text-gray-700 rounded-xl font-semibold text-base sm:text-lg shadow-xl hover:shadow-2xl transition-all border-2 border-gray-200"
               >
-                Demo ansehen
+                Mehr erfahren
               </motion.button>
             </motion.div>
           </motion.div>
@@ -213,7 +260,7 @@ const LandingPage = () => {
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4, duration: 0.8 }}
-            className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-6"
+            className="mt-12 sm:mt-16 md:mt-20 grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 md:gap-6"
           >
             {stats.map((stat, index) => (
               <motion.div
@@ -221,11 +268,11 @@ const LandingPage = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.5 + index * 0.1 }}
-                className="bg-white/80 backdrop-blur-lg rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow border border-gray-200"
+                className="bg-white/80 backdrop-blur-lg rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-lg hover:shadow-xl transition-shadow border border-gray-200"
               >
-                <stat.icon className="w-8 h-8 text-blue-600 mb-3 mx-auto" />
-                <div className="text-3xl font-bold text-gray-900 mb-1">{stat.value}</div>
-                <div className="text-sm text-gray-600">{stat.label}</div>
+                <stat.icon className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 mb-2 sm:mb-3 mx-auto" />
+                <div className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-1">{stat.value}</div>
+                <div className="text-xs sm:text-sm text-gray-600">{stat.label}</div>
               </motion.div>
             ))}
           </motion.div>
@@ -233,24 +280,24 @@ const LandingPage = () => {
       </section>
 
       {/* Features Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-white">
+      <section className="py-12 sm:py-16 md:py-20 px-4 sm:px-6 lg:px-8 bg-white">
         <div className="max-w-7xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
-            className="text-center mb-16"
+            className="text-center mb-10 sm:mb-12 md:mb-16"
           >
-            <h2 className="text-4xl md:text-5xl font-bold mb-4 text-gray-900">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-3 sm:mb-4 text-gray-900">
               Alles was du brauchst
             </h2>
-            <p className="text-xl text-gray-600">
+            <p className="text-base sm:text-lg md:text-xl text-gray-600 px-4 sm:px-0">
               Enterprise Features für professionelles Zertifikats-Management
             </p>
           </motion.div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
             {features.map((feature, index) => (
               <motion.div
                 key={feature.title}
@@ -261,15 +308,15 @@ const LandingPage = () => {
                 whileHover={{ y: -8 }}
                 className="relative group"
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 rounded-2xl blur-xl group-hover:blur-2xl transition-all" />
-                <div className="relative bg-white rounded-2xl p-8 shadow-lg hover:shadow-2xl transition-all border border-gray-200">
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 rounded-xl sm:rounded-2xl blur-xl group-hover:blur-2xl transition-all" />
+                <div className="relative bg-white rounded-xl sm:rounded-2xl p-5 sm:p-6 md:p-8 shadow-lg hover:shadow-2xl transition-all border border-gray-200">
                   <div
-                    className={`w-14 h-14 rounded-xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform`}
+                    className={`w-12 h-12 sm:w-14 sm:h-14 rounded-lg sm:rounded-xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center mb-4 sm:mb-6 group-hover:scale-110 transition-transform`}
                   >
-                    <feature.icon className="w-7 h-7 text-white" />
+                    <feature.icon className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
                   </div>
-                  <h3 className="text-xl font-bold mb-3 text-gray-900">{feature.title}</h3>
-                  <p className="text-gray-600">{feature.description}</p>
+                  <h3 className="text-lg sm:text-xl font-bold mb-2 sm:mb-3 text-gray-900">{feature.title}</h3>
+                  <p className="text-sm sm:text-base text-gray-600">{feature.description}</p>
                 </div>
               </motion.div>
             ))}
@@ -278,16 +325,16 @@ const LandingPage = () => {
       </section>
 
       {/* Use Cases Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
+      <section className="py-12 sm:py-16 md:py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
-            className="text-center mb-16"
+            className="text-center mb-10 sm:mb-12 md:mb-16"
           >
-            <h2 className="text-4xl md:text-5xl font-bold mb-4 text-gray-900">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-3 sm:mb-4 text-gray-900">
               Perfekt für jeden Einsatz
             </h2>
             <p className="text-xl text-gray-600">

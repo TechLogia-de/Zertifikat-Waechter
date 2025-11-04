@@ -198,34 +198,39 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-[#F8FAFC]">
+    <div className="flex flex-col h-full">
       {/* Page Header - FIXIERT */}
-      <div className="flex-shrink-0 bg-gradient-to-r from-[#1E293B] to-[#334155] border-b-4 border-[#3B82F6] px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex-shrink-0 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border-b border-slate-700/50 px-4 sm:px-6 lg:px-8 py-3 sm:py-4 shadow-lg">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">
-              Dashboard 📊
-            </h1>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="p-1.5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg shadow-lg shadow-blue-500/20">
+                <span className="text-xl sm:text-2xl">📊</span>
+              </div>
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white">
+                Dashboard
+              </h1>
+            </div>
             {tenantName && (
-              <div className="flex items-center gap-2 text-white/80">
-                <span className="text-sm">🏢</span>
-                <span className="text-sm sm:text-base font-medium">{tenantName}</span>
+              <div className="flex items-center gap-1.5 text-slate-300 ml-0.5">
+                <span className="text-xs">🏢</span>
+                <span className="text-xs sm:text-sm font-medium">{tenantName}</span>
               </div>
             )}
           </div>
-          <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 border border-white/20">
-            <div className="w-10 h-10 bg-gradient-to-br from-[#3B82F6] to-[#8B5CF6] rounded-full flex items-center justify-center text-white font-bold text-lg">
+          <div className="flex items-center gap-2.5 bg-slate-800/60 backdrop-blur-sm rounded-lg px-3 py-2 border border-slate-700/50 shadow-lg hover:bg-slate-800/80 transition-all duration-200">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md">
               {user?.email?.charAt(0).toUpperCase()}
             </div>
             <div className="text-left">
-              <p className="text-sm font-semibold text-white truncate max-w-[200px]">
+              <p className="text-xs font-semibold text-white truncate max-w-[200px]">
                 {user?.user_metadata?.full_name || user?.email?.split('@')[0]}
               </p>
-              <p className="text-xs text-white/70 flex items-center gap-1">
-                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+              <p className="text-xs text-slate-400 flex items-center gap-1">
+                <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
                 </svg>
-                Administrator
+                Admin
               </p>
             </div>
           </div>

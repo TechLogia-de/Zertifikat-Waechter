@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import type { Database } from '../types/database.types'
 
 export default function Login() {
+  const navigate = useNavigate()
   const [isLogin, setIsLogin] = useState(true)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -22,19 +24,19 @@ export default function Login() {
   async function handleGoogleLogin() {
     setLoading(true)
     setError(null)
-    
+
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/`,
+          redirectTo: `${window.location.origin}/dashboard`,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
           },
         },
       })
-      
+
       if (error) throw error
     } catch (err: any) {
       console.error('Google login error:', err)
@@ -59,8 +61,9 @@ export default function Login() {
     })
 
     if (!signInError && data?.session) {
-      // Erfolgreich eingeloggt, App leitet automatisch weiter
+      // Erfolgreich eingeloggt, navigiere zum Dashboard
       setLoading(false)
+      navigate('/dashboard')
       return
     }
 
@@ -141,11 +144,12 @@ export default function Login() {
       })
       if (verifyError) throw verifyError
 
-      // Erfolgreich: Session wird gesetzt, App leitet automatisch weiter
+      // Erfolgreich: Session wird gesetzt, navigiere zum Dashboard
       setSuccess('Anmeldung erfolgreich')
       setMfaRequired(false)
       setOtpCode('')
       setSelectedFactorId(null)
+      navigate('/dashboard')
     } catch (err: any) {
       console.error('MFA verify failed:', err)
       setError(err?.message || 'MFA‑Verifizierung fehlgeschlagen')
@@ -265,8 +269,9 @@ export default function Login() {
           }
 
           setSuccess('Registrierung erfolgreich! Du bist jetzt eingeloggt.')
-          // User ist bereits eingeloggt, wird automatisch zum Dashboard weitergeleitet
-          
+          // User ist bereits eingeloggt, navigiere zum Dashboard
+          setTimeout(() => navigate('/dashboard'), 1000)
+
         } catch (setupError: any) {
           console.error('Setup failed after user creation:', setupError)
           throw setupError
