@@ -322,8 +322,27 @@ func (c *Client) ClearScanTrigger(ctx context.Context, connectorID string) error
 
 // UpsertDiscoveryResult speichert Network-Discovery-Ergebnisse
 func (c *Client) UpsertDiscoveryResult(ctx context.Context, result *scanner.DiscoveryResult) error {
-	url := fmt.Sprintf("%s/rest/v1/discovery_results", c.BaseURL)
-
+	// Erst versuchen zu UPDATE, falls nicht existiert dann INSERT
+	// Check ob Eintrag existiert
+	checkURL := fmt.Sprintf("%s/rest/v1/discovery_results?connector_id=eq.%s&ip_address=eq.%s&select=id", 
+		c.BaseURL, c.ConnectorID, result.IPAddress)
+	
+	checkReq, err := http.NewRequestWithContext(ctx, "GET", checkURL, nil)
+	if err != nil {
+		return fmt.Errorf("create check request failed: %w", err)
+	}
+	checkReq.Header.Set("apikey", c.APIKey)
+	checkReq.Header.Set("Authorization", "Bearer "+c.APIKey)
+	
+	checkResp, err := c.client.Do(checkReq)
+	if err != nil {
+		return fmt.Errorf("check request failed: %w", err)
+	}
+	defer checkResp.Body.Close()
+	
+	var existingRecords []map[string]interface{}
+	json.NewDecoder(checkResp.Body).Decode(&existingRecords)
+	
 	payload := map[string]interface{}{
 		"tenant_id":      c.TenantID,
 		"connector_id":   c.ConnectorID,
@@ -334,13 +353,27 @@ func (c *Client) UpsertDiscoveryResult(ctx context.Context, result *scanner.Disc
 		"response_time":  result.ResponseTime,
 		"discovered_at":  time.Now().UTC().Format(time.RFC3339),
 	}
-
+	
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("marshal failed: %w", err)
 	}
+	
+	var url string
+	var method string
+	
+	if len(existingRecords) > 0 {
+		// UPDATE existierenden Eintrag
+		url = fmt.Sprintf("%s/rest/v1/discovery_results?connector_id=eq.%s&ip_address=eq.%s", 
+			c.BaseURL, c.ConnectorID, result.IPAddress)
+		method = "PATCH"
+	} else {
+		// INSERT neuen Eintrag
+		url = fmt.Sprintf("%s/rest/v1/discovery_results", c.BaseURL)
+		method = "POST"
+	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(data))
+	req, err := http.NewRequestWithContext(ctx, method, url, bytes.NewBuffer(data))
 	if err != nil {
 		return fmt.Errorf("create request failed: %w", err)
 	}
@@ -348,7 +381,6 @@ func (c *Client) UpsertDiscoveryResult(ctx context.Context, result *scanner.Disc
 	req.Header.Set("apikey", c.APIKey)
 	req.Header.Set("Authorization", "Bearer "+c.APIKey)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Prefer", "resolution=merge-duplicates")
 
 	resp, err := c.client.Do(req)
 	if err != nil {

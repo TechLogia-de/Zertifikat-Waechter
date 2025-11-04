@@ -1,0 +1,46 @@
+@echo off
+echo ========================================
+echo   Discovery RLS Fix - Windows
+echo ========================================
+echo.
+echo PROBLEM: Agent kann discovery_results nicht speichern (RLS blockiert)
+echo LÖSUNG:  Führe SQL-Migration in Supabase aus
+echo.
+echo ----------------------------------------
+echo   Anleitung:
+echo ----------------------------------------
+echo.
+echo 1. Öffne Supabase Dashboard in Browser
+echo    https://supabase.com/dashboard
+echo.
+echo 2. Gehe zu deinem Projekt
+echo.
+echo 3. Klicke auf "SQL Editor" (linkes Menü)
+echo.
+echo 4. Klicke "New Query"
+echo.
+echo 5. Kopiere apply-discovery-rls-fix.sql
+echo    und füge den Inhalt in den SQL Editor ein
+echo.
+echo 6. Klicke "Run" (Strg+Enter)
+echo.
+echo 7. Erwartetes Ergebnis:
+echo    - DROP POLICY: OK
+echo    - ALTER TABLE: OK
+echo    - GRANT: OK
+echo    - SELECT zeigt: RLS Enabled = false
+echo.
+echo ========================================
+echo   ODER: Migration über CLI
+echo ========================================
+echo.
+echo Wenn du Supabase CLI installiert hast:
+echo.
+echo   cd supabase
+echo   npx supabase db push
+echo.
+echo Das führt alle Migrationen aus (inkl. 00024_fix_discovery_results_rls.sql)
+echo.
+pause
+
+

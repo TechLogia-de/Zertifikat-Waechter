@@ -1,5 +1,110 @@
 # Agent Changelog
 
+## Version 1.2 - Hacker-Intelligence (2025-10-20) 🧠🔒
+
+### 🚀 BRAND NEW: Regelbasierte Hacker-Intelligenz!
+Der Agent denkt jetzt wie ein Penetration-Tester und optimiert den Scan automatisch!
+
+#### 🧠 Two-Stage Intelligent Scanning
+- **Phase 1: Quick Scan** - Alle IPs mit Standard-Ports (priorisiert)
+- **Phase 2: Deep Scan** - Interessante Hosts bekommen adaptive Port-Liste
+
+#### 🎯 Smart Prioritization (Hacker-Strategie)
+- **High Priority**: Gateway (.1, .254) → ZUERST scannen!
+- **Medium Priority**: Häufige Server-IPs (.10, .20, .100, .200)
+- **Low Priority**: Rest des Netzwerks
+
+#### 🌐 CIDR-Aware Network Detection
+- Automatische Erkennung der Subnetz-Maske (/24, /16, etc.)
+- Gateway-Discovery (testet .1 und .254 automatisch)
+- Eigene IP wird automatisch excludiert
+- Zeigt CIDR in Logs an (z.B. "192.168.1.0/24")
+
+#### 🔍 OS-Typ-Erkennung (Heuristik)
+- **Windows**: RDP oder SMB ohne SSH → Windows erkannt
+- **Linux**: SSH vorhanden → Linux erkannt  
+- **Network Device**: Nur HTTP/HTTPS + wenige Ports → Router/Switch
+
+#### ⚡ Adaptive Port-Listen (Service-basiert)
+Der Agent passt die Port-Liste automatisch an basierend auf erkannten Services:
+
+**Web-Server erkannt (HTTP/HTTPS)?**
+→ Scannt zusätzlich: 8080, 8443, 8000, 3000
+
+**Linux-Server erkannt (SSH)?**
+→ Scannt zusätzlich: 3306 (MySQL), 5432 (PostgreSQL), 6379 (Redis), 27017 (MongoDB), 9200 (Elasticsearch)
+
+**Windows-Server erkannt (RDP/SMB)?**
+→ Scannt zusätzlich: 135 (RPC), 139 (NetBIOS), 5985/5986 (WinRM), 1433 (MSSQL)
+
+**Directory Service erkannt (LDAP)?**
+→ Scannt zusätzlich: 88 (Kerberos), 464 (Kerberos Change), 3268 (Global Catalog)
+
+**Mail-Server erkannt?**
+→ Scannt zusätzlich: 25, 465, 587, 993, 995 (alle Mail-Ports)
+
+### 📊 Performance-Verbesserungen
+- **Intelligente IP-Reihenfolge**: Gateway und Server-IPs zuerst → findet wichtige Hosts schneller
+- **Deep Scan nur für Server**: Normale Clients bekommen Quick Scan, Server bekommen Deep Scan
+- **10 parallele Worker** für Deep Scan (statt 5)
+- **Keine unnötigen Scans**: Eigene IP wird automatisch übersprungen
+
+### 📝 Neue Log-Ausgabe
+```json
+{"msg":"🧠 Starting INTELLIGENT network discovery (Hacker-Mode)"}
+{"msg":"🎯 Scan-Strategie: Gateway → Server-IPs → Rest"}
+{"msg":"🌐 Scanning network with Hacker-Intelligence","cidr":"192.168.65.0/24","gateway":"192.168.65.254"}
+{"msg":"✓ Host discovered","ip":"192.168.65.254","open_ports":4,"services":["RDP","HTTP","SMB/CIFS","HTTPS"]}
+{"msg":"🎯 Interesting host → Deep scan","ip":"192.168.65.254","os_type":"windows","is_server":true}
+{"msg":"💎 Deep scan found additional ports!","new_ports":3,"total":7}
+{"msg":"🎉 Intelligent network discovery completed!","hosts_found":5}
+```
+
+### 🆕 Neue Dateien
+- ✅ `scanner/intelligence.go` - Komplette Hacker-Logik
+- ✅ Funktionen: `getLocalNetworksWithCIDR()`, `detectGateway()`, `generatePrioritizedIPs()`, `getAdaptivePortList()`, `detectOSType()`
+
+### 🔧 Code-Optimierungen
+- Alte `getAllLocalNetworks()` ersetzt durch intelligente `getLocalNetworksWithCIDR()`
+- Two-Stage-Scanning statt Single-Pass
+- Service-basierte Entscheidungen statt statische Port-Liste
+
+---
+
+## Version 1.1 - Intelligente Discovery (2025-10-20)
+
+### 🚀 Neue Features
+- ✅ **Intelligente Netzwerk-Discovery**: Scannt nun ALLE privaten IP-Bereiche (10.x.x.x, 172.16-31.x.x, 192.168.x.x)
+- ✅ **Erweiterte Host-Erkennung**: 10+ Quick-Check-Ports für schnellere Host-Discovery (HTTP, HTTPS, SSH, RDP, SMB, FTP, SMTP, Telnet, Alt-HTTP)
+- ✅ **Verbesserte Service-Erkennung**: Automatische Identifikation von 25+ Standard-Services
+- ✅ **Docker Desktop Support**: Docker-Desktop-Netzwerke (192.168.65.x) werden nun gescannt
+- ✅ **Performance-Boost**: 100 parallele Worker (vorher 50) für 2x schnelleres Scanning
+- ✅ **Besseres Logging**: Detaillierte Scan-Statistiken mit Dauer und Erfolgsquote
+- ✅ **Echtzeit-Progress**: Progress-Updates alle 5 IPs (vorher 10) für besseres UX
+
+### 🔧 Verbesserungen
+- ✅ **Fix: Duplicate-Key-Error**: Discovery-Results werden nun korrekt mit UPDATE/INSERT gehandhabt
+- ✅ **Schnellerer Alive-Check**: Timeout reduziert von 500ms auf 300ms
+- ✅ **Netzwerk-Filter optimiert**: Nur echte Docker-Bridge-Netzwerke werden ausgefiltert (172.17.x, 172.18.x)
+- ✅ **Häufigere Progress-Updates**: Alle 5 IPs statt 10 für besseres UX im Dashboard
+
+### 📊 Performance-Verbesserungen
+- 🔥 **2x schneller**: 100 parallele Worker (vorher 50)
+- 🔥 **Schnellere Host-Discovery**: 300ms Timeout (vorher 500ms)
+- 🔥 **Mehr Quick-Check-Ports**: 10 Ports (vorher 5) → findet mehr Hosts
+- 🔥 **Bessere Netzwerk-Abdeckung**: Scannt nun Docker-Desktop-Netzwerke
+
+### 🐛 Bug Fixes
+- ✅ Fix: `duplicate key value violates unique constraint "discovery_results_connector_id_ip_address_key"`
+- ✅ Fix: Docker-Desktop-Netzwerke wurden fälschlicherweise ausgefiltert
+- ✅ Fix: Discovery-Results wurden nicht korrekt aktualisiert
+
+### 📝 Dokumentation
+- ✅ Neue Build-Scripts: `rebuild-agent.sh` und `rebuild-agent.bat`
+- ✅ Update CHANGELOG mit allen Änderungen
+
+---
+
 ## Version 1.0 - Production Ready (2025-10-17)
 
 ### ✅ Vollständig implementierte Features

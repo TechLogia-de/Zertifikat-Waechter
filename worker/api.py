@@ -96,32 +96,88 @@ def require_api_key(f):
 def send_email():
     try:
         data = request.json
-        smtp_config = data.get('smtp_config')
+        use_system_smtp = data.get('use_system_smtp', False)
         to = data.get('to')
         subject = data.get('subject', '🛡️ Test von Zertifikat-Wächter')
         body = data.get('body', 'Test-E-Mail')
 
-        # E-Mail erstellen
+        # ✅ System-SMTP oder User-SMTP?
+        if use_system_smtp:
+            # Verwende System-SMTP aus .env
+            smtp_config = {
+                'host': os.getenv('SMTP_HOST'),
+                'port': int(os.getenv('SMTP_PORT', 587)),
+                'user': os.getenv('SMTP_USER'),
+                'password': os.getenv('SMTP_PASSWORD'),
+                'from': os.getenv('SMTP_FROM'),
+                'secure': True
+            }
+            
+            # Validiere dass System-SMTP konfiguriert ist
+            if not all([smtp_config['host'], smtp_config['user'], smtp_config['password'], smtp_config['from']]):
+                raise Exception('System-SMTP ist nicht vollständig konfiguriert. Bitte .env prüfen.')
+            
+            smtp_mode = 'System-SMTP (Zertifikat-Wächter)'
+        else:
+            # Verwende User-SMTP
+            smtp_config = data.get('smtp_config')
+            if not smtp_config:
+                raise Exception('smtp_config fehlt')
+            smtp_mode = f"Eigener SMTP ({smtp_config.get('host', 'Unknown')})"
+
+        # E-Mail erstellen mit unterschiedlichen Templates
         msg = MIMEMultipart('alternative')
         msg['Subject'] = subject
         msg['From'] = smtp_config['from']
         msg['To'] = to
 
+        # ✅ Unterschiedliche Designs basierend auf Modus
+        if use_system_smtp:
+            # 🛡️ System-SMTP Design (Grün/Blau)
+            gradient_color = "linear-gradient(135deg, #10B981, #14B8A6)"
+            icon = "🛡️"
+            badge_bg = "#D1FAE5"
+            badge_border = "#10B981"
+            badge_text_color = "#065F46"
+            mode_label = "System-Benachrichtigung"
+        else:
+            # ⚙️ Eigener SMTP Design (Blau/Lila)
+            gradient_color = "linear-gradient(135deg, #3B82F6, #6366F1)"
+            icon = "⚙️"
+            badge_bg = "#DBEAFE"
+            badge_border = "#3B82F6"
+            badge_text_color = "#1E40AF"
+            mode_label = "Eigener SMTP-Server"
+
         html_body = f"""
         <!DOCTYPE html>
         <html>
           <body style="margin: 0; padding: 20px; background-color: #F8FAFC;">
-            <div style="max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif;">
-              <div style="background: linear-gradient(135deg, #3B82F6, #6366F1); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-                <h1 style="color: white; margin: 0;">🛡️ Zertifikat-Wächter</h1>
+            <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif;">
+              <!-- Header mit unterschiedlichem Gradient -->
+              <div style="background: {gradient_color}; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <h1 style="color: white; margin: 0; font-size: 28px;">{icon} Zertifikat-Wächter</h1>
+                <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0 0; font-size: 14px;">{mode_label}</p>
               </div>
-              <div style="background: white; padding: 30px; border: 1px solid #E2E8F0; border-radius: 0 0 10px 10px;">
-                <h2 style="color: #0F172A;">{subject}</h2>
-                <p style="color: #64748B; line-height: 1.6;">{body}</p>
-                <div style="margin-top: 30px; padding: 20px; background: #D1FAE5; border-radius: 8px; border-left: 4px solid #10B981;">
-                  <p style="margin: 0; color: #065F46; font-weight: bold;">✅ SMTP funktioniert!</p>
-                  <p style="margin: 10px 0 0 0; color: #064E3B; font-size: 14px;">
-                    Server: {smtp_config['host']}:{smtp_config['port']}
+              
+              <!-- Content -->
+              <div style="background: white; padding: 30px; border: 1px solid #E2E8F0; border-radius: 0 0 12px 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <h2 style="color: #0F172A; margin-top: 0;">{subject}</h2>
+                <p style="color: #64748B; line-height: 1.8; font-size: 15px;">{body}</p>
+                
+                <!-- Success Badge mit unterschiedlichen Farben -->
+                <div style="margin-top: 30px; padding: 20px; background: {badge_bg}; border-radius: 10px; border-left: 5px solid {badge_border};">
+                  <p style="margin: 0; color: {badge_text_color}; font-weight: bold; font-size: 16px;">✅ {'E-Mail-Benachrichtigung aktiv!' if use_system_smtp else 'SMTP-Verbindung erfolgreich!'}</p>
+                  <p style="margin: 12px 0 0 0; color: {badge_text_color}; font-size: 14px; opacity: 0.9;">
+                    {'<strong>✅ Deine E-Mail-Benachrichtigungen sind eingerichtet!</strong><br>Alle Zertifikat-Warnungen werden automatisch an dich versendet.' if use_system_smtp else f'<strong>Modus:</strong> {smtp_mode}<br><strong>Server:</strong> {smtp_config["host"]}:{smtp_config["port"]}<br><strong>Von:</strong> {smtp_config["from"]}'}
+                  </p>
+                </div>
+                
+                <!-- Footer -->
+                <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #E2E8F0; text-align: center;">
+                  <p style="color: #94A3B8; font-size: 12px; margin: 0;">
+                    Diese E-Mail wurde automatisch generiert von Zertifikat-Wächter<br>
+                    {'🛡️ System-SMTP aktiv' if use_system_smtp else '⚙️ Eigener SMTP-Server konfiguriert'}
                   </p>
                 </div>
               </div>
@@ -130,7 +186,42 @@ def send_email():
         </html>
         """
 
-        msg.attach(MIMEText(body, 'plain'))
+        # Plain-Text Version (unterschiedlich je nach Modus)
+        if use_system_smtp:
+            plain_body = f"""
+{icon} Zertifikat-Wächter - {mode_label}
+{'='*50}
+
+{subject}
+
+{body}
+
+✅ E-Mail-Benachrichtigung aktiv!
+----------------------------------
+✅ Deine E-Mail-Benachrichtigungen sind eingerichtet!
+Alle Zertifikat-Warnungen werden automatisch an dich versendet.
+
+🛡️ System-SMTP aktiv
+            """
+        else:
+            plain_body = f"""
+{icon} Zertifikat-Wächter - {mode_label}
+{'='*50}
+
+{subject}
+
+{body}
+
+✅ SMTP-Verbindung erfolgreich!
+----------------------------------
+Modus: {smtp_mode}
+Server: {smtp_config['host']}:{smtp_config['port']}
+Von: {smtp_config['from']}
+
+⚙️ Eigener SMTP-Server konfiguriert
+            """
+
+        msg.attach(MIMEText(plain_body, 'plain'))
         msg.attach(MIMEText(html_body, 'html'))
 
         # SMTP-Verbindung
@@ -144,12 +235,15 @@ def send_email():
         server.send_message(msg)
         server.quit()
 
+        print(f"✅ E-Mail erfolgreich gesendet via {smtp_mode}")
+        
         return jsonify({
             'success': True,
-            'message': f'E-Mail gesendet an {to}'
+            'message': f'E-Mail gesendet an {to} via {smtp_mode}'
         })
 
     except Exception as e:
+        print(f"❌ E-Mail-Versand fehlgeschlagen: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e)
