@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Session Clear - Zertifikat-Wächter</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            max-width: 500px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #333;
+            margin-top: 0;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            font-weight: 500;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        .link {
+            display: inline-block;
+            margin-top: 20px;
+            color: #667eea;
+            text-decoration: none;
+        }
+        .link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧹 Session Cleanup</h1>
+        <div class="info">
+            Wenn die App beim "Wird geladen..." hängen bleibt, kannst du hier die lokale Session zurücksetzen.
+        </div>
+
+        <div id="status"></div>
+
+        <button onclick="clearSession()">Session zurücksetzen</button>
+
+        <a href="/" class="link">← Zurück zur App</a>
+    </div>
+
+    <script>
+        function clearSession() {
+            const statusDiv = document.getElementById('status');
+
+            try {
+                // LocalStorage leeren
+                const keys = Object.keys(localStorage);
+                const supabaseKeys = keys.filter(k => k.includes('supabase') || k.includes('auth'));
+
+                if (supabaseKeys.length > 0) {
+                    supabaseKeys.forEach(key => {
+                        localStorage.removeItem(key);
+                        console.log('Removed:', key);
+                    });
+
+                    statusDiv.className = 'status success';
+                    statusDiv.innerHTML = `
+                        ✅ <strong>Erfolgreich!</strong><br>
+                        ${supabaseKeys.length} Session-Einträge wurden gelöscht.<br>
+                        <small>Gefundene Keys: ${supabaseKeys.join(', ')}</small>
+                    `;
+                } else {
+                    statusDiv.className = 'status info';
+                    statusDiv.innerHTML = 'ℹ️ <strong>Keine Session gefunden</strong><br>Es wurden keine Supabase-Daten im LocalStorage gefunden.';
+                }
+
+                // SessionStorage auch leeren
+                sessionStorage.clear();
+
+                setTimeout(() => {
+                    statusDiv.innerHTML += '<br><br>Du wirst in 2 Sekunden weitergeleitet...';
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 2000);
+                }, 1000);
+
+            } catch (error) {
+                statusDiv.className = 'status error';
+                statusDiv.innerHTML = '❌ <strong>Fehler:</strong><br>' + error.message;
+                console.error('Clear session error:', error);
+            }
+        }
+
+        // Zeige aktuelle Supabase Keys an
+        window.addEventListener('load', () => {
+            const keys = Object.keys(localStorage).filter(k =>
+                k.includes('supabase') || k.includes('auth')
+            );
+            console.log('Gefundene Supabase Keys:', keys);
+        });
+    </script>
+</body>
+</html>
