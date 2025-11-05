@@ -1,10 +1,12 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import { useEffect, useState } from 'react'
+import { LanguageProvider } from './contexts/LanguageContext'
 import Layout from './components/layout/Layout'
 import Login from './pages/Login'
 import LandingPage from './pages/LandingPage'
 import Documentation from './pages/Documentation'
+import ResetPassword from './pages/ResetPassword'
 import Dashboard from './pages/Dashboard'
 import Certificates from './pages/Certificates'
 import Alerts from './pages/Alerts'
@@ -61,14 +63,17 @@ function AppContent() {
     <>
       <LoadingBar />
       <Routes>
-        {/* Landing Page - shown when not logged in */}
-        <Route path="/" element={!user ? <LandingPage /> : <Navigate to="/dashboard" />} />
+        {/* Landing Page - accessible for everyone */}
+        <Route path="/" element={<LandingPage />} />
 
         {/* Documentation - accessible for everyone */}
         <Route path="/docs" element={<Documentation />} />
 
         {/* Login Page */}
         <Route path="/login" element={!user ? <Login /> : <Navigate to="/dashboard" />} />
+
+        {/* Reset Password Page (accessible without auth) */}
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* Dashboard - main app route when logged in */}
         <Route
@@ -272,9 +277,11 @@ function AppContent() {
 
 function App() {
   return (
-    <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
-      <AppContent />
-    </BrowserRouter>
+    <LanguageProvider>
+      <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+        <AppContent />
+      </BrowserRouter>
+    </LanguageProvider>
   )
 }
 

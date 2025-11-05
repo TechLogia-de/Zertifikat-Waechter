@@ -20,7 +20,7 @@ export default defineConfig({
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data: https: blob:",
         "font-src 'self' data:",
-        "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co wss://*.supabase.in https://accounts.google.com https://*.googleapis.com",
+        "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co wss://*.supabase.in https://accounts.google.com https://*.googleapis.com https://api.ipify.org",
         "frame-src 'self' https://accounts.google.com https://*.google.com",
         "object-src 'none'",
         "base-uri 'self'",

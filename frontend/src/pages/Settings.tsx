@@ -90,25 +90,39 @@ export default function Settings() {
     setMfaLoading(true)
     setMfaError(null)
     try {
+      console.log('📡 Lade MFA-Status von Supabase...')
       const { data, error } = await (supabase.auth as any).mfa.listFactors()
       if (error) throw error
 
       const factors: any[] = (data?.factors as any[]) || []
+      console.log('📋 Gefundene MFA-Faktoren:', factors.length)
+      
       const totp = factors.find((f) => f.factor_type === 'totp') || null
       if (totp) {
+        console.log('🔐 TOTP-Faktor gefunden:', {
+          id: totp.id.substring(0, 8) + '...',
+          status: totp.status,
+          friendly_name: totp.friendly_name
+        })
+        
         setTotpFactor({
           id: totp.id,
           factor_type: 'totp',
           status: totp.status as FactorStatus,
           friendly_name: (totp as any).friendly_name ?? null,
         })
-        setTotpEnabled(totp.status === 'verified')
+        
+        const isVerified = totp.status === 'verified'
+        setTotpEnabled(isVerified)
+        
+        console.log(isVerified ? '✅ MFA ist aktiviert (verified)' : '⚠️ MFA nicht aktiviert (Status: ' + totp.status + ')')
       } else {
+        console.log('❌ Kein TOTP-Faktor gefunden')
         setTotpFactor(null)
         setTotpEnabled(false)
       }
     } catch (err: any) {
-      console.error('Failed to load MFA status:', err)
+      console.error('❌ Fehler beim Laden des MFA-Status:', err)
       setMfaError(err.message || 'Fehler beim Laden des MFA-Status')
     } finally {
       setMfaLoading(false)
@@ -155,6 +169,23 @@ export default function Settings() {
       event_type: 'mfa.enrollment.started',
       metadata: { method: 'TOTP' }
     })
+
+    // Log aktuellen Auth-Status für Debugging
+    const { data: { session } } = await supabase.auth.getSession()
+    const currentAAL = session?.user?.aal || 'unknown'
+    const currentProvider = session?.user?.app_metadata?.provider
+    const providers = session?.user?.app_metadata?.providers || []
+    const hasPassword = providers.includes('email') || currentProvider === 'email'
+    
+    console.log('📊 Auth-Status:', {
+      aal: currentAAL,
+      provider: currentProvider,
+      providers: providers,
+      hasPassword: hasPassword
+    })
+    
+    // Hinweis: Bei einigen Supabase-Versionen ist AAL "unknown"
+    // Daher versuchen wir einfach den MFA-Enroll und fangen AAL2-Fehler ab
 
     try {
       // 0) Prüfe zuerst, ob bereits ein TOTP‑Faktor existiert
@@ -312,14 +343,64 @@ export default function Settings() {
     } catch (err: any) {
       console.error('Failed to start MFA enrollment:', err)
 
+      const message: string = (err?.message || '').toLowerCase()
+      
+      // Spezielle Behandlung für AAL2-Fehler
+      if (message.includes('aal2') || message.includes('assurance level')) {
+        const { data: { session: currentSession } } = await supabase.auth.getSession()
+        const sessionProvider = currentSession?.user?.app_metadata?.provider
+        const sessionProviders = currentSession?.user?.app_metadata?.providers || []
+        const userHasPassword = sessionProviders.includes('email')
+        
+        if (!userHasPassword) {
+          // Kein Passwort vorhanden
+          setMfaError(
+            '🔐 MFA-Aktivierung - Passwort erforderlich:\n\n' +
+            'Um MFA zu aktivieren, musst du zuerst ein Passwort setzen.\n\n' +
+            '✅ SO GEHT\'S:\n\n' +
+            '1️⃣ Melde dich ab\n' +
+            '2️⃣ Klicke auf der Login-Seite: "Passwort vergessen?"\n' +
+            '3️⃣ Gib deine E-Mail ein: ' + (user?.email || '') + '\n' +
+            '4️⃣ Öffne die E-Mail und setze ein Passwort\n' +
+            '5️⃣ Logge dich mit E-Mail + Passwort ein (NICHT Google!)\n' +
+            '6️⃣ Komme zurück und aktiviere MFA\n\n' +
+            'Dies ist eine Sicherheitsmaßnahme (AAL2-Level erforderlich).'
+          )
+        } else {
+          // Hat Passwort, aber mit Google eingeloggt
+          setMfaError(
+            '🔐 Bitte mit Passwort einloggen:\n\n' +
+            'Du hast ein Passwort, bist aber gerade mit Google eingeloggt.\n\n' +
+            '✅ LÖSUNG:\n\n' +
+            '1️⃣ Melde dich ab\n' +
+            '2️⃣ Logge dich mit E-Mail + Passwort ein (NICHT Google!)\n' +
+            '3️⃣ Komme zurück und aktiviere MFA\n\n' +
+            'Wichtig: Nur beim Passwort-Login wird der AAL2-Level erreicht!'
+          )
+        }
+        
+        await logMFASecurityEvent({
+          event_type: 'mfa.enrollment.failed',
+          error_message: `AAL2 required - Provider: ${sessionProvider}, Has Password: ${userHasPassword}`,
+          metadata: { 
+            method: 'TOTP',
+            provider: sessionProvider,
+            providers: sessionProviders,
+            hasPassword: userHasPassword
+          }
+        })
+        
+        setEnrolling(false)
+        return
+      }
+
       // Log failed enrollment
       await logMFASecurityEvent({
         event_type: 'mfa.enrollment.failed',
         error_message: err?.message || 'Unknown error',
-        metadata: { method: 'TOTP' }
+        metadata: { method: 'TOTP', error_code: err.code }
       })
 
-      const message: string = (err?.message || '').toLowerCase()
       // Spezifischer Fall: "A factor with the friendly name \"\" for this user already exists"
       if (message.includes('friendly name') && message.includes('already exists')) {
         // Versuche bestehenden unverifizierten Faktor zu nutzen
@@ -393,14 +474,22 @@ export default function Settings() {
     try {
       // WICHTIG: Erst Challenge erstellen, dann verifizieren!
       // Ohne Challenge schlägt verify() fehl mit "challenge ID not found"
-      const { error: challengeError } = await (supabase.auth as any).mfa.challenge({ 
-        factorId: factorIdToUse 
+      const { data: challengeData, error: challengeError } = await (supabase.auth as any).mfa.challenge({
+        factorId: factorIdToUse
       })
       if (challengeError) throw challengeError
 
-      // Jetzt mit dem Code verifizieren
+      if (!challengeData || !challengeData.id) {
+        throw new Error('Challenge ID nicht erhalten')
+      }
+
+      const challengeId = challengeData.id
+      console.log('🔐 Challenge ID erhalten:', challengeId)
+
+      // Jetzt mit der Challenge ID und dem Code verifizieren
       const { error: verifyError } = await (supabase.auth as any).mfa.verify({
         factorId: factorIdToUse,
+        challengeId: challengeId,
         code,
       })
       if (verifyError) throw verifyError
@@ -426,6 +515,11 @@ export default function Settings() {
           success: true
         }
       })
+
+      // WICHTIG: Status neu laden, um sicherzustellen, dass er persistiert ist
+      console.log('🔄 Lade MFA-Status neu nach Verifizierung...')
+      await new Promise(resolve => setTimeout(resolve, 1000)) // 1s warten für Supabase-Propagierung
+      await loadMfaStatus()
     } catch (err: any) {
       console.error('Failed to verify MFA:', err)
 
@@ -485,6 +579,7 @@ export default function Settings() {
     setMfaError(null)
     setMfaSuccess(null)
     try {
+      console.log('🗑️ Deaktiviere MFA-Faktor:', totpFactor.id.substring(0, 8) + '...')
       const { error } = await (supabase.auth as any).mfa.unenroll({ factorId: totpFactor.id })
       if (error) throw error
 
@@ -501,8 +596,13 @@ export default function Settings() {
           reason: 'User requested'
         }
       })
+
+      // Status neu laden
+      console.log('🔄 Lade MFA-Status neu nach Deaktivierung...')
+      await new Promise(resolve => setTimeout(resolve, 500))
+      await loadMfaStatus()
     } catch (err: any) {
-      console.error('Failed to disable MFA:', err)
+      console.error('❌ Fehler beim Deaktivieren von MFA:', err)
       setMfaError(err.message || 'Fehler beim Deaktivieren von MFA')
     } finally {
       setDisabling(false)

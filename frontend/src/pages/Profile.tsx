@@ -199,19 +199,65 @@ export default function Profile() {
     setSuccess(null)
 
     try {
+      // Prüfe ob User über OAuth eingeloggt ist
+      const { data: { session } } = await supabase.auth.getSession()
+      const currentProvider = session?.user?.app_metadata?.provider
+      const providers = session?.user?.app_metadata?.providers || []
+      const hasPassword = providers.includes('email')
+      
+      console.log('🔐 Passwort-Änderung:', {
+        provider: currentProvider,
+        providers: providers,
+        hasPassword: hasPassword
+      })
+      
+      // Wenn OAuth-User ohne Passwort: Spezielle Behandlung
+      if (currentProvider === 'google' && !hasPassword) {
+        setError(
+          '⚠️ Passwort-Erstellung für Google-User:\n\n' +
+          'Du bist über Google angemeldet. Um ein Passwort zu setzen:\n\n' +
+          '1️⃣ Melde dich ab\n' +
+          '2️⃣ Klicke auf "Passwort vergessen?"\n' +
+          '3️⃣ Gib deine E-Mail ein: ' + user?.email + '\n' +
+          '4️⃣ Folge dem Link in der E-Mail\n' +
+          '5️⃣ Setze dein Passwort\n\n' +
+          'Danach kannst du dich mit E-Mail + Passwort einloggen und MFA aktivieren.'
+        )
+        setPasswordChanging(false)
+        return
+      }
+
       const { error: updateError } = await supabase.auth.updateUser({
         password: passwordData.newPassword
       })
 
-      if (updateError) throw updateError
+      if (updateError) {
+        // Spezielle Fehlerbehandlung
+        if (updateError.message?.includes('401') || updateError.message?.includes('Unauthorized')) {
+          throw new Error(
+            'Passwort-Änderung nicht möglich.\n\n' +
+            'Du bist wahrscheinlich über Google eingeloggt. Bitte:\n' +
+            '1. Melde dich ab\n' +
+            '2. Nutze "Passwort vergessen?" auf der Login-Seite\n' +
+            '3. Setze ein neues Passwort über den E-Mail-Link'
+          )
+        }
+        throw updateError
+      }
 
-      setSuccess('✅ Passwort erfolgreich geändert!')
+      setSuccess(
+        '✅ Passwort erfolgreich geändert!\n\n' +
+        '➡️ Jetzt kannst du MFA aktivieren:\n' +
+        '   1. Melde dich ab\n' +
+        '   2. Logge dich mit E-Mail + Passwort ein\n' +
+        '   3. Gehe zu Einstellungen → MFA aktivieren'
+      )
       setShowPasswordChange(false)
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
-      setTimeout(() => setSuccess(null), 5000)
+      setTimeout(() => setSuccess(null), 10000)
     } catch (err: any) {
       setError(err.message || 'Fehler beim Ändern des Passworts')
-      setTimeout(() => setError(null), 5000)
+      setTimeout(() => setError(null), 8000)
     } finally {
       setPasswordChanging(false)
     }

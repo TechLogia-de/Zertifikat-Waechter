@@ -6,6 +6,7 @@ import type { Database } from '../types/database.types'
 export default function Login() {
   const navigate = useNavigate()
   const [isLogin, setIsLogin] = useState(true)
+  const [isForgotPassword, setIsForgotPassword] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -155,6 +156,43 @@ export default function Login() {
       setError(err?.message || 'MFA‑Verifizierung fehlgeschlagen')
     } finally {
       setVerifyingOtp(false)
+    }
+  }
+
+  async function handleForgotPassword(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+    setSuccess(null)
+
+    if (!email) {
+      setError('Bitte E-Mail-Adresse eingeben')
+      setLoading(false)
+      return
+    }
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`
+      })
+
+      if (error) throw error
+
+      setSuccess(
+        '✅ Passwort-Reset-Link versendet!\n\n' +
+        `Wir haben einen Link an ${email} gesendet.\n\n` +
+        'Bitte prüfe dein Postfach (auch Spam-Ordner) und klicke auf den Link, um ein neues Passwort zu setzen.'
+      )
+      
+      // Nach 3 Sekunden zurück zum Login
+      setTimeout(() => {
+        setIsForgotPassword(false)
+        setSuccess(null)
+      }, 8000)
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Versenden des Reset-Links')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -313,11 +351,13 @@ export default function Login() {
             <button
               onClick={() => {
                 setIsLogin(true)
+                setIsForgotPassword(false)
                 setError(null)
                 setSuccess(null)
+                setMfaRequired(false)
               }}
               className={`flex-1 py-2 px-3 sm:px-4 rounded-md text-sm sm:text-base font-medium transition-colors ${
-                isLogin
+                isLogin && !isForgotPassword
                   ? 'bg-white text-blue-600 shadow'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
@@ -327,11 +367,13 @@ export default function Login() {
             <button
               onClick={() => {
                 setIsLogin(false)
+                setIsForgotPassword(false)
                 setError(null)
                 setSuccess(null)
+                setMfaRequired(false)
               }}
               className={`flex-1 py-2 px-3 sm:px-4 rounded-md text-sm sm:text-base font-medium transition-colors ${
-                !isLogin
+                !isLogin && !isForgotPassword
                   ? 'bg-white text-blue-600 shadow'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
@@ -422,6 +464,62 @@ export default function Login() {
                 className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-md"
               >
                 {loading ? '⏳ Wird geladen...' : '🔐 Anmelden'}
+              </button>
+              
+              {/* Passwort vergessen Link */}
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsForgotPassword(true)
+                    setIsLogin(false)
+                    setError(null)
+                  }}
+                  className="text-sm text-blue-600 hover:text-blue-700 hover:underline"
+                >
+                  Passwort vergessen?
+                </button>
+              </div>
+            </form>
+          ) : isForgotPassword ? (
+            <form onSubmit={handleForgotPassword} className="space-y-4">
+              <h2 className="text-xl font-bold text-gray-800 mb-4">
+                🔑 Passwort zurücksetzen
+              </h2>
+              <p className="text-sm text-gray-600 mb-4">
+                Gib deine E-Mail-Adresse ein. Wir senden dir einen sicheren Link zum Zurücksetzen deines Passworts.
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  E-Mail-Adresse
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition text-sm sm:text-base"
+                  placeholder="deine@email.de"
+                  required
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-md"
+              >
+                {loading ? '⏳ Sende Link...' : '📧 Reset-Link senden'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsForgotPassword(false)
+                  setIsLogin(true)
+                  setError(null)
+                  setSuccess(null)
+                }}
+                className="w-full text-blue-600 hover:text-blue-700 font-medium text-sm py-2"
+              >
+                ← Zurück zum Login
               </button>
             </form>
           ) : (
