@@ -1,5 +1,28 @@
 import { supabase } from '../lib/supabase'
 
+/**
+ * Generiert einen einfachen Hash für Events (Browser-kompatibel)
+ */
+async function generateSimpleHash(data: string): Promise<string> {
+  try {
+    const encoder = new TextEncoder()
+    const dataBuffer = encoder.encode(data)
+    const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer)
+    const hashArray = Array.from(new Uint8Array(hashBuffer))
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+    return hashHex
+  } catch (error) {
+    // Fallback: Einfacher String-Hash
+    let hash = 0
+    for (let i = 0; i < data.length; i++) {
+      const char = data.charCodeAt(i)
+      hash = ((hash << 5) - hash) + char
+      hash = hash & hash // Convert to 32bit integer
+    }
+    return Math.abs(hash).toString(16)
+  }
+}
+
 interface MFASecurityEvent {
   event_type: 'mfa.enrollment.started' | 'mfa.enrollment.completed' | 'mfa.enrollment.failed' |
               'mfa.verification.success' | 'mfa.verification.failed' | 'mfa.disabled' |
@@ -48,30 +71,43 @@ export async function logMFASecurityEvent(event: MFASecurityEvent) {
     // Get user agent
     const userAgent = event.user_agent || navigator.userAgent
 
-    // Create event payload
-    const payload = {
-      user_id: event.user_id || user?.id,
-      user_email: event.user_email || user?.email,
+    // Create event payload (nur die nötigsten Felder)
+    const payload: Record<string, any> = {
       ip_address: ipAddress,
       user_agent: userAgent,
-      error_message: event.error_message,
-      factor_id: event.factor_id,
-      attempt_count: event.attempt_count,
-      timestamp: new Date().toISOString(),
-      ...event.metadata
     }
 
+    // Nur definierte Felder hinzufügen
+    if (event.error_message) payload.error_message = event.error_message
+    if (event.factor_id) payload.factor_id = event.factor_id
+    if (event.attempt_count !== undefined) payload.attempt_count = event.attempt_count
+    if (event.metadata) payload.metadata = event.metadata
+
     // Log to events table
-    if (tenantId) {
-      await supabase.from('events').insert({
+    if (tenantId && user) {
+      // Generiere Hash für Event-Integrität (vereinfachte Version)
+      const eventString = JSON.stringify({
         tenant_id: tenantId,
-        user_id: user?.id || null,
         type: event.event_type,
-        payload,
         ts: new Date().toISOString()
       })
+      const hash = await generateSimpleHash(eventString)
 
-      console.log(`🔒 MFA Security Event logged: ${event.event_type}`)
+      const { error: insertError } = await supabase.from('events').insert({
+        tenant_id: tenantId,
+        user_id: user.id,
+        type: event.event_type,
+        payload: payload,
+        ts: new Date().toISOString(),
+        hash: hash,
+        prev_hash: '0000000000000000000000000000000000000000000000000000000000000000' // Dummy für vereinfachte Version
+      })
+
+      if (insertError) {
+        console.error('Failed to insert MFA event:', insertError)
+      } else {
+        console.log(`🔒 MFA Security Event logged: ${event.event_type}`)
+      }
     }
 
     // Log failed attempts to console for dev monitoring
@@ -142,6 +178,13 @@ export async function blockIPAfterMFAFailures(ipAddress: string, reason: string)
         .maybeSingle()
 
       if (membership) {
+        const eventString = JSON.stringify({
+          tenant_id: membership.tenant_id,
+          type: 'security.ip_blocked',
+          ts: new Date().toISOString()
+        })
+        const hash = await generateSimpleHash(eventString)
+
         await supabase.from('events').insert({
           tenant_id: membership.tenant_id,
           user_id: user.id,
@@ -152,7 +195,9 @@ export async function blockIPAfterMFAFailures(ipAddress: string, reason: string)
             blocked_at: new Date().toISOString(),
             expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24h
           },
-          ts: new Date().toISOString()
+          ts: new Date().toISOString(),
+          hash: hash,
+          prev_hash: '0000000000000000000000000000000000000000000000000000000000000000'
         })
       }
     }

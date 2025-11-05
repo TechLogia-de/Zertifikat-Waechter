@@ -24,9 +24,12 @@ import {
   X,
 } from 'lucide-react'
 import { useState } from 'react'
+import { useLanguage } from '../contexts/LanguageContext'
+import LanguageSwitcher from '../components/ui/LanguageSwitcher'
 
 const LandingPage = () => {
   const navigate = useNavigate()
+  const { t } = useLanguage()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const fadeInUp = {
@@ -46,69 +49,69 @@ const LandingPage = () => {
   const features = [
     {
       icon: Globe,
-      title: 'Automatische Discovery',
-      description: 'Scannt automatisch Intranet und Public Domains nach SSL/TLS-Zertifikaten',
+      title: t('features.autoDiscovery.title'),
+      description: t('features.autoDiscovery.description'),
       gradient: 'from-blue-500 to-cyan-500',
     },
     {
       icon: Bell,
-      title: 'Multi-Channel Alerts',
-      description: 'Benachrichtigungen via E-Mail, Slack, Teams und Webhooks bei ablaufenden Zertifikaten',
+      title: t('features.alerts.title'),
+      description: t('features.alerts.description'),
       gradient: 'from-purple-500 to-pink-500',
     },
     {
       icon: RefreshCw,
-      title: 'ACME-Integration',
-      description: "Automatische Erneuerung mit Let's Encrypt und anderen ACME-Providern",
+      title: t('features.acme.title'),
+      description: t('features.acme.description'),
       gradient: 'from-green-500 to-emerald-500',
     },
     {
       icon: Shield,
-      title: 'Security Intelligence',
-      description: 'Anomalie-Erkennung und erweiterte Sicherheitsanalysen für deine Zertifikate',
+      title: t('features.security.title'),
+      description: t('features.security.description'),
       gradient: 'from-orange-500 to-red-500',
     },
     {
       icon: BarChart3,
-      title: 'Compliance Reports',
-      description: 'Revisionssichere PDF/CSV-Exporte für Audits und Compliance-Anforderungen',
+      title: t('features.compliance.title'),
+      description: t('features.compliance.description'),
       gradient: 'from-indigo-500 to-purple-500',
     },
     {
       icon: Zap,
-      title: 'Echtzeit-Monitoring',
-      description: 'Live-Dashboard mit Metriken und Visualisierungen aller deiner Zertifikate',
+      title: t('features.realtime.title'),
+      description: t('features.realtime.description'),
       gradient: 'from-yellow-500 to-orange-500',
     },
   ]
 
   const stats = [
-    { value: '24/7', label: 'Monitoring', icon: Clock },
-    { value: '99.9%', label: 'Uptime', icon: TrendingUp },
-    { value: '< 1min', label: 'Alert Zeit', icon: Zap },
-    { value: 'Enterprise', label: 'Security', icon: Lock },
+    { value: '24/7', label: t('stats.monitoring'), icon: Clock },
+    { value: '99.9%', label: t('stats.uptime'), icon: TrendingUp },
+    { value: '< 1min', label: t('stats.alertTime'), icon: Zap },
+    { value: 'Enterprise', label: t('stats.security'), icon: Lock },
   ]
 
   const useCases = [
     {
       icon: Users,
-      title: 'Für IT-Dienstleister',
-      description: 'Multi-Tenant Support für die Verwaltung mehrerer Kunden',
+      title: t('useCases.msp.title'),
+      description: t('useCases.msp.description'),
     },
     {
       icon: Database,
-      title: 'Für Unternehmen',
-      description: 'Zentrale Überwachung aller internen und externen Zertifikate',
+      title: t('useCases.enterprise.title'),
+      description: t('useCases.enterprise.description'),
     },
     {
       icon: Cloud,
-      title: 'Für Cloud-Native',
-      description: 'Integration mit Kubernetes, Docker und Cloud-Providern',
+      title: t('useCases.cloud.title'),
+      description: t('useCases.cloud.description'),
     },
     {
       icon: FileCheck,
-      title: 'Für Compliance',
-      description: 'Audit-Trails und automatische Reports für ISO, DSGVO, etc.',
+      title: t('useCases.compliance.title'),
+      description: t('useCases.compliance.description'),
     },
   ]
 
@@ -134,14 +137,16 @@ const LandingPage = () => {
             </motion.div>
 
             {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center space-x-6">
+            <div className="hidden md:flex items-center space-x-4">
+              <LanguageSwitcher />
+
               <motion.button
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 onClick={() => navigate('/docs')}
                 className="text-gray-700 hover:text-blue-600 font-medium transition-colors"
               >
-                Dokumentation
+                {t('nav.documentation')}
               </motion.button>
 
               <motion.button
@@ -152,7 +157,7 @@ const LandingPage = () => {
                 onClick={() => navigate('/login')}
                 className="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-medium shadow-lg hover:shadow-xl transition-all"
               >
-                Anmelden
+                {t('nav.login')}
               </motion.button>
             </div>
 
@@ -177,6 +182,9 @@ const LandingPage = () => {
             className="md:hidden bg-white border-t border-gray-200"
           >
             <div className="px-4 py-4 space-y-3">
+              <div className="flex justify-center mb-2">
+                <LanguageSwitcher />
+              </div>
               <button
                 onClick={() => {
                   navigate('/docs')
@@ -184,7 +192,7 @@ const LandingPage = () => {
                 }}
                 className="w-full text-left px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg font-medium transition-colors"
               >
-                Dokumentation
+                {t('nav.documentation')}
               </button>
               <button
                 onClick={() => {
@@ -193,7 +201,7 @@ const LandingPage = () => {
                 }}
                 className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-medium shadow-lg text-center"
               >
-                Anmelden
+                {t('nav.login')}
               </button>
             </div>
           </motion.div>
@@ -214,24 +222,23 @@ const LandingPage = () => {
               className="inline-flex items-center space-x-2 bg-blue-100 text-blue-700 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full mb-4 sm:mb-6"
             >
               <Sparkles className="w-3 h-3 sm:w-4 sm:h-4" />
-              <span className="text-xs sm:text-sm font-medium">Enterprise-Grade SSL/TLS Monitoring</span>
+              <span className="text-xs sm:text-sm font-medium">{t('hero.badge')}</span>
             </motion.div>
 
             <motion.h1
               variants={fadeInUp}
               className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-bold mb-4 sm:mb-6 bg-gradient-to-r from-gray-900 via-blue-900 to-indigo-900 bg-clip-text text-transparent px-4 sm:px-0"
             >
-              Nie wieder abgelaufene
+              {t('hero.title.line1')}
               <br />
-              SSL-Zertifikate
+              {t('hero.title.line2')}
             </motion.h1>
 
             <motion.p
               variants={fadeInUp}
               className="text-base sm:text-lg md:text-xl lg:text-2xl text-gray-600 mb-8 sm:mb-10 max-w-3xl mx-auto px-4 sm:px-0"
             >
-              Vollautomatische Überwachung, intelligente Warnungen und ACME-Integration
-              für eine sichere und unterbrechungsfreie Online-Präsenz
+              {t('hero.subtitle')}
             </motion.p>
 
             <motion.div variants={fadeInUp} className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center px-4 sm:px-0">
@@ -241,7 +248,7 @@ const LandingPage = () => {
                 onClick={() => navigate('/login')}
                 className="px-6 py-3 sm:px-8 sm:py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold text-base sm:text-lg shadow-2xl hover:shadow-blue-500/50 transition-all flex items-center justify-center space-x-2"
               >
-                <span>Jetzt starten</span>
+                <span>{t('hero.cta.start')}</span>
                 <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
               </motion.button>
               <motion.button
@@ -250,7 +257,7 @@ const LandingPage = () => {
                 onClick={() => navigate('/docs')}
                 className="px-6 py-3 sm:px-8 sm:py-4 bg-white text-gray-700 rounded-xl font-semibold text-base sm:text-lg shadow-xl hover:shadow-2xl transition-all border-2 border-gray-200"
               >
-                Mehr erfahren
+                {t('hero.cta.learn')}
               </motion.button>
             </motion.div>
           </motion.div>
@@ -290,10 +297,10 @@ const LandingPage = () => {
             className="text-center mb-10 sm:mb-12 md:mb-16"
           >
             <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-3 sm:mb-4 text-gray-900">
-              Alles was du brauchst
+              {t('features.title')}
             </h2>
             <p className="text-base sm:text-lg md:text-xl text-gray-600 px-4 sm:px-0">
-              Enterprise Features für professionelles Zertifikats-Management
+              {t('features.subtitle')}
             </p>
           </motion.div>
 
@@ -335,10 +342,10 @@ const LandingPage = () => {
             className="text-center mb-10 sm:mb-12 md:mb-16"
           >
             <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-3 sm:mb-4 text-gray-900">
-              Perfekt für jeden Einsatz
+              {t('useCases.title')}
             </h2>
             <p className="text-xl text-gray-600">
-              Ob Startup, Mittelstand oder Enterprise - wir haben die Lösung
+              {t('useCases.subtitle')}
             </p>
           </motion.div>
 
@@ -362,6 +369,63 @@ const LandingPage = () => {
         </div>
       </section>
 
+      {/* Testimonials Section */}
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-gray-100 to-blue-50">
+        <div className="max-w-7xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="text-center mb-16"
+          >
+            <h2 className="text-4xl md:text-5xl font-bold mb-4 text-gray-900">
+              {t('testimonials.title')}
+            </h2>
+            <p className="text-xl text-gray-600">
+              {t('testimonials.subtitle')}
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            {[1, 2, 3].map((num, index) => (
+              <motion.div
+                key={num}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.15, duration: 0.6 }}
+                whileHover={{ y: -10, transition: { duration: 0.3 } }}
+                className="bg-white rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all border border-gray-200"
+              >
+                <div className="flex mb-4">
+                  {[...Array(5)].map((_, i) => (
+                    <motion.svg
+                      key={i}
+                      initial={{ opacity: 0, scale: 0 }}
+                      whileInView={{ opacity: 1, scale: 1 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: index * 0.15 + 0.3 + i * 0.1 }}
+                      className="w-5 h-5 text-yellow-400 fill-current"
+                      viewBox="0 0 20 20"
+                    >
+                      <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
+                    </motion.svg>
+                  ))}
+                </div>
+                <p className="text-gray-700 mb-6 leading-relaxed italic">
+                  "{t(`testimonials.${num}.text`)}"
+                </p>
+                <div className="border-t border-gray-200 pt-4">
+                  <p className="font-bold text-gray-900">{t(`testimonials.${num}.author`)}</p>
+                  <p className="text-sm text-gray-600">{t(`testimonials.${num}.role`)}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Security & Compliance Section */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-blue-900 to-indigo-900 text-white">
         <div className="max-w-7xl mx-auto">
@@ -371,9 +435,9 @@ const LandingPage = () => {
             viewport={{ once: true }}
             className="text-center mb-12"
           >
-            <h2 className="text-4xl md:text-5xl font-bold mb-4">Security First</h2>
+            <h2 className="text-4xl md:text-5xl font-bold mb-4">{t('security.title')}</h2>
             <p className="text-xl text-blue-200">
-              Enterprise-Grade Sicherheit und Compliance
+              {t('security.subtitle')}
             </p>
           </motion.div>
 
@@ -381,18 +445,18 @@ const LandingPage = () => {
             {[
               {
                 icon: Lock,
-                title: 'Multi-Factor Auth',
-                description: 'TOTP-basierte 2FA und Google OAuth Integration',
+                title: t('security.mfa.title'),
+                description: t('security.mfa.description'),
               },
               {
                 icon: Shield,
-                title: 'DSGVO-konform',
-                description: 'Vollständige Compliance mit deutschen und EU-Datenschutzgesetzen',
+                title: t('security.gdpr.title'),
+                description: t('security.gdpr.description'),
               },
               {
                 icon: CheckCircle,
-                title: 'Audit-Trail',
-                description: 'Revisionssichere Event-Logs mit Hash-Ketten',
+                title: t('security.audit.title'),
+                description: t('security.audit.description'),
               },
             ].map((item, index) => (
               <motion.div
@@ -423,11 +487,11 @@ const LandingPage = () => {
           >
             <div className="inline-flex items-center space-x-2 bg-blue-500/20 px-4 py-2 rounded-full mb-6">
               <Settings className="w-5 h-5 text-blue-300" />
-              <span className="text-sm font-medium text-blue-200">Leichtgewichtig & Sicher</span>
+              <span className="text-sm font-medium text-blue-200">{t('agent.badge')}</span>
             </div>
-            <h2 className="text-4xl md:text-5xl font-bold mb-4">Der Zertifikat-Wächter Agent</h2>
+            <h2 className="text-4xl md:text-5xl font-bold mb-4">{t('agent.title')}</h2>
             <p className="text-xl text-blue-200 max-w-3xl mx-auto">
-              Ein schlanker Go-Agent für automatische Discovery in deinem Intranet
+              {t('agent.subtitle')}
             </p>
           </motion.div>
 
@@ -441,24 +505,23 @@ const LandingPage = () => {
               <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20">
                 <h3 className="text-2xl font-bold mb-4 flex items-center">
                   <Terminal className="w-6 h-6 mr-3 text-blue-300" />
-                  Automatische Discovery
+                  {t('agent.discovery.title')}
                 </h3>
                 <p className="text-blue-200 mb-4">
-                  Der Agent scannt dein Netzwerk und findet automatisch alle Domains mit SSL/TLS-Zertifikaten.
-                  Keine manuelle Konfiguration notwendig!
+                  {t('agent.discovery.description')}
                 </p>
                 <ul className="space-y-2">
                   <li className="flex items-start">
                     <CheckCircle className="w-5 h-5 text-green-400 mr-2 flex-shrink-0 mt-0.5" />
-                    <span>Netzwerk-Scan für interne Domains</span>
+                    <span>{t('agent.discovery.feature1')}</span>
                   </li>
                   <li className="flex items-start">
                     <CheckCircle className="w-5 h-5 text-green-400 mr-2 flex-shrink-0 mt-0.5" />
-                    <span>Automatische Zertifikatserkennung</span>
+                    <span>{t('agent.discovery.feature2')}</span>
                   </li>
                   <li className="flex items-start">
                     <CheckCircle className="w-5 h-5 text-green-400 mr-2 flex-shrink-0 mt-0.5" />
-                    <span>Minimal Resource Footprint</span>
+                    <span>{t('agent.discovery.feature3')}</span>
                   </li>
                 </ul>
               </div>
@@ -466,23 +529,23 @@ const LandingPage = () => {
               <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20">
                 <h3 className="text-2xl font-bold mb-4 flex items-center">
                   <Lock className="w-6 h-6 mr-3 text-blue-300" />
-                  Sicher & Isoliert
+                  {t('agent.secure.title')}
                 </h3>
                 <p className="text-blue-200 mb-4">
-                  Der Agent läuft isoliert in deinem Netzwerk und kommuniziert nur verschlüsselt mit dem Backend.
+                  {t('agent.secure.description')}
                 </p>
                 <ul className="space-y-2">
                   <li className="flex items-start">
                     <CheckCircle className="w-5 h-5 text-green-400 mr-2 flex-shrink-0 mt-0.5" />
-                    <span>TLS-verschlüsselte Kommunikation</span>
+                    <span>{t('agent.secure.feature1')}</span>
                   </li>
                   <li className="flex items-start">
                     <CheckCircle className="w-5 h-5 text-green-400 mr-2 flex-shrink-0 mt-0.5" />
-                    <span>API-Key Authentifizierung</span>
+                    <span>{t('agent.secure.feature2')}</span>
                   </li>
                   <li className="flex items-start">
                     <CheckCircle className="w-5 h-5 text-green-400 mr-2 flex-shrink-0 mt-0.5" />
-                    <span>Keine sensiblen Daten lokal gespeichert</span>
+                    <span>{t('agent.secure.feature3')}</span>
                   </li>
                 </ul>
               </div>
@@ -532,10 +595,9 @@ const LandingPage = () => {
                 <div className="flex items-start space-x-3">
                   <Sparkles className="w-5 h-5 text-blue-300 flex-shrink-0 mt-1" />
                   <div>
-                    <h4 className="font-bold text-blue-100 mb-1">Edge Deployment</h4>
+                    <h4 className="font-bold text-blue-100 mb-1">{t('agent.edge.title')}</h4>
                     <p className="text-sm text-blue-200">
-                      Deploye den Agent direkt auf deinen Edge-Servern oder in Docker-Containern für maximale
-                      Flexibilität.
+                      {t('agent.edge.description')}
                     </p>
                   </div>
                 </div>
@@ -562,23 +624,23 @@ const LandingPage = () => {
               </div>
               <div className="flex-1">
                 <h3 className="text-2xl font-bold mb-2 text-gray-900">
-                  Intelligente Warnungen
+                  {t('alert.title')}
                 </h3>
                 <p className="text-gray-600 mb-4">
-                  Konfigurierbare Alerts bei 60, 30, 14, 7, 3 und 1 Tag vor Ablauf
+                  {t('alert.description')}
                 </p>
                 <div className="bg-white rounded-xl p-4 shadow-md border border-orange-200">
                   <div className="flex items-center space-x-3">
                     <Bell className="w-5 h-5 text-orange-500" />
                     <div className="flex-1">
                       <div className="font-semibold text-gray-900">
-                        example.com läuft in 7 Tagen ab
+                        {t('alert.example.title')}
                       </div>
                       <div className="text-sm text-gray-600">
-                        Zertifikat erneuern oder ACME-Auto-Renewal aktivieren
+                        {t('alert.example.description')}
                       </div>
                     </div>
-                    <div className="text-sm font-medium text-orange-600">Vor 2min</div>
+                    <div className="text-sm font-medium text-orange-600">{t('alert.example.time')}</div>
                   </div>
                 </div>
               </div>
@@ -596,10 +658,10 @@ const LandingPage = () => {
           className="max-w-4xl mx-auto text-center text-white"
         >
           <h2 className="text-4xl md:text-5xl font-bold mb-6">
-            Bereit für sorgenfreies SSL-Management?
+            {t('cta.title')}
           </h2>
           <p className="text-xl mb-10 text-blue-100">
-            Starte jetzt und behalte alle deine Zertifikate im Blick
+            {t('cta.subtitle')}
           </p>
           <motion.button
             whileHover={{ scale: 1.05 }}
@@ -607,7 +669,7 @@ const LandingPage = () => {
             onClick={() => navigate('/login')}
             className="px-10 py-5 bg-white text-blue-600 rounded-xl font-bold text-lg shadow-2xl hover:shadow-white/50 transition-all inline-flex items-center space-x-3"
           >
-            <span>Kostenlos starten</span>
+            <span>{t('cta.button')}</span>
             <ArrowRight className="w-6 h-6" />
           </motion.button>
         </motion.div>
@@ -620,8 +682,8 @@ const LandingPage = () => {
             <Shield className="w-6 h-6 text-blue-500" />
             <span className="text-lg font-bold text-white">Zertifikat-Wächter</span>
           </div>
-          <p className="mb-2">Enterprise-Grade TLS/SSL Zertifikats-Überwachung</p>
-          <p className="text-sm">Made with security in mind</p>
+          <p className="mb-2">{t('footer.tagline')}</p>
+          <p className="text-sm">{t('footer.made')}</p>
         </div>
       </footer>
     </div>
