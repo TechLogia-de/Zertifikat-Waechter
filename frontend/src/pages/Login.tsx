@@ -20,6 +20,7 @@ export default function Login() {
   const [mfaLoading, setMfaLoading] = useState(false)
   const [otpCode, setOtpCode] = useState('')
   const [selectedFactorId, setSelectedFactorId] = useState<string | null>(null)
+  const [challengeId, setChallengeId] = useState<string | null>(null)
   const [verifyingOtp, setVerifyingOtp] = useState(false)
 
   async function handleGoogleLogin() {
@@ -54,6 +55,7 @@ export default function Login() {
     // Reset MFA state before a new attempt
     setMfaRequired(false)
     setSelectedFactorId(null)
+    setChallengeId(null)
     setOtpCode('')
 
     const { data, error: signInError } = await supabase.auth.signInWithPassword({
@@ -63,8 +65,10 @@ export default function Login() {
 
     if (!signInError && data?.session) {
       // Erfolgreich eingeloggt, navigiere zum Dashboard
+      console.log('✅ Login erfolgreich (ohne MFA)')
       setLoading(false)
-      navigate('/dashboard')
+      // Verwende window.location.href für harten Reload
+      window.location.href = '/dashboard'
       return
     }
 
@@ -97,8 +101,17 @@ export default function Login() {
         setSelectedFactorId(factorId)
 
         // Challenge starten (notwendig, bevor verifiziert werden kann)
-        const { error: challengeError } = await (supabase.auth as any).mfa.challenge({ factorId })
+        console.log('🔐 Erstelle MFA Challenge für Faktor:', factorId.substring(0, 8) + '...')
+        const { data: challengeData, error: challengeError } = await (supabase.auth as any).mfa.challenge({ factorId })
         if (challengeError) throw challengeError
+
+        if (!challengeData || !challengeData.id) {
+          throw new Error('Challenge ID nicht erhalten')
+        }
+
+        const newChallengeId = challengeData.id
+        console.log('✅ Challenge ID erhalten:', newChallengeId.substring(0, 8) + '...')
+        setChallengeId(newChallengeId)
 
         setMfaRequired(true)
         setSuccess('MFA erforderlich – bitte den 6‑stelligen Code eingeben.')
@@ -131,6 +144,10 @@ export default function Login() {
       setError('Kein TOTP‑Faktor ausgewählt')
       return
     }
+    if (!challengeId) {
+      setError('Keine Challenge ID vorhanden. Bitte erneut einloggen.')
+      return
+    }
     if (otpCode.trim().length !== 6) {
       setError('Bitte 6‑stelligen Code eingeben')
       return
@@ -139,21 +156,33 @@ export default function Login() {
     setError(null)
     setSuccess(null)
     try {
+      console.log('🔐 Verifiziere MFA Code...')
       const { error: verifyError } = await (supabase.auth as any).mfa.verify({
         factorId: selectedFactorId,
+        challengeId: challengeId,
         code: otpCode.trim(),
       })
       if (verifyError) throw verifyError
 
       // Erfolgreich: Session wird gesetzt, navigiere zum Dashboard
+      console.log('✅ MFA Verifizierung erfolgreich')
       setSuccess('Anmeldung erfolgreich')
       setMfaRequired(false)
       setOtpCode('')
       setSelectedFactorId(null)
-      navigate('/dashboard')
+      setChallengeId(null)
+      // Verwende window.location.href für harten Reload
+      window.location.href = '/dashboard'
     } catch (err: any) {
       console.error('MFA verify failed:', err)
-      setError(err?.message || 'MFA‑Verifizierung fehlgeschlagen')
+      const msg = (err?.message || '').toLowerCase()
+      if (msg.includes('challenge') || msg.includes('expired')) {
+        setError('Challenge abgelaufen. Bitte erneut einloggen.')
+      } else if (msg.includes('invalid') || msg.includes('code')) {
+        setError('Ungültiger Code. Bitte erneut versuchen.')
+      } else {
+        setError(err?.message || 'MFA‑Verifizierung fehlgeschlagen')
+      }
     } finally {
       setVerifyingOtp(false)
     }
@@ -355,6 +384,9 @@ export default function Login() {
                 setError(null)
                 setSuccess(null)
                 setMfaRequired(false)
+                setChallengeId(null)
+                setSelectedFactorId(null)
+                setOtpCode('')
               }}
               className={`flex-1 py-2 px-3 sm:px-4 rounded-md text-sm sm:text-base font-medium transition-colors ${
                 isLogin && !isForgotPassword
@@ -371,6 +403,9 @@ export default function Login() {
                 setError(null)
                 setSuccess(null)
                 setMfaRequired(false)
+                setChallengeId(null)
+                setSelectedFactorId(null)
+                setOtpCode('')
               }}
               className={`flex-1 py-2 px-3 sm:px-4 rounded-md text-sm sm:text-base font-medium transition-colors ${
                 !isLogin && !isForgotPassword
