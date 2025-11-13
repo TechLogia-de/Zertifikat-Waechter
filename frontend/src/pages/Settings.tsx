@@ -153,6 +153,52 @@ export default function Settings() {
     return null
   }
 
+  async function initiateMfaEnrollment() {
+    // Lösche zuerst alle existierenden Faktoren (auch unverified),
+    // um AAL2-Requirement zu vermeiden
+    setMfaError(null)
+    setMfaSuccess(null)
+
+    try {
+      console.log('🔄 Refreshe Session vor MFA-Enrollment...')
+
+      // Session refreshen, um neueste Auth-Konfiguration zu erhalten
+      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
+      if (refreshError) {
+        console.warn('⚠️ Session-Refresh fehlgeschlagen:', refreshError)
+      } else {
+        console.log('✅ Session erfolgreich aktualisiert')
+      }
+
+      console.log('🔍 Prüfe auf existierende MFA-Faktoren...')
+      const { data: factorsData, error: factorsErr } = await (supabase.auth as any).mfa.listFactors()
+
+      if (!factorsErr && factorsData?.factors && factorsData.factors.length > 0) {
+        console.log(`🗑️ Gefunden: ${factorsData.factors.length} Faktor(en). Lösche alle vor neuem Enrollment...`)
+
+        for (const factor of factorsData.factors) {
+          try {
+            await (supabase.auth as any).mfa.unenroll({ factorId: factor.id })
+            console.log(`✅ Faktor ${factor.id.substring(0, 8)}... gelöscht`)
+          } catch (deleteErr) {
+            console.warn(`⚠️ Konnte Faktor ${factor.id.substring(0, 8)}... nicht löschen:`, deleteErr)
+          }
+        }
+
+        // Kurz warten, damit Supabase die Löschung verarbeitet
+        await new Promise(resolve => setTimeout(resolve, 500))
+      } else {
+        console.log('✅ Keine existierenden Faktoren gefunden')
+      }
+
+      // Jetzt direkt MFA enrollment starten
+      await startMfaEnrollment()
+    } catch (err: any) {
+      console.error('Fehler beim Vorbereiten des MFA-Enrollments:', err)
+      setMfaError('Fehler beim Vorbereiten: ' + (err.message || 'Unbekannter Fehler'))
+    }
+  }
+
   async function startMfaEnrollment() {
     setEnrolling(true)
     setMfaError(null)
@@ -176,14 +222,38 @@ export default function Settings() {
     const currentProvider = session?.user?.app_metadata?.provider
     const providers = session?.user?.app_metadata?.providers || []
     const hasPassword = providers.includes('email') || currentProvider === 'email'
-    
+
     console.log('📊 Auth-Status:', {
       aal: currentAAL,
       provider: currentProvider,
       providers: providers,
       hasPassword: hasPassword
     })
-    
+
+    // Prüfe AAL Level explizit
+    try {
+      const { data: aalData, error: aalError } = await (supabase.auth as any).mfa.getAuthenticatorAssuranceLevel()
+      console.log('🔐 AAL Level Details:', {
+        currentLevel: aalData?.currentLevel,
+        nextLevel: aalData?.nextLevel,
+        currentAuthenticationMethods: aalData?.currentAuthenticationMethods,
+        error: aalError
+      })
+    } catch (aalErr) {
+      console.warn('⚠️ Konnte AAL Level nicht abrufen:', aalErr)
+    }
+
+    // Log komplette Session Details
+    console.log('🔍 Session Details:', {
+      userId: session?.user?.id?.substring(0, 8) + '...',
+      email: session?.user?.email,
+      role: session?.user?.role,
+      aal: session?.user?.aal,
+      amr: session?.user?.app_metadata?.amr,
+      sessionCreatedAt: session?.user?.created_at,
+      lastSignInAt: session?.user?.last_sign_in_at
+    })
+
     // Hinweis: Bei einigen Supabase-Versionen ist AAL "unknown"
     // Daher versuchen wir einfach den MFA-Enroll und fangen AAL2-Fehler ab
 
@@ -216,12 +286,45 @@ export default function Settings() {
       // 2) Issuer für Microsoft Authenticator App festlegen (wichtig für Erkennbarkeit)
       const issuer = 'Zertifikat-Wächter'
 
-      const { data, error } = await (supabase.auth as any).mfa.enroll({ 
-        factorType: 'totp', 
+      console.log('🚀 Starte MFA.enroll() mit:', { factorType: 'totp', friendlyName, issuer })
+      console.log('⚠️ WICHTIG: Stelle sicher, dass im Supabase Dashboard unter "Authentication > Providers > Enhanced MFA Security" die Option "Limit duration of AAL1 sessions" auf OFF steht!')
+
+      const { data, error } = await (supabase.auth as any).mfa.enroll({
+        factorType: 'totp',
         friendlyName,
-        issuer 
+        issuer
       })
-      if (error) throw error
+
+      if (error) {
+        console.error('❌ MFA.enroll() Fehler Details:', {
+          message: error.message,
+          status: error.status,
+          code: error.code,
+          name: error.name,
+          fullError: JSON.stringify(error, null, 2)
+        })
+
+        // Spezielle Behandlung für AAL2-Fehler
+        if (error.message?.includes('AAL2') || error.status === 403) {
+          console.error('🔴 AAL2-FEHLER ERKANNT!')
+          console.error('📋 Mögliche Ursachen:')
+          console.error('1. "Enhanced MFA Security" ist im Supabase Dashboard aktiviert')
+          console.error('2. Es existiert ein versteckter MFA-Faktor in der Datenbank')
+          console.error('3. Die Session wurde nicht korrekt refreshed')
+          console.error('')
+          console.error('🔧 Lösungsschritte:')
+          console.error('1. Öffne Supabase Dashboard → Authentication → Providers')
+          console.error('2. Deaktiviere "Limit duration of AAL1 sessions" unter "Enhanced MFA Security"')
+          console.error('3. Klicke auf "Save changes"')
+          console.error('4. Warte 30 Sekunden')
+          console.error('5. Melde dich komplett ab und neu an')
+          console.error('6. Versuche MFA erneut zu aktivieren')
+        }
+
+        throw error
+      }
+
+      console.log('✅ MFA.enroll() erfolgreich!')
 
       const factorId: string = data?.id
       const totpData = data?.totp || {}
@@ -344,52 +447,21 @@ export default function Settings() {
       console.error('Failed to start MFA enrollment:', err)
 
       const message: string = (err?.message || '').toLowerCase()
-      
-      // Spezielle Behandlung für AAL2-Fehler
+
+      // Spezielle Behandlung für AAL2-Fehler (sollte nach Re-Auth nicht mehr auftreten)
       if (message.includes('aal2') || message.includes('assurance level')) {
-        const { data: { session: currentSession } } = await supabase.auth.getSession()
-        const sessionProvider = currentSession?.user?.app_metadata?.provider
-        const sessionProviders = currentSession?.user?.app_metadata?.providers || []
-        const userHasPassword = sessionProviders.includes('email')
-        
-        if (!userHasPassword) {
-          // Kein Passwort vorhanden
-          setMfaError(
-            '🔐 MFA-Aktivierung - Passwort erforderlich:\n\n' +
-            'Um MFA zu aktivieren, musst du zuerst ein Passwort setzen.\n\n' +
-            '✅ SO GEHT\'S:\n\n' +
-            '1️⃣ Melde dich ab\n' +
-            '2️⃣ Klicke auf der Login-Seite: "Passwort vergessen?"\n' +
-            '3️⃣ Gib deine E-Mail ein: ' + (user?.email || '') + '\n' +
-            '4️⃣ Öffne die E-Mail und setze ein Passwort\n' +
-            '5️⃣ Logge dich mit E-Mail + Passwort ein (NICHT Google!)\n' +
-            '6️⃣ Komme zurück und aktiviere MFA\n\n' +
-            'Dies ist eine Sicherheitsmaßnahme (AAL2-Level erforderlich).'
-          )
-        } else {
-          // Hat Passwort, aber mit Google eingeloggt
-          setMfaError(
-            '🔐 Bitte mit Passwort einloggen:\n\n' +
-            'Du hast ein Passwort, bist aber gerade mit Google eingeloggt.\n\n' +
-            '✅ LÖSUNG:\n\n' +
-            '1️⃣ Melde dich ab\n' +
-            '2️⃣ Logge dich mit E-Mail + Passwort ein (NICHT Google!)\n' +
-            '3️⃣ Komme zurück und aktiviere MFA\n\n' +
-            'Wichtig: Nur beim Passwort-Login wird der AAL2-Level erreicht!'
-          )
-        }
-        
+        setMfaError(
+          '🔐 Sicherheitsstufe nicht ausreichend:\n\n' +
+          'Das MFA-Enrollment benötigt eine höhere Sicherheitsstufe (AAL2).\n' +
+          'Bitte melde dich ab und mit deinem Passwort erneut an.'
+        )
+
         await logMFASecurityEvent({
           event_type: 'mfa.enrollment.failed',
-          error_message: `AAL2 required - Provider: ${sessionProvider}, Has Password: ${userHasPassword}`,
-          metadata: { 
-            method: 'TOTP',
-            provider: sessionProvider,
-            providers: sessionProviders,
-            hasPassword: userHasPassword
-          }
+          error_message: 'AAL2 required even after re-auth',
+          metadata: { method: 'TOTP' }
         })
-        
+
         setEnrolling(false)
         return
       }
@@ -966,8 +1038,9 @@ export default function Settings() {
                   <p className="text-sm text-[#64748B]">
                     Schütze deinen Account mit einer zusätzlichen Sicherheitsstufe. Nach der Aktivierung benötigst du bei der Anmeldung einen Code aus deiner Authenticator‑App.
                   </p>
+
                   <button
-                    onClick={startMfaEnrollment}
+                    onClick={initiateMfaEnrollment}
                     disabled={enrolling}
                     className="px-4 py-2 bg-[#3B82F6] text-white rounded-lg font-semibold hover:bg-[#2563EB] disabled:opacity-50 transition-colors shadow-sm"
                   >
