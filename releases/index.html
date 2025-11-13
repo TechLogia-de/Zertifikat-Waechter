@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Download Zertifikat-Wächter Agent - Docker Images und Binaries">
+    <title>Zertifikat-Wächter Agent - Downloads</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #1E293B;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #1E293B 0%, #334155 100%);
+            color: white;
+            padding: 60px 40px;
+            text-align: center;
+        }
+        
+        .logo {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 20px;
+            background: white;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+        
+        .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+            font-weight: 300;
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        .version-badge {
+            display: inline-block;
+            background: #10B981;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 600;
+            margin-bottom: 30px;
+        }
+        
+        .section {
+            margin-bottom: 40px;
+        }
+        
+        h2 {
+            color: #1E293B;
+            font-size: 1.8em;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #3B82F6;
+        }
+        
+        .download-card {
+            background: #F8FAFC;
+            border: 2px solid #E2E8F0;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+        }
+        
+        .download-card:hover {
+            border-color: #3B82F6;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+            transform: translateY(-2px);
+        }
+        
+        .download-card h3 {
+            color: #1E293B;
+            font-size: 1.3em;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .download-card p {
+            color: #64748B;
+            margin-bottom: 15px;
+        }
+        
+        .code-box {
+            background: #1E293B;
+            color: #E2E8F0;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            overflow-x: auto;
+            position: relative;
+        }
+        
+        .code-box code {
+            display: block;
+            white-space: pre;
+        }
+        
+        .copy-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #3B82F6;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85em;
+            transition: all 0.2s;
+        }
+        
+        .copy-btn:hover {
+            background: #2563EB;
+        }
+        
+        .copy-btn:active {
+            transform: scale(0.95);
+        }
+        
+        .feature-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .feature-list li {
+            padding: 10px 0;
+            padding-left: 30px;
+            position: relative;
+        }
+        
+        .feature-list li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #10B981;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+        
+        .platform-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .platform-card {
+            background: white;
+            border: 2px solid #E2E8F0;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+        
+        .platform-card:hover {
+            border-color: #3B82F6;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
+        }
+        
+        .platform-icon {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .btn {
+            display: inline-block;
+            background: #3B82F6;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .btn:hover {
+            background: #2563EB;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+        
+        .btn-secondary {
+            background: #64748B;
+        }
+        
+        .btn-secondary:hover {
+            background: #475569;
+        }
+        
+        .footer {
+            background: #F8FAFC;
+            padding: 30px 40px;
+            text-align: center;
+            color: #64748B;
+            border-top: 1px solid #E2E8F0;
+        }
+        
+        .alert {
+            background: #FEF3C7;
+            border-left: 4px solid #F59E0B;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        
+        .alert-icon {
+            font-size: 1.2em;
+            margin-right: 10px;
+        }
+        
+        @media (max-width: 768px) {
+            .header {
+                padding: 40px 20px;
+            }
+            
+            h1 {
+                font-size: 1.8em;
+            }
+            
+            .content {
+                padding: 20px;
+            }
+            
+            .platform-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">🔒</div>
+            <h1>Zertifikat-Wächter Agent</h1>
+            <p class="subtitle">Intranet SSL/TLS Certificate Scanner</p>
+        </div>
+        
+        <div class="content">
+            <div class="version-badge">📦 Latest Version: v1.0.0</div>
+            
+            <!-- Quick Start -->
+            <div class="section">
+                <h2>🚀 Quick Start mit Docker</h2>
+                <div class="download-card">
+                    <h3>🐳 Docker Pull & Run</h3>
+                    <p>Schnellste Methode - Agent in weniger als 1 Minute starten:</p>
+                    <div class="code-box">
+                        <button class="copy-btn" onclick="copyCode(this, 'docker-run')">📋 Copy</button>
+                        <code id="docker-run">docker run -d \
+  --name certwatcher-agent \
+  --restart unless-stopped \
+  -e SUPABASE_URL=https://ethwkzwsxkhcexibuvwp.supabase.co \
+  -e SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here \
+  -e SCAN_TARGETS=internal.example.com,mail.example.com \
+  -e SCAN_PORTS=443,8443,636,993,995 \
+  -e SCAN_INTERVAL=3600 \
+  -p 8080:8080 \
+  certwatcher/agent:latest</code>
+                    </div>
+                </div>
+                
+                <div class="download-card">
+                    <h3>📝 Docker Compose (Empfohlen)</h3>
+                    <p>Für Production - mit automatischem Restart und Health Checks:</p>
+                    <div class="code-box">
+                        <button class="copy-btn" onclick="copyCode(this, 'docker-compose')">📋 Copy</button>
+                        <code id="docker-compose">version: '3.8'
+
+services:
+  agent:
+    image: certwatcher/agent:latest
+    container_name: certwatcher-agent
+    environment:
+      SUPABASE_URL: https://ethwkzwsxkhcexibuvwp.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      CONNECTOR_NAME: office-agent-01
+      SCAN_TARGETS: server1.internal,server2.internal
+      SCAN_PORTS: 443,8443,636,993,995
+      SCAN_INTERVAL: 3600
+      LOG_LEVEL: INFO
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3</code>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Platform Downloads -->
+            <div class="section">
+                <h2>💾 Downloads</h2>
+                <div class="platform-grid">
+                    <div class="platform-card">
+                        <div class="platform-icon">🐧</div>
+                        <h4>Linux (AMD64)</h4>
+                        <a href="#" class="btn" style="margin-top: 10px; display: inline-block;">Download</a>
+                    </div>
+                    <div class="platform-card">
+                        <div class="platform-icon">🍎</div>
+                        <h4>macOS (ARM64)</h4>
+                        <a href="#" class="btn" style="margin-top: 10px; display: inline-block;">Download</a>
+                    </div>
+                    <div class="platform-card">
+                        <div class="platform-icon">🪟</div>
+                        <h4>Windows</h4>
+                        <a href="#" class="btn" style="margin-top: 10px; display: inline-block;">Download</a>
+                    </div>
+                    <div class="platform-card">
+                        <div class="platform-icon">🦾</div>
+                        <h4>Linux (ARM64)</h4>
+                        <a href="#" class="btn" style="margin-top: 10px; display: inline-block;">Download</a>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Features -->
+            <div class="section">
+                <h2>✨ Features</h2>
+                <ul class="feature-list">
+                    <li><strong>Automatische Zertifikatserkennung</strong> - Scannt TLS/SSL auf konfigurierbaren Ports</li>
+                    <li><strong>Intranet-Unterstützung</strong> - Perfekt für interne Netzwerke und private Hosts</li>
+                    <li><strong>Multi-Port Scanning</strong> - HTTPS, LDAPS, SMTPS, IMAPS, POP3S, und mehr</li>
+                    <li><strong>Automatische Registration</strong> - Agent meldet sich selbst beim Backend an</li>
+                    <li><strong>Health Monitoring</strong> - Heartbeat alle 30 Sekunden für Live-Status</li>
+                    <li><strong>Strukturiertes Logging</strong> - JSON-Format für einfache Auswertung</li>
+                    <li><strong>Graceful Shutdown</strong> - Sauberes Beenden ohne Datenverlust</li>
+                    <li><strong>Docker & Kubernetes Ready</strong> - Vollständig containerisiert</li>
+                </ul>
+            </div>
+            
+            <!-- Configuration -->
+            <div class="section">
+                <h2>⚙️ Konfiguration</h2>
+                <div class="download-card">
+                    <h3>Umgebungsvariablen</h3>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr style="background: #F1F5F9;">
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #E2E8F0;">Variable</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #E2E8F0;">Pflicht</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #E2E8F0;">Default</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #E2E8F0;">Beschreibung</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 12px; border-bottom: 1px solid #E2E8F0;"><code>SUPABASE_URL</code></td>
+                            <td style="padding: 12px; border-bottom: 1px solid #E2E8F0;">✅ Ja</td>
+                            <td style="padding: 12px; border-bottom: 1px solid #E2E8F0;">-</td>
+                            <td style="padding: 12px; border-bottom: 1px solid #E2E8F0;">Supabase Projekt URL</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 12px; border-bottom: 1px solid #E2E8F0;"><code>SUPABASE_SERVICE_ROLE_KEY</code></td>
+                            <td style="padding: 12px; border-bottom: 1px solid #E2E8F0;">✅ Ja</td>
+                            <td style="padding: 12px; border-bottom: 1px solid #E2E8F0;">-</td>
+                            <td style="padding: 12px; border-bottom: 1px solid #E2E8F0;">Service Role Key</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 12px; border-bottom: 1px solid #E2E8F0;"><code>SCAN_TARGETS</code></td>
+                            <td style="padding: 12px; border-bottom: 1px solid #E2E8F0;">❌ Nein</td>
+                            <td style="padding: 12px; border-bottom: 1px solid #E2E8F0;">localhost</td>
+                            <td style="padding: 12px; border-bottom: 1px solid #E2E8F0;">Komma-separierte Host-Liste</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 12px; border-bottom: 1px solid #E2E8F0;"><code>SCAN_PORTS</code></td>
+                            <td style="padding: 12px; border-bottom: 1px solid #E2E8F0;">❌ Nein</td>
+                            <td style="padding: 12px; border-bottom: 1px solid #E2E8F0;">443,8443,636</td>
+                            <td style="padding: 12px; border-bottom: 1px solid #E2E8F0;">Komma-separierte Port-Liste</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 12px;"><code>SCAN_INTERVAL</code></td>
+                            <td style="padding: 12px;">❌ Nein</td>
+                            <td style="padding: 12px;">3600</td>
+                            <td style="padding: 12px;">Scan-Intervall in Sekunden</td>
+                        </tr>
+                    </table>
+                </div>
+                
+                <div class="alert">
+                    <span class="alert-icon">⚠️</span>
+                    <strong>Sicherheitshinweis:</strong> Speichere den <code>SUPABASE_SERVICE_ROLE_KEY</code> niemals in Git! 
+                    Verwende Umgebungsvariablen oder Docker Secrets.
+                </div>
+            </div>
+            
+            <!-- Health Checks -->
+            <div class="section">
+                <h2>🏥 Health Checks</h2>
+                <div class="download-card">
+                    <h3>Endpoints</h3>
+                    <p>Der Agent stellt zwei Health-Check-Endpoints bereit:</p>
+                    <div class="code-box">
+                        <code># Liveness Check
+curl http://localhost:8080/healthz
+
+# Readiness Check
+curl http://localhost:8080/readyz</code>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Support -->
+            <div class="section">
+                <h2>📚 Dokumentation & Support</h2>
+                <div style="display: grid; gap: 15px; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));">
+                    <a href="https://github.com/your-repo/certwatcher" class="btn" target="_blank">
+                        📖 Vollständige Dokumentation
+                    </a>
+                    <a href="https://github.com/your-repo/certwatcher/issues" class="btn btn-secondary" target="_blank">
+                        🐛 Issue melden
+                    </a>
+                    <a href="https://cert-watcher.de" class="btn btn-secondary" target="_blank">
+                        🌐 Zur Hauptseite
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p><strong>Zertifikat-Wächter</strong> © 2025</p>
+            <p style="margin-top: 10px; font-size: 0.9em;">
+                Gebaut mit ❤️ für sichere SSL/TLS Zertifikatsverwaltung
+            </p>
+        </div>
+    </div>
+    
+    <script>
+        function copyCode(button, codeId) {
+            const code = document.getElementById(codeId).innerText;
+            navigator.clipboard.writeText(code).then(() => {
+                const originalText = button.innerText;
+                button.innerText = '✅ Kopiert!';
+                button.style.background = '#10B981';
+                setTimeout(() => {
+                    button.innerText = originalText;
+                    button.style.background = '#3B82F6';
+                }, 2000);
+            }).catch(err => {
+                console.error('Copy failed:', err);
+                button.innerText = '❌ Fehler';
+                setTimeout(() => {
+                    button.innerText = '📋 Copy';
+                }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>
+
