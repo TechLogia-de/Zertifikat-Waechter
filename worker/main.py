@@ -41,6 +41,10 @@ def send_email_via_smtp(smtp_config: dict, to: str, subject: str, body: str) -> 
         msg['From'] = smtp_config['from']
         msg['To'] = to
 
+        import html as html_module
+        safe_subject = html_module.escape(subject)
+        safe_body = html_module.escape(body)
+
         html_body = f"""
         <html>
           <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -48,8 +52,8 @@ def send_email_via_smtp(smtp_config: dict, to: str, subject: str, body: str) -> 
               <h1 style="color: white; margin: 0;">🛡️ Zertifikat-Wächter</h1>
             </div>
             <div style="background: white; padding: 30px; border: 1px solid #E2E8F0;">
-              <h2>{subject}</h2>
-              <p style="color: #64748B; line-height: 1.6;">{body}</p>
+              <h2>{safe_subject}</h2>
+              <p style="color: #64748B; line-height: 1.6;">{safe_body}</p>
               <div style="margin-top: 30px; padding: 20px; background: #F8FAFC; border-radius: 8px; border-left: 4px solid #10B981;">
                 <p style="margin: 0; color: #065F46; font-weight: bold;">✅ SMTP funktioniert!</p>
                 <p style="margin: 10px 0 0 0; color: #64748B; font-size: 14px;">

@@ -188,9 +188,181 @@ serve(async (req) => {
               console.error(`❌ Slack notification failed for tenant ${tenantId}`)
               totalFailed += recentAlerts.length
             }
+          } else if (integration.type === 'smtp' || integration.type === 'email') {
+            // SMTP-Integration: Sende E-Mail-Benachrichtigungen
+            const config = integration.config as any
+            const smtpHost = config.host || Deno.env.get('SMTP_HOST')
+            const smtpPort = parseInt(config.port || Deno.env.get('SMTP_PORT') || '587')
+            const smtpUser = config.user || Deno.env.get('SMTP_USER')
+            const smtpPassword = config.password || Deno.env.get('SMTP_PASSWORD')
+            const smtpFrom = config.from || Deno.env.get('SMTP_FROM')
+            const recipientEmail = config.recipient_email || config.to
+
+            if (!smtpHost || !smtpUser || !smtpPassword || !smtpFrom || !recipientEmail) {
+              console.log(`SMTP not fully configured for tenant ${tenantId}, skipping`)
+              continue
+            }
+
+            // Build alert summary email
+            const alertRows = recentAlerts.map(alert => {
+              const cert = alert.certificate
+              const daysLeft = getDaysUntilExpiry(cert.not_after)
+              const severity = getSeverity(daysLeft)
+              const color = severity === 'critical' ? '#EF4444' : severity === 'error' ? '#F97316' : severity === 'warning' ? '#F59E0B' : '#3B82F6'
+              return `<tr>
+                <td style="padding:8px;border-bottom:1px solid #E2E8F0"><strong>${cert.subject_cn}</strong></td>
+                <td style="padding:8px;border-bottom:1px solid #E2E8F0">${cert.issuer || 'N/A'}</td>
+                <td style="padding:8px;border-bottom:1px solid #E2E8F0;color:${color};font-weight:bold">${daysLeft} Tage</td>
+              </tr>`
+            }).join('')
+
+            const emailHtml = `<!DOCTYPE html><html><body style="margin:0;padding:20px;background:#F8FAFC;font-family:Arial,sans-serif">
+              <div style="max-width:600px;margin:0 auto">
+                <div style="background:linear-gradient(135deg,#3B82F6,#6366F1);padding:24px;text-align:center;border-radius:12px 12px 0 0">
+                  <h1 style="color:white;margin:0">🛡️ Zertifikat-Wächter</h1>
+                  <p style="color:rgba(255,255,255,0.9);margin:8px 0 0">Zertifikats-Ablauf-Warnung</p>
+                </div>
+                <div style="background:white;padding:24px;border:1px solid #E2E8F0;border-radius:0 0 12px 12px">
+                  <p style="color:#334155">${recentAlerts.length} Zertifikat(e) benötigen Aufmerksamkeit:</p>
+                  <table style="width:100%;border-collapse:collapse;margin-top:16px">
+                    <thead><tr style="background:#F8FAFC">
+                      <th style="padding:8px;text-align:left;font-size:12px;color:#64748B">Domain</th>
+                      <th style="padding:8px;text-align:left;font-size:12px;color:#64748B">Aussteller</th>
+                      <th style="padding:8px;text-align:left;font-size:12px;color:#64748B">Verbleibend</th>
+                    </tr></thead>
+                    <tbody>${alertRows}</tbody>
+                  </table>
+                  <p style="margin-top:20px;font-size:12px;color:#94A3B8">Diese E-Mail wurde automatisch von Zertifikat-Wächter generiert.</p>
+                </div>
+              </div>
+            </body></html>`
+
+            try {
+              // Use Deno's native TCP for SMTP
+              const conn = smtpPort === 465
+                ? await Deno.connectTls({ hostname: smtpHost, port: smtpPort })
+                : await Deno.connect({ hostname: smtpHost, port: smtpPort })
+
+              const encoder = new TextEncoder()
+              const decoder = new TextDecoder()
+
+              const readResponse = async () => {
+                const buf = new Uint8Array(1024)
+                const n = await conn.read(buf)
+                return n ? decoder.decode(buf.subarray(0, n)) : ''
+              }
+
+              const sendCommand = async (cmd: string) => {
+                await conn.write(encoder.encode(cmd + '\r\n'))
+                return await readResponse()
+              }
+
+              await readResponse() // greeting
+              await sendCommand(`EHLO zertifikat-waechter`)
+
+              if (smtpPort !== 465) {
+                await sendCommand('STARTTLS')
+                const tlsConn = await Deno.startTls(conn as Deno.TcpConn, { hostname: smtpHost })
+                Object.assign(conn, tlsConn)
+                await sendCommand(`EHLO zertifikat-waechter`)
+              }
+
+              // AUTH LOGIN
+              await sendCommand('AUTH LOGIN')
+              await sendCommand(btoa(smtpUser))
+              await sendCommand(btoa(smtpPassword))
+
+              await sendCommand(`MAIL FROM:<${smtpFrom}>`)
+              await sendCommand(`RCPT TO:<${recipientEmail}>`)
+              await sendCommand('DATA')
+
+              const emailData = [
+                `From: ${smtpFrom}`,
+                `To: ${recipientEmail}`,
+                `Subject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(`🛡️ ${recentAlerts.length} Zertifikat-Warnung(en)`)))}?=`,
+                `MIME-Version: 1.0`,
+                `Content-Type: text/html; charset=UTF-8`,
+                ``,
+                emailHtml,
+                `.`
+              ].join('\r\n')
+
+              await sendCommand(emailData)
+              await sendCommand('QUIT')
+
+              try { conn.close() } catch { /* ignore */ }
+
+              console.log(`✅ SMTP email sent for tenant ${tenantId}`)
+              totalSent += recentAlerts.length
+            } catch (smtpErr) {
+              console.error(`❌ SMTP failed for tenant ${tenantId}:`, smtpErr)
+              totalFailed += recentAlerts.length
+            }
+          } else if (integration.type === 'teams') {
+            // Microsoft Teams Webhook Integration
+            const config = integration.config as any
+            if (!config.webhook_url) continue
+
+            const alertFacts = recentAlerts.map(alert => {
+              const cert = alert.certificate
+              const daysLeft = getDaysUntilExpiry(cert.not_after)
+              const emoji = daysLeft <= 1 ? '🔴' : daysLeft <= 7 ? '🟠' : '🟡'
+              return {
+                name: `${emoji} ${cert.subject_cn}`,
+                value: `Läuft ab in ${daysLeft} Tagen (${new Date(cert.not_after).toLocaleDateString('de-DE')})`
+              }
+            })
+
+            // Adaptive Card payload for Teams
+            const teamsPayload = {
+              type: 'message',
+              attachments: [{
+                contentType: 'application/vnd.microsoft.card.adaptive',
+                content: {
+                  '$schema': 'http://adaptivecards.io/schemas/adaptive-card.json',
+                  type: 'AdaptiveCard',
+                  version: '1.4',
+                  body: [
+                    {
+                      type: 'TextBlock',
+                      size: 'Large',
+                      weight: 'Bolder',
+                      text: '🛡️ Zertifikat-Ablauf-Warnung'
+                    },
+                    {
+                      type: 'TextBlock',
+                      text: `${recentAlerts.length} Zertifikat(e) benötigen Aufmerksamkeit:`,
+                      wrap: true
+                    },
+                    {
+                      type: 'FactSet',
+                      facts: alertFacts
+                    },
+                    {
+                      type: 'TextBlock',
+                      text: 'Automatisch generiert von Zertifikat-Wächter',
+                      size: 'Small',
+                      isSubtle: true
+                    }
+                  ]
+                }
+              }]
+            }
+
+            const teamsResponse = await fetch(config.webhook_url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(teamsPayload)
+            })
+
+            if (teamsResponse.ok) {
+              console.log(`✅ Teams notification sent for tenant ${tenantId}`)
+              totalSent += recentAlerts.length
+            } else {
+              console.error(`❌ Teams notification failed for tenant ${tenantId}: ${teamsResponse.status}`)
+              totalFailed += recentAlerts.length
+            }
           }
-          // TODO: SMTP-Integration implementieren (ruft Worker API auf)
-          // TODO: Teams-Integration implementieren
 
         } catch (err) {
           console.error(`Failed to send via ${integration.type}:`, err)

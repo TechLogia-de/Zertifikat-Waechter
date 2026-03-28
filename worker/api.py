@@ -9,6 +9,8 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import os
+import re
+import html as html_module
 from dotenv import load_dotenv
 import ssl
 import socket
@@ -92,6 +94,21 @@ def require_api_key(f):
     
     return decorated_function
 
+def validate_email(email: str) -> bool:
+    """Validates email address format"""
+    if not email or not isinstance(email, str):
+        return False
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return bool(re.match(pattern, email.strip()))
+
+
+def sanitize_header(value: str) -> str:
+    """Removes CRLF characters to prevent header injection"""
+    if not isinstance(value, str):
+        return ''
+    return value.replace('\r', '').replace('\n', '').strip()
+
+
 @app.route('/send-email', methods=['POST'])
 def send_email():
     try:
@@ -100,6 +117,14 @@ def send_email():
         to = data.get('to')
         subject = data.get('subject', '🛡️ Test von Zertifikat-Wächter')
         body = data.get('body', 'Test-E-Mail')
+
+        # Validate email address
+        if not validate_email(to):
+            return jsonify({'success': False, 'error': 'Ungültige E-Mail-Adresse'}), 400
+
+        # Sanitize header values against CRLF injection
+        to = sanitize_header(to)
+        subject = sanitize_header(subject)
 
         # ✅ System-SMTP oder User-SMTP?
         if use_system_smtp:
@@ -149,6 +174,15 @@ def send_email():
             badge_text_color = "#1E40AF"
             mode_label = "Eigener SMTP-Server"
 
+        # Escape user-controlled values for safe HTML rendering
+        safe_subject = html_module.escape(subject)
+        safe_body = html_module.escape(body)
+        safe_to = html_module.escape(to)
+        safe_smtp_host = html_module.escape(str(smtp_config.get('host', '')))
+        safe_smtp_port = html_module.escape(str(smtp_config.get('port', '')))
+        safe_smtp_from = html_module.escape(str(smtp_config.get('from', '')))
+        safe_smtp_mode = html_module.escape(smtp_mode)
+
         html_body = f"""
         <!DOCTYPE html>
         <html>
@@ -159,17 +193,17 @@ def send_email():
                 <h1 style="color: white; margin: 0; font-size: 28px;">{icon} Zertifikat-Wächter</h1>
                 <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0 0; font-size: 14px;">{mode_label}</p>
               </div>
-              
+
               <!-- Content -->
               <div style="background: white; padding: 30px; border: 1px solid #E2E8F0; border-radius: 0 0 12px 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                <h2 style="color: #0F172A; margin-top: 0;">{subject}</h2>
-                <p style="color: #64748B; line-height: 1.8; font-size: 15px;">{body}</p>
+                <h2 style="color: #0F172A; margin-top: 0;">{safe_subject}</h2>
+                <p style="color: #64748B; line-height: 1.8; font-size: 15px;">{safe_body}</p>
                 
                 <!-- Success Badge mit unterschiedlichen Farben -->
                 <div style="margin-top: 30px; padding: 20px; background: {badge_bg}; border-radius: 10px; border-left: 5px solid {badge_border};">
                   <p style="margin: 0; color: {badge_text_color}; font-weight: bold; font-size: 16px;">✅ {'E-Mail-Benachrichtigung aktiv!' if use_system_smtp else 'SMTP-Verbindung erfolgreich!'}</p>
                   <p style="margin: 12px 0 0 0; color: {badge_text_color}; font-size: 14px; opacity: 0.9;">
-                    {'<strong>✅ Deine E-Mail-Benachrichtigungen sind eingerichtet!</strong><br>Alle Zertifikat-Warnungen werden automatisch an dich versendet.' if use_system_smtp else f'<strong>Modus:</strong> {smtp_mode}<br><strong>Server:</strong> {smtp_config["host"]}:{smtp_config["port"]}<br><strong>Von:</strong> {smtp_config["from"]}'}
+                    {'<strong>✅ Deine E-Mail-Benachrichtigungen sind eingerichtet!</strong><br>Alle Zertifikat-Warnungen werden automatisch an dich versendet.' if use_system_smtp else f'<strong>Modus:</strong> {safe_smtp_mode}<br><strong>Server:</strong> {safe_smtp_host}:{safe_smtp_port}<br><strong>Von:</strong> {safe_smtp_from}'}
                   </p>
                 </div>
                 
@@ -555,5 +589,5 @@ if __name__ == '__main__':
     print("🔑 REST API v1:  GET  http://localhost:5000/api/v1/certificates")
     print("❤️  Health Check: GET http://localhost:5000/health")
     print("=" * 60)
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    app.run(host='0.0.0.0', port=5001, debug=os.getenv('FLASK_DEBUG', 'false').lower() == 'true')
 

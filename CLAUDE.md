@@ -152,12 +152,22 @@ RATE_LIMIT_WINDOW_MS, RATE_LIMIT_MAX_REQUESTS
 ## Testing
 
 ```bash
-make test           # All: frontend + agent + worker
-cd frontend && npm test        # Frontend (ESLint + TS check)
-cd agent && go test ./...      # Go agent
-cd worker && pytest            # Python worker (pytest)
-cd mcp-server && npm test      # MCP server (Vitest)
+make test                              # All: frontend + agent + worker
+cd frontend && npx vitest run          # Frontend (Vitest + React Testing Library)
+cd agent && go test ./...              # Go agent (config, scanner tests)
+cd worker && pytest                    # Python worker (pytest)
+cd mcp-server && npx vitest run        # MCP server (Vitest)
 ```
+
+## Linting & Code Quality
+
+```bash
+cd frontend && npm run lint            # ESLint (TypeScript + React)
+cd agent && golangci-lint run          # Go linting (if golangci-lint installed)
+cd worker && flake8                    # Python linting (if flake8 installed)
+```
+
+Config files: `frontend/.eslintrc.cjs`, `.prettierrc`, `agent/.golangci.yml`, `worker/setup.cfg`
 
 ## Docker & CI/CD
 
