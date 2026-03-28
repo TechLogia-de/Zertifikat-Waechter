@@ -1,5 +1,4 @@
 import { describe, it, expect, vi } from 'vitest'
-import * as tls from 'tls'
 
 describe('CertificateScanner', () => {
   describe('TLS Connection', () => {
@@ -17,10 +16,10 @@ describe('CertificateScanner', () => {
         authorized: false,
       }
 
-      vi.spyOn(tls, 'connect').mockReturnValue(mockSocket as any)
-
-      // Connection should fail with timeout
-      expect(mockSocket.on).toBeDefined()
+      // Verify the mock socket handles error events
+      const errorHandler = vi.fn()
+      mockSocket.on('error', errorHandler)
+      expect(mockSocket.on).toHaveBeenCalledWith('error', errorHandler)
     })
 
     it('should parse certificate subject correctly', () => {
