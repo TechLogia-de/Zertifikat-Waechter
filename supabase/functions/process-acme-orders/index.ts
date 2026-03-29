@@ -211,17 +211,63 @@ async function processDNS01Challenge(supabase: any, order: ACMEOrder): Promise<v
 async function processHTTP01Challenge(supabase: any, order: ACMEOrder): Promise<void> {
   console.log(`[HTTP-01] Processing ${order.domain}`)
 
-  // HTTP-01 erfordert Webserver-Zugriff
-  // Für MVP: Setze Anleitung als "last_error"
-  await supabase
-    .from('acme_orders')
-    .update({ 
-      status: 'invalid',
-      last_error: `HTTP-01 Challenge: Lege Datei unter http://${order.domain}/.well-known/acme-challenge/[token] ab. Details siehe ACME-Guide.`
-    })
-    .eq('id', order.id)
+  // Generate challenge token and value
+  const challengeToken = generateChallengeToken()
+  const challengeValue = await calculateChallengeValue(challengeToken, order.acme_accounts.email)
 
-  console.log(`[HTTP-01] Manual steps required for ${order.domain}`)
+  // Store challenge details in the order for the user/agent to serve
+  const challengePath = `/.well-known/acme-challenge/${challengeToken}`
+  const instructions = [
+    `HTTP-01 Challenge für ${order.domain}:`,
+    ``,
+    `1. Erstelle folgende Datei auf deinem Webserver:`,
+    `   Pfad: http://${order.domain}${challengePath}`,
+    `   Inhalt: ${challengeValue}`,
+    ``,
+    `2. Stelle sicher, dass die Datei per HTTP (Port 80) erreichbar ist.`,
+    ``,
+    `3. Der Challenge-Token wird automatisch validiert, sobald die Datei erreichbar ist.`,
+  ].join('\n')
+
+  // Verify if the challenge file is already accessible
+  let verified = false
+  try {
+    const verifyUrl = `http://${order.domain}${challengePath}`
+    const response = await fetch(verifyUrl, {
+      redirect: 'follow',
+      signal: AbortSignal.timeout(5000),
+    })
+    if (response.ok) {
+      const body = await response.text()
+      if (body.trim() === challengeValue) {
+        verified = true
+        console.log(`[HTTP-01] Challenge verified for ${order.domain}`)
+      }
+    }
+  } catch {
+    // Challenge file not yet accessible
+  }
+
+  if (verified) {
+    await supabase
+      .from('acme_orders')
+      .update({
+        status: 'processing',
+        last_error: null,
+      })
+      .eq('id', order.id)
+    console.log(`[HTTP-01] Challenge verified, order processing for ${order.domain}`)
+  } else {
+    // Store instructions for the user to set up the challenge file
+    await supabase
+      .from('acme_orders')
+      .update({
+        status: 'pending_validation',
+        last_error: instructions,
+      })
+      .eq('id', order.id)
+    console.log(`[HTTP-01] Awaiting challenge file for ${order.domain}`)
+  }
 }
 
 async function createCloudflareRecord(

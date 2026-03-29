@@ -2,6 +2,9 @@ package scanner
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
@@ -122,11 +125,15 @@ func extractSAN(cert *x509.Certificate) []string {
 	return san
 }
 
-// getKeySize ermittelt Key-Size (für RSA/ECDSA)
+// getKeySize ermittelt Key-Size in Bits (für RSA/ECDSA/Ed25519)
 func getKeySize(cert *x509.Certificate) int {
 	switch key := cert.PublicKey.(type) {
-	case *interface{ Size() int }:
-		return (*key).Size() * 8 // Bytes → Bits
+	case *rsa.PublicKey:
+		return key.N.BitLen()
+	case *ecdsa.PublicKey:
+		return key.Curve.Params().BitSize
+	case ed25519.PublicKey:
+		return 256
 	default:
 		return 0
 	}

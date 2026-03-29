@@ -122,58 +122,52 @@ export default function DevSecurity() {
       }))
       setMfaEvents(mfaEventsTransformed)
 
-      // Mock data for blocked IPs (in Production würdest du eine echte Tabelle haben)
-      const mockBlockedIPs: BlockedIP[] = [
-        {
-          id: '1',
-          ip_address: '192.168.1.100',
-          reason: 'Too many failed login attempts',
-          blocked_at: new Date(Date.now() - 3600000).toISOString(),
-          expires_at: new Date(Date.now() + 82800000).toISOString(),
-          block_count: 5
-        },
-        {
-          id: '2',
-          ip_address: '10.0.0.50',
-          reason: 'Suspicious activity detected',
-          blocked_at: new Date(Date.now() - 7200000).toISOString(),
-          expires_at: null, // Permanent block
-          block_count: 12
-        }
-      ]
-      setBlockedIPs(mockBlockedIPs)
+      // Load blocked IPs from events (failed login attempts grouped by IP)
+      const { data: blockedData } = await supabase
+        .from('events')
+        .select('*')
+        .or('type.ilike.%blocked%,type.ilike.%ban%,type.ilike.%block%')
+        .order('ts', { ascending: false })
+        .limit(50)
 
-      // Mock failed logins
-      const mockFailedLogins: FailedLogin[] = [
-        {
-          id: '1',
-          email: 'attacker@evil.com',
-          ip_address: '192.168.1.100',
-          user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-          error_message: 'Invalid credentials',
-          attempted_at: new Date(Date.now() - 1800000).toISOString()
-        },
-        {
-          id: '2',
-          email: 'test@example.com',
-          ip_address: '10.0.0.50',
-          user_agent: 'curl/7.68.0',
-          error_message: 'Account locked',
-          attempted_at: new Date(Date.now() - 3600000).toISOString()
-        }
-      ]
-      setFailedLogins(mockFailedLogins)
+      const blockedIPsFromDB: BlockedIP[] = (blockedData || []).map((e: any) => ({
+        id: e.id,
+        ip_address: e.payload?.ip_address || 'Unknown',
+        reason: e.payload?.reason || e.type,
+        blocked_at: e.ts || e.created_at,
+        expires_at: e.payload?.expires_at || null,
+        block_count: e.payload?.block_count || 1
+      }))
+      setBlockedIPs(blockedIPsFromDB)
 
-      // Update metrics
+      // Load failed logins from events
+      const { data: failedData } = await supabase
+        .from('events')
+        .select('*')
+        .or('type.ilike.%failed_login%,type.ilike.%login.failed%,type.ilike.%auth.failed%')
+        .order('ts', { ascending: false })
+        .limit(50)
+
+      const failedLoginsFromDB: FailedLogin[] = (failedData || []).map((e: any) => ({
+        id: e.id,
+        email: e.payload?.email || e.payload?.user_email || 'Unknown',
+        ip_address: e.payload?.ip_address || 'Unknown',
+        user_agent: e.payload?.user_agent || 'Unknown',
+        error_message: e.payload?.error_message || e.payload?.reason || 'Authentication failed',
+        attempted_at: e.ts || e.created_at
+      }))
+      setFailedLogins(failedLoginsFromDB)
+
+      // Update metrics with real data
       const mfaFailedCount = mfaEventsTransformed.filter(e =>
         e.event_type.includes('failed') || e.event_type.includes('challenge.failed')
       ).length
 
       setMetrics([
-        { name: 'Failed Logins (24h)', value: mockFailedLogins.length, trend: 'down', color: '#EF4444', icon: '🔐' },
+        { name: 'Failed Logins (24h)', value: failedLoginsFromDB.length, trend: failedLoginsFromDB.length > 0 ? 'up' : 'stable', color: '#EF4444', icon: '🔐' },
         { name: 'MFA Events (24h)', value: mfaEventsTransformed.length, trend: mfaFailedCount > 0 ? 'up' : 'stable', color: '#8B5CF6', icon: '🛡️' },
-        { name: 'Blocked IPs', value: mockBlockedIPs.length, trend: 'stable', color: '#F59E0B', icon: '🚫' },
-        { name: 'Security Events (24h)', value: events.length, trend: 'up', color: '#3B82F6', icon: '⚠️' },
+        { name: 'Blocked IPs', value: blockedIPsFromDB.length, trend: 'stable', color: '#F59E0B', icon: '🚫' },
+        { name: 'Security Events (24h)', value: events.length, trend: events.length > 0 ? 'up' : 'stable', color: '#3B82F6', icon: '⚠️' },
       ])
 
     } catch (error) {
@@ -186,9 +180,18 @@ export default function DevSecurity() {
   async function unblockIP(ipAddress: string) {
     if (!confirm(`IP-Adresse ${ipAddress} entsperren?`)) return
 
-    // In Production würdest du die Datenbank aktualisieren
-    setBlockedIPs(prev => prev.filter(ip => ip.ip_address !== ipAddress))
-    alert(`✅ IP ${ipAddress} wurde entsperrt`)
+    try {
+      // Remove block event from database
+      await supabase
+        .from('events')
+        .delete()
+        .match({ 'payload->>ip_address': ipAddress })
+        .or('type.ilike.%blocked%,type.ilike.%ban%,type.ilike.%block%')
+
+      setBlockedIPs(prev => prev.filter(ip => ip.ip_address !== ipAddress))
+    } catch (error) {
+      console.error('Failed to unblock IP:', error)
+    }
   }
 
   function getTrendIcon(trend: 'up' | 'down' | 'stable') {
