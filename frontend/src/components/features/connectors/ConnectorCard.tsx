@@ -1,4 +1,3 @@
-import Badge from '../../ui/Badge'
 import { Connector } from './types'
 import { getStatusBadge, formatLastSeen } from './utils'
 

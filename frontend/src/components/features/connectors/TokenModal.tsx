@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import Modal from '../../ui/Modal'
 import { ConnectorWithToken } from './types'
 import { getDockerCommand, getDockerComposeContent, getWindowsCommand } from './utils'
