@@ -25,6 +25,7 @@ import WebhookLogs from './pages/WebhookLogs'
 import DevSecurity from './pages/DevSecurity'
 import LoadingBar from './components/ui/LoadingBar'
 import LoadingState from './components/ui/LoadingState'
+import ErrorBoundary from './components/ui/ErrorBoundary'
 
 function AppContent() {
   const { user, loading } = useAuth()
@@ -277,11 +278,13 @@ function AppContent() {
 
 function App() {
   return (
-    <LanguageProvider>
-      <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
-        <AppContent />
-      </BrowserRouter>
-    </LanguageProvider>
+    <ErrorBoundary>
+      <LanguageProvider>
+        <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+          <AppContent />
+        </BrowserRouter>
+      </LanguageProvider>
+    </ErrorBoundary>
   )
 }
 

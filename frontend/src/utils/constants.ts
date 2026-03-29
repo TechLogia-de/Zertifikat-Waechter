@@ -76,15 +76,51 @@ export const UI = {
   // Pagination
   DEFAULT_PAGE_SIZE: 10,
   MAX_PAGE_SIZE: 100,
-  
+
   // Toasts
   TOAST_DURATION: 5000,
-  
+
   // Loading States
   DEBOUNCE_DELAY: 300,
-  
-  // Charts
+
+  // Charts & Auto-Refresh
   CHART_REFRESH_INTERVAL: 30000, // 30 seconds
+  AUTO_REFRESH_INTERVAL: 30000, // 30 seconds
+  COPY_FEEDBACK_TIMEOUT: 2000, // 2 seconds
+
+  // OAuth
+  OAUTH_CALLBACK_TIMEOUT: 10000, // 10 seconds
+} as const
+
+// Certificate Thresholds
+export const CERT_THRESHOLDS = {
+  // Days until expiry
+  CRITICAL_DAYS: 7,
+  WARNING_DAYS: 30,
+  INFO_DAYS: 60,
+
+  // Milliseconds per day (for calculations)
+  MS_PER_DAY: 1000 * 60 * 60 * 24,
+} as const
+
+// SSL Health Score Grades
+export const SSL_GRADES = {
+  A_PLUS: { min: 90, label: 'A+', color: '#10B981' },
+  A: { min: 80, label: 'A', color: '#10B981' },
+  B: { min: 60, label: 'B', color: '#F59E0B' },
+  C: { min: 40, label: 'C', color: '#F97316' },
+  D: { min: 20, label: 'D', color: '#EF4444' },
+  F: { min: 0, label: 'F', color: '#DC2626' },
+} as const
+
+// Status Colors
+export const STATUS_COLORS = {
+  SUCCESS: '#10B981',
+  WARNING: '#F59E0B',
+  ERROR: '#EF4444',
+  INFO: '#3B82F6',
+  CRITICAL: '#DC2626',
+  NEUTRAL: '#64748B',
 } as const
 
 // Export all constants
