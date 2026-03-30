@@ -142,13 +142,14 @@ func main() {
 			}
 		case <-sigChan:
 			log.Info("Shutting down gracefully...")
-			// Update connector status to offline
+			// Cancel context first so all goroutines (config polling, scanners) stop
+			cancel()
+			// Update connector status to offline with a fresh context
 			cfgMu.RLock()
 			connectorID := cfg.ConnectorID
 			cfgMu.RUnlock()
 			if connectorID != "" {
 				log.Info("Marking connector as offline...")
-				// Use a fresh context since the parent may already be cancelled
 				shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer shutdownCancel()
 				if err := supabaseClient.UpdateConnectorStatus(shutdownCtx, connectorID, "inactive"); err != nil {

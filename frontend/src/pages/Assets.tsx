@@ -78,6 +78,31 @@ export default function Assets() {
     }
   }, [currentTenantId])
 
+  // Batch-fetch latest SSL checks for a list of assets (avoids N+1 RPC calls)
+  async function attachSSLChecks(assets: any[]): Promise<Asset[]> {
+    if (!assets || assets.length === 0) return []
+
+    const assetIds = assets.map((a: any) => a.id)
+    const { data: checks } = await supabase
+      .from('ssl_checks')
+      .select('asset_id, overall_score, checked_at')
+      .in('asset_id', assetIds)
+      .order('checked_at', { ascending: false })
+
+    // Build a map of asset_id → latest check (first occurrence since ordered desc)
+    const latestByAsset = new Map<string, any>()
+    for (const check of (checks || [])) {
+      if (!latestByAsset.has(check.asset_id)) {
+        latestByAsset.set(check.asset_id, check)
+      }
+    }
+
+    return assets.map((asset: any) => ({
+      ...asset,
+      latest_ssl_check: latestByAsset.get(asset.id) || null
+    }))
+  }
+
   // Refresh without showing loading spinner (for background updates)
   const refreshAssets = useCallback(async () => {
     if (!currentTenantId) return
@@ -98,18 +123,7 @@ export default function Assets() {
 
       if (error) throw error
 
-      const assetsWithChecks = await Promise.all(
-        ((data as any) || []).map(async (asset: any) => {
-          const { data: checkData } = await supabase
-            .rpc('get_latest_ssl_check', { p_asset_id: asset.id } as any)
-
-          return {
-            ...asset,
-            latest_ssl_check: checkData && (checkData as any).length > 0 ? (checkData as any)[0] : null
-          }
-        })
-      )
-
+      const assetsWithChecks = await attachSSLChecks(data || [])
       setAssets(assetsWithChecks as any)
     } catch (error) {
       console.error('Fehler beim Aktualisieren:', error)
@@ -135,18 +149,8 @@ export default function Assets() {
 
       if (error) throw error
 
-      // Hole letzte SSL Checks
-      const assetsWithChecks = await Promise.all(
-        ((data as any) || []).map(async (asset: any) => {
-          const { data: checkData } = await supabase
-            .rpc('get_latest_ssl_check', { p_asset_id: asset.id } as any)
-
-          return {
-            ...asset,
-            latest_ssl_check: checkData && (checkData as any).length > 0 ? (checkData as any)[0] : null
-          }
-        })
-      )
+      // Batch-fetch latest SSL checks (single query instead of N RPC calls)
+      const assetsWithChecks = await attachSSLChecks(data || [])
 
       setAssets(assetsWithChecks as any)
     } catch (error) {

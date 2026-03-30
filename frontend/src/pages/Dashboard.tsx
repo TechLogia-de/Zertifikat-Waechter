@@ -88,26 +88,13 @@ export default function Dashboard() {
     if (!tenantId || !user) return
 
     try {
-      // Fetch tenant name
-      const { data: membership } = await supabase
-        .from('memberships')
-        .select('tenants(name)')
-        .eq('user_id', user.id)
-        .maybeSingle()
-
-      if (membership) {
-        const membershipData = membership as any
-        if (membershipData.tenants) {
-          setTenantName(membershipData.tenants.name)
-        }
-      }
-
       const thirtyDaysFromNow = new Date()
       thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30)
       const now = new Date().toISOString()
 
-      // Fire all independent queries in parallel
+      // Fire all independent queries in parallel (including membership)
       const [
+        { data: membership },
         { count: totalCount },
         { count: expiringCount },
         { count: expiredCount },
@@ -120,6 +107,11 @@ export default function Dashboard() {
         { count: acmePendingCount },
         { data: recentCerts },
       ] = await Promise.all([
+        supabase
+          .from('memberships')
+          .select('tenants(name)')
+          .eq('user_id', user.id)
+          .maybeSingle(),
         supabase
           .from('certificates')
           .select('*', { count: 'exact', head: true })
@@ -179,6 +171,14 @@ export default function Dashboard() {
           .order('created_at', { ascending: false })
           .limit(5),
       ])
+
+      // Extract tenant name from membership result
+      if (membership) {
+        const membershipData = membership as any
+        if (membershipData.tenants) {
+          setTenantName(membershipData.tenants.name)
+        }
+      }
 
       const activeAgents = (connectors as any)?.filter((c: any) => c.status === 'active').length || 0
       const totalAgents = connectors?.length || 0

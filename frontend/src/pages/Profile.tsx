@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { useTenantId } from '../hooks/useTenantId'
+import { useAutoDismiss } from '../hooks/useAutoDismiss'
 import { supabase } from '../lib/supabase'
 import LoadingState from '../components/ui/LoadingState'
 
@@ -42,8 +43,8 @@ export default function Profile() {
   })
   const [passwordChanging, setPasswordChanging] = useState(false)
 
-  const [success, setSuccess] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const { message: success, show: showSuccess, clear: clearSuccess } = useAutoDismiss()
+  const { message: error, show: showError, clear: clearError } = useAutoDismiss()
 
   useEffect(() => {
     if (user) {
@@ -91,8 +92,8 @@ export default function Profile() {
 
   async function saveProfile() {
     setSaving(true)
-    setError(null)
-    setSuccess(null)
+    clearError()
+    clearSuccess()
 
     try {
       const { error: updateError } = await supabase.auth.updateUser({
@@ -106,11 +107,9 @@ export default function Profile() {
 
       if (updateError) throw updateError
 
-      setSuccess('✅ Profil erfolgreich aktualisiert!')
-      setTimeout(() => setSuccess(null), 5000)
+      showSuccess('✅ Profil erfolgreich aktualisiert!', 5000)
     } catch (err: any) {
-      setError(err.message || 'Fehler beim Speichern')
-      setTimeout(() => setError(null), 5000)
+      showError(err.message || 'Fehler beim Speichern', 5000)
     } finally {
       setSaving(false)
     }

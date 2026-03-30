@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { useTenantId } from '../hooks/useTenantId'
+import { useAutoDismiss } from '../hooks/useAutoDismiss'
 import { supabase } from '../lib/supabase'
 import LoadingState from '../components/ui/LoadingState'
 import { generateHTMLReport } from '../utils/reportHtmlGenerator'
@@ -59,8 +60,8 @@ export default function Reports() {
     events: 0
   })
 
-  const [success, setSuccess] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const { message: success, show: showSuccess, clear: clearSuccess } = useAutoDismiss()
+  const { message: error, show: showError } = useAutoDismiss()
 
   useEffect(() => {
     if (tenantId) {
@@ -130,7 +131,7 @@ export default function Reports() {
 
   async function generateReport() {
     if (!tenantId) {
-      setError('Kein Tenant gefunden!')
+      showError('Kein Tenant gefunden!')
       return
     }
 
@@ -141,14 +142,11 @@ export default function Reports() {
       (config.includeValid ? stats.valid : 0)
 
     if (matchingCerts === 0) {
-      setError('Keine Zertifikate gefunden, die den gewählten Filterkriterien entsprechen. Bitte passen Sie die Filteroptionen an.')
-      setTimeout(() => setError(null), 8000)
+      showError('Keine Zertifikate gefunden, die den gewählten Filterkriterien entsprechen. Bitte passen Sie die Filteroptionen an.', 8000)
       return
     }
 
     setGenerating(true)
-    setError(null)
-    setSuccess(null)
 
     try {
       if (config.format === 'csv') {
@@ -157,8 +155,7 @@ export default function Reports() {
         await generatePDF()
       }
     } catch (err: any) {
-      setError(`Fehler: ${err.message}`)
-      setTimeout(() => setError(null), 8000)
+      showError(`Fehler: ${err.message}`, 8000)
     } finally {
       setGenerating(false)
     }
@@ -222,12 +219,11 @@ export default function Reports() {
     link.click()
     URL.revokeObjectURL(url)
 
-    setSuccess('✅ CSV-Report erfolgreich heruntergeladen!')
-    setTimeout(() => setSuccess(null), 5000)
+    showSuccess('✅ CSV-Report erfolgreich heruntergeladen!', 5000)
   }
 
   async function generatePDF() {
-    setSuccess('📄 Generiere PDF-Report... (lädt Daten)')
+    showSuccess('📄 Generiere PDF-Report... (lädt Daten)')
 
     // Hole alle benötigten Daten
     const { data: certificates, error: certError } = await supabase
@@ -250,7 +246,7 @@ export default function Reports() {
 
     // Versuche Edge Function (Produktiv-Lösung)
     try {
-      setSuccess('📄 Generiere professionellen PDF-Report... (Edge Function)')
+      showSuccess('📄 Generiere professionellen PDF-Report... (Edge Function)')
 
       const { data, error: functionError } = await supabase.functions.invoke('generate-report', {
         body: {
@@ -277,8 +273,7 @@ export default function Reports() {
           reportWindow.document.write(data.html_report)
           reportWindow.document.close()
 
-          setSuccess(`✅ PDF-Report geöffnet!\n\n📄 Klicke im neuen Tab auf "🖨️ Als PDF speichern"\n📊 ${stats.totalCerts} Zertifikate${config.includeHashChain ? '\n🔒 Mit Hash-Chain Verifizierung' : ''}`)
-          setTimeout(() => setSuccess(null), 10000)
+          showSuccess(`✅ PDF-Report geöffnet!\n\n📄 Klicke im neuen Tab auf "🖨️ Als PDF speichern"\n📊 ${stats.totalCerts} Zertifikate${config.includeHashChain ? '\n🔒 Mit Hash-Chain Verifizierung' : ''}`, 10000)
           return
         }
       }
@@ -287,7 +282,7 @@ export default function Reports() {
     }
 
     // FALLBACK: Client-seitige HTML-Generierung (funktioniert IMMER!)
-    setSuccess('📄 Generiere Report (Client-seitig)...')
+    showSuccess('📄 Generiere Report (Client-seitig)...')
 
     const html = generateHTMLReport({
       tenant_name: tenantName,
@@ -305,7 +300,7 @@ export default function Reports() {
       reportWindow.document.write(html)
       reportWindow.document.close()
 
-      setSuccess(`✅ PDF-Report geöffnet! (Client-Generierung)\n\n📄 Klicke im neuen Tab auf "🖨️ Als PDF speichern"\n📊 ${stats.totalCerts} Zertifikate${config.includeHashChain ? '\n🔒 Mit Hash-Chain Verifizierung' : ''}\n\n💡 Für schnellere Reports: Deploye Edge Functions`)
+      showSuccess(`✅ PDF-Report geöffnet! (Client-Generierung)\n\n📄 Klicke im neuen Tab auf "🖨️ Als PDF speichern"\n📊 ${stats.totalCerts} Zertifikate${config.includeHashChain ? '\n🔒 Mit Hash-Chain Verifizierung' : ''}\n\n💡 Für schnellere Reports: Deploye Edge Functions`)
     } else {
       // Popup geblockt → Download als HTML
       const blob = new Blob([html], { type: 'text/html' })
@@ -316,10 +311,10 @@ export default function Reports() {
       link.click()
       URL.revokeObjectURL(url)
 
-      setSuccess(`✅ Report heruntergeladen!\n\n📄 Öffne die HTML-Datei und drucke als PDF\n📊 ${stats.totalCerts} Zertifikate`)
+      showSuccess(`✅ Report heruntergeladen!\n\n📄 Öffne die HTML-Datei und drucke als PDF\n📊 ${stats.totalCerts} Zertifikate`, 12000)
+    } else {
+      clearSuccess()
     }
-
-    setTimeout(() => setSuccess(null), 12000)
   }
 
   return (

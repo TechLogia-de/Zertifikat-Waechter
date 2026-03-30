@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { useTenantId } from '../hooks/useTenantId'
 import { useUserRole } from '../hooks/useUserRole'
+import { useAutoDismiss } from '../hooks/useAutoDismiss'
 import { supabase } from '../lib/supabase'
 import {
   StatusAlert,
@@ -69,8 +70,8 @@ export default function Integrations() {
   })
 
   const [saving, setSaving] = useState(false)
-  const [success, setSuccess] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const { message: success, show: showSuccess, clear: clearSuccess } = useAutoDismiss()
+  const { message: error, show: showError, clear: clearError } = useAutoDismiss()
 
   useEffect(() => {
     if (user?.email) {
@@ -135,14 +136,13 @@ export default function Integrations() {
     successMessage: string,
     extra?: Record<string, any>,
   ) {
-    setSaving(true); setError(null); setSuccess(null)
+    setSaving(true); clearError(); clearSuccess()
     try {
       await upsertIntegration(type, name, config, extra)
       await logAuditEvent(tenantId, user?.id ?? '', auditEventType, auditPayload)
-      setSuccess(successMessage)
-      setTimeout(() => setSuccess(null), 3000)
+      showSuccess(successMessage, 3000)
     } catch (err: any) {
-      setError(err.message || 'Fehler beim Speichern')
+      showError(err.message || 'Fehler beim Speichern')
     } finally { setSaving(false) }
   }
 
@@ -176,7 +176,7 @@ export default function Integrations() {
   }
 
   async function testSMTPConnection() {
-    setError(null); setSaving(true)
+    clearError(); setSaving(true)
     try {
       if (!smtpConfig.use_system_smtp) {
         if (!smtpConfig.host || !smtpConfig.user || !smtpConfig.password || !smtpConfig.from) {
@@ -186,7 +186,7 @@ export default function Integrations() {
       if (!testEmail.recipient) throw new Error('Bitte gib eine Test-E-Mail-Adresse ein')
 
       const mode = smtpConfig.use_system_smtp ? 'System-SMTP' : 'Eigener SMTP'
-      setSuccess(`📧 Sende Test-E-Mail an ${testEmail.recipient} via ${mode}...`)
+      showSuccess(`📧 Sende Test-E-Mail an ${testEmail.recipient} via ${mode}...`)
 
       const apiUrl = (import.meta as any).env.VITE_WORKER_API_URL || '/api'
       const workerResponse = await fetch(`${apiUrl}/send-email`, {
@@ -202,19 +202,17 @@ export default function Integrations() {
       if (!workerResponse.ok || !result.success) throw new Error(result.error || 'E-Mail-Versand fehlgeschlagen')
 
       await upsertIntegration('smtp', 'SMTP Server', smtpConfig, { use_system_smtp: smtpConfig.use_system_smtp || false })
-      setSuccess(`✅ Test-E-Mail erfolgreich an ${testEmail.recipient} gesendet (${mode})!\n\nPrüfe dein Postfach.`)
-      setTimeout(() => setSuccess(null), 5000)
+      showSuccess(`✅ Test-E-Mail erfolgreich an ${testEmail.recipient} gesendet (${mode})!\n\nPrüfe dein Postfach.`, 5000)
     } catch (err: any) {
-      setError(err.message || 'SMTP-Test fehlgeschlagen')
-      setTimeout(() => setError(null), 5000)
+      showError(err.message || 'SMTP-Test fehlgeschlagen', 5000)
     } finally { setSaving(false) }
   }
 
   async function testSlackConnection() {
-    setError(null); setSaving(true)
+    clearError(); setSaving(true)
     try {
       if (!slackConfig.webhook_url) throw new Error('Bitte gib eine Webhook URL ein')
-      setSuccess('💬 Sende Test-Nachricht an Slack...')
+      showSuccess('💬 Sende Test-Nachricht an Slack...')
 
       const response = await fetch(slackConfig.webhook_url, {
         method: 'POST',
@@ -229,21 +227,19 @@ export default function Integrations() {
       })
       if (!response.ok) throw new Error('Slack Webhook ungültig')
 
-      setSuccess(`✅ Test-Nachricht erfolgreich an Slack (${slackConfig.channel}) gesendet!`)
       await saveSlack()
-      setTimeout(() => setSuccess(null), 5000)
+      showSuccess(`✅ Test-Nachricht erfolgreich an Slack (${slackConfig.channel}) gesendet!`, 5000)
     } catch (err: any) {
-      setError(err.message || 'Slack-Test fehlgeschlagen')
-      setTimeout(() => setError(null), 5000)
+      showError(err.message || 'Slack-Test fehlgeschlagen', 5000)
     } finally { setSaving(false) }
   }
 
   async function testWebhookConnection() {
-    setError(null); setSaving(true)
+    clearError(); setSaving(true)
     try {
       if (!webhookConfig.url) throw new Error('Bitte gib eine Webhook URL ein')
       validateWebhookUrl(webhookConfig.url)
-      setSuccess('🔗 Validiere Webhook und sende Test-Payload...')
+      showSuccess('🔗 Validiere Webhook und sende Test-Payload...')
 
       const testPayload = {
         event: 'connection.test', tenant_id: tenantId, certificate: null,
@@ -277,9 +273,8 @@ export default function Integrations() {
           throw new Error(`Webhook antwortete mit Status ${response.status}: ${errorText}`)
         }
 
-        setSuccess(`✅ Webhook erfolgreich getestet!\n\n• Status: ${response.status}\n• Signatur: ${webhookConfig.secret ? 'HMAC-SHA256 ✅' : 'Keine'}\n• Timeout: ${webhookConfig.timeout_seconds}s`)
         await saveWebhook()
-        setTimeout(() => setSuccess(null), 7000)
+        showSuccess(`✅ Webhook erfolgreich getestet!\n\n• Status: ${response.status}\n• Signatur: ${webhookConfig.secret ? 'HMAC-SHA256 ✅' : 'Keine'}\n• Timeout: ${webhookConfig.timeout_seconds}s`, 7000)
       } catch (fetchErr: any) {
         clearTimeout(timeoutId)
         if (fetchErr.name === 'AbortError') {
@@ -290,8 +285,7 @@ export default function Integrations() {
     } catch (err: any) {
       console.error('❌ Webhook test failed:', { url: webhookConfig.url, error: err.message })
       const errorMessage = formatWebhookError(err.message, webhookConfig.url, webhookConfig.timeout_seconds)
-      setError(`❌ Webhook-Test fehlgeschlagen:\n\n${errorMessage}`)
-      setTimeout(() => setError(null), 10000)
+      showError(`❌ Webhook-Test fehlgeschlagen:\n\n${errorMessage}`, 10000)
     } finally { setSaving(false) }
   }
 

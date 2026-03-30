@@ -27,7 +27,18 @@ function getSeverity(days: number): 'critical' | 'error' | 'warning' | 'info' {
   return 'info'
 }
 
+const ALLOWED_ORIGIN = Deno.env.get('CORS_ORIGIN') || '*'
+const corsHeaders = {
+  'Content-Type': 'application/json',
+  'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
 serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
   try {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -53,7 +64,7 @@ serve(async (req) => {
     if (!alerts || alerts.length === 0) {
       return new Response(
         JSON.stringify({ success: true, message: 'No alerts to process' }),
-        { headers: { 'Content-Type': 'application/json' } }
+        { headers: corsHeaders }
       )
     }
 
@@ -186,7 +197,7 @@ serve(async (req) => {
 
             const slackResponse = await fetch(config.webhook_url, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: corsHeaders,
               body: JSON.stringify(slackPayload)
             })
 
@@ -366,7 +377,7 @@ serve(async (req) => {
 
             const teamsResponse = await fetch(config.webhook_url, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: corsHeaders,
               body: JSON.stringify(teamsPayload)
             })
 
@@ -403,7 +414,7 @@ serve(async (req) => {
         sent: totalSent,
         failed: totalFailed
       }),
-      { headers: { 'Content-Type': 'application/json' } }
+      { headers: corsHeaders }
     )
 
   } catch (error: any) {
@@ -412,7 +423,7 @@ serve(async (req) => {
       JSON.stringify({ error: error.message }),
       {
         status: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: corsHeaders,
       }
     )
   }

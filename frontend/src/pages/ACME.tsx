@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { useTenantId } from '../hooks/useTenantId'
+import { useAutoDismiss } from '../hooks/useAutoDismiss'
 import { supabase } from '../lib/supabase'
 import LoadingState from '../components/ui/LoadingState'
 import DeleteConfirmModal from '../components/ui/DeleteConfirmModal'
@@ -53,8 +54,8 @@ export default function ACME() {
   })
   const [cloudflareConfigured, setCloudflareConfigured] = useState(false)
 
-  const [success, setSuccess] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const { message: success, show: showSuccess, clear: clearSuccess } = useAutoDismiss()
+  const { message: error, show: showError, clear: clearError } = useAutoDismiss()
   const [showWizard, setShowWizard] = useState(false)
 
   useEffect(() => {
@@ -111,7 +112,7 @@ export default function ACME() {
       }
     } catch (err) {
       console.error('Failed to load ACME data:', err)
-      setError('Fehler beim Laden der Daten')
+      showError('Fehler beim Laden der Daten')
     } finally {
       setLoading(false)
     }
@@ -119,25 +120,25 @@ export default function ACME() {
 
   async function createAccount() {
     if (!tenantId) {
-      setError('❌ Kein Tenant gefunden! Bitte neu einloggen.')
+      showError('❌ Kein Tenant gefunden! Bitte neu einloggen.')
       return
     }
 
     if (!newAccount.email) {
-      setError('❌ Bitte E-Mail-Adresse eingeben!')
+      showError('❌ Bitte E-Mail-Adresse eingeben!')
       return
     }
 
     // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(newAccount.email)) {
-      setError('❌ Ungültige E-Mail-Adresse!')
+      showError('❌ Ungültige E-Mail-Adresse!')
       return
     }
 
     setSaving(true)
-    setError(null)
-    setSuccess(null)
+    clearError()
+    clearSuccess()
 
     try {
       const { data, error: insertError } = await supabase
@@ -162,16 +163,13 @@ export default function ACME() {
         throw new Error(insertError.message)
       }
 
-      setSuccess(`✅ ACME Account erfolgreich erstellt!\n📧 ${newAccount.email}\n🔒 ${getProviderInfo(newAccount.provider).name}`)
+      showSuccess(`✅ ACME Account erfolgreich erstellt!\n📧 ${newAccount.email}\n🔒 ${getProviderInfo(newAccount.provider).name}`, 5000)
       setShowAccountModal(false)
       setNewAccount({ provider: 'letsencrypt', email: user?.email || '' })
       await loadData()
-
-      setTimeout(() => setSuccess(null), 5000)
     } catch (err: any) {
       console.error('Create account error:', err)
-      setError(`❌ Fehler beim Erstellen:\n\n${err.message || 'Account konnte nicht erstellt werden'}\n\nPrüfe Console (F12) für Details.`)
-      setTimeout(() => setError(null), 10000)
+      showError(`❌ Fehler beim Erstellen:\n\n${err.message || 'Account konnte nicht erstellt werden'}\n\nPrüfe Console (F12) für Details.`, 10000)
     } finally {
       setSaving(false)
     }
@@ -179,7 +177,7 @@ export default function ACME() {
 
   async function deleteAccount(accountId: string) {
     setSaving(true)
-    setError(null)
+    clearError()
 
     try {
       const { error: deleteError } = await supabase
@@ -190,13 +188,11 @@ export default function ACME() {
 
       if (deleteError) throw deleteError
 
-      setSuccess('✅ Account gelöscht!')
+      showSuccess('✅ Account gelöscht!', 3000)
       setDeleteAccountId(null)
       await loadData()
-      setTimeout(() => setSuccess(null), 3000)
     } catch (err: any) {
-      setError(`❌ Fehler beim Löschen: ${err.message}`)
-      setTimeout(() => setError(null), 5000)
+      showError(`❌ Fehler beim Löschen: ${err.message}`, 5000)
     } finally {
       setSaving(false)
     }
@@ -204,37 +200,37 @@ export default function ACME() {
 
   async function createOrder() {
     if (!tenantId) {
-      setError('❌ Kein Tenant gefunden!')
+      showError('❌ Kein Tenant gefunden!')
       return
     }
 
     if (!newOrder.acme_account_id || !newOrder.domain) {
-      setError('❌ Bitte alle Felder ausfüllen!')
+      showError('❌ Bitte alle Felder ausfüllen!')
       return
     }
 
     // Domain validation
     const domainRegex = /^(\*\.)?[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,}$/i
     if (!domainRegex.test(newOrder.domain)) {
-      setError('❌ Ungültige Domain! Format: example.com oder *.example.com')
+      showError('❌ Ungültige Domain! Format: example.com oder *.example.com')
       return
     }
 
     // Wildcard validation
     if (newOrder.domain.startsWith('*.') && newOrder.challenge_type === 'http-01') {
-      setError('❌ Wildcard-Zertifikate benötigen DNS-01 Challenge!')
+      showError('❌ Wildcard-Zertifikate benötigen DNS-01 Challenge!')
       return
     }
 
     // Cloudflare check for DNS-01
     if (newOrder.challenge_type === 'dns-01' && !cloudflareConfigured) {
-      setError('❌ Bitte konfiguriere zuerst Cloudflare für DNS-01 Challenge!')
+      showError('❌ Bitte konfiguriere zuerst Cloudflare für DNS-01 Challenge!')
       return
     }
 
     setSaving(true)
-    setError(null)
-    setSuccess(null)
+    clearError()
+    clearSuccess()
 
     try {
       const { error: insertError } = await supabase
@@ -249,14 +245,12 @@ export default function ACME() {
 
       if (insertError) throw insertError
 
-      setSuccess(`✅ Renewal Order erstellt!\n🌐 ${newOrder.domain}`)
+      showSuccess(`✅ Renewal Order erstellt!\n🌐 ${newOrder.domain}`, 5000)
       setShowOrderModal(false)
       setNewOrder({ acme_account_id: '', domain: '', challenge_type: 'dns-01' })
       await loadData()
-      setTimeout(() => setSuccess(null), 5000)
     } catch (err: any) {
-      setError(`❌ Fehler: ${err.message || 'Order konnte nicht erstellt werden'}`)
-      setTimeout(() => setError(null), 8000)
+      showError(`❌ Fehler: ${err.message || 'Order konnte nicht erstellt werden'}`, 8000)
     } finally {
       setSaving(false)
     }
@@ -264,7 +258,7 @@ export default function ACME() {
 
   async function deleteOrder(orderId: string) {
     setSaving(true)
-    setError(null)
+    clearError()
 
     try {
       const { error: deleteError } = await supabase
@@ -275,13 +269,11 @@ export default function ACME() {
 
       if (deleteError) throw deleteError
 
-      setSuccess('✅ Order gelöscht!')
+      showSuccess('✅ Order gelöscht!', 3000)
       setDeleteOrderId(null)
       await loadData()
-      setTimeout(() => setSuccess(null), 3000)
     } catch (err: any) {
-      setError(`❌ Fehler beim Löschen: ${err.message}`)
-      setTimeout(() => setError(null), 5000)
+      showError(`❌ Fehler beim Löschen: ${err.message}`, 5000)
     } finally {
       setSaving(false)
     }
@@ -289,19 +281,19 @@ export default function ACME() {
 
   async function saveCloudflareConfig() {
     if (!cloudflareConfig.api_token) {
-      setError('❌ Bitte API Token eingeben!')
+      showError('❌ Bitte API Token eingeben!')
       return
     }
 
     // Token validation (basic check)
     if (cloudflareConfig.api_token.length < 20) {
-      setError('❌ API Token zu kurz! Bitte prüfen.')
+      showError('❌ API Token zu kurz! Bitte prüfen.')
       return
     }
 
     setSaving(true)
-    setError(null)
-    setSuccess(null)
+    clearError()
+    clearSuccess()
 
     try {
       const { error: upsertError } = await supabase
@@ -322,12 +314,10 @@ export default function ACME() {
         throw upsertError
       }
 
-      setSuccess('✅ Cloudflare-Konfiguration gespeichert!\n\nDu kannst jetzt DNS-01 Challenge für Wildcard-Zertifikate nutzen.')
+      showSuccess('✅ Cloudflare-Konfiguration gespeichert!\n\nDu kannst jetzt DNS-01 Challenge für Wildcard-Zertifikate nutzen.', 5000)
       setCloudflareConfigured(true)
-      setTimeout(() => setSuccess(null), 5000)
     } catch (err: any) {
-      setError(err.message || 'Fehler beim Speichern')
-      setTimeout(() => setError(null), 10000)
+      showError(err.message || 'Fehler beim Speichern', 10000)
     } finally {
       setSaving(false)
     }
@@ -335,13 +325,13 @@ export default function ACME() {
 
   async function testCloudflareConnection() {
     if (!cloudflareConfig.api_token) {
-      setError('❌ Bitte API Token eingeben!')
+      showError('❌ Bitte API Token eingeben!')
       return
     }
 
     setTesting(true)
-    setError(null)
-    setSuccess(null)
+    clearError()
+    clearSuccess()
 
     try {
       // Test via Supabase Edge Function (bypasses CORS)
@@ -362,18 +352,16 @@ export default function ACME() {
       }
 
       // Success!
-      setSuccess(data.message || '✅ Cloudflare Token gültig!')
-      setTimeout(() => setSuccess(null), 8000)
+      showSuccess(data.message || '✅ Cloudflare Token gültig!', 8000)
     } catch (err: any) {
       console.error('Cloudflare test error:', err)
 
       // Check if Edge Function is not deployed
       if (err.message?.includes('404') || err.message?.includes('not found')) {
-        setError(`❌ Edge Function fehlt!\n\nDeploy zuerst die Function:\ncd supabase\nsupabase functions deploy test-cloudflare\n\nODER speichere einfach die Config ohne Test.`)
+        showError(`❌ Edge Function fehlt!\n\nDeploy zuerst die Function:\ncd supabase\nsupabase functions deploy test-cloudflare\n\nODER speichere einfach die Config ohne Test.`, 12000)
       } else {
-        setError(`❌ Cloudflare Test fehlgeschlagen!\n\n${err.message}\n\n💡 Prüfe:\n- Token hat "Zone:DNS:Edit" Berechtigung\n- Token ist nicht abgelaufen\n- Zone ID ist korrekt (falls angegeben)`)
+        showError(`❌ Cloudflare Test fehlgeschlagen!\n\n${err.message}\n\n💡 Prüfe:\n- Token hat "Zone:DNS:Edit" Berechtigung\n- Token ist nicht abgelaufen\n- Zone ID ist korrekt (falls angegeben)`, 12000)
       }
-      setTimeout(() => setError(null), 12000)
     } finally {
       setTesting(false)
     }
