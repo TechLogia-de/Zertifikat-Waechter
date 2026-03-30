@@ -333,8 +333,107 @@ export default function AgentLogs() {
                     </span>
                   </div>
                   {log.metadata && Object.keys(log.metadata).length > 0 && (
-                    <div className="mt-2 ml-8 text-xs text-[#94A3B8]">
-                      {JSON.stringify(log.metadata, null, 2)}
+                    <div className="mt-2 ml-8">
+                      {/* Structured metadata display */}
+                      <div className="flex flex-wrap gap-1.5">
+                        {log.metadata.phase && (
+                          <span className="px-2 py-0.5 bg-indigo-900/60 text-indigo-300 text-[10px] rounded-full border border-indigo-700/50 font-medium">
+                            Phase: {log.metadata.phase_label || log.metadata.phase}
+                          </span>
+                        )}
+                        {log.metadata.percentage !== undefined && (
+                          <span className="px-2 py-0.5 bg-blue-900/60 text-blue-300 text-[10px] rounded-full border border-blue-700/50 font-medium">
+                            {log.metadata.percentage}%
+                          </span>
+                        )}
+                        {log.metadata.device_type && (
+                          <span className="px-2 py-0.5 bg-orange-900/60 text-orange-300 text-[10px] rounded-full border border-orange-700/50 font-medium">
+                            {log.metadata.device_type}
+                          </span>
+                        )}
+                        {log.metadata.hostname && (
+                          <span className="px-2 py-0.5 bg-cyan-900/60 text-cyan-300 text-[10px] rounded-full border border-cyan-700/50 font-mono">
+                            {log.metadata.hostname}
+                          </span>
+                        )}
+                        {log.metadata.ip && (
+                          <span className="px-2 py-0.5 bg-slate-700/60 text-slate-300 text-[10px] rounded-full border border-slate-600/50 font-mono">
+                            {log.metadata.ip}
+                          </span>
+                        )}
+                        {log.metadata.is_gateway && (
+                          <span className="px-2 py-0.5 bg-yellow-900/60 text-yellow-300 text-[10px] rounded-full border border-yellow-700/50 font-bold">
+                            ⭐ Gateway
+                          </span>
+                        )}
+                        {log.metadata.os_type && log.metadata.os_type !== 'unknown' && (
+                          <span className="px-2 py-0.5 bg-green-900/60 text-green-300 text-[10px] rounded-full border border-green-700/50">
+                            OS: {log.metadata.os_type}
+                          </span>
+                        )}
+                        {log.metadata.open_ports && (
+                          <span className="px-2 py-0.5 bg-purple-900/60 text-purple-300 text-[10px] rounded-full border border-purple-700/50">
+                            {log.metadata.open_ports.length} Ports
+                          </span>
+                        )}
+                        {log.metadata.hosts_found !== undefined && (
+                          <span className="px-2 py-0.5 bg-teal-900/60 text-teal-300 text-[10px] rounded-full border border-teal-700/50">
+                            {log.metadata.hosts_found} Hosts
+                          </span>
+                        )}
+                        {log.metadata.certificates !== undefined && (
+                          <span className="px-2 py-0.5 bg-emerald-900/60 text-emerald-300 text-[10px] rounded-full border border-emerald-700/50">
+                            {log.metadata.certificates} Zertifikate
+                          </span>
+                        )}
+                        {log.metadata.duration_ms !== undefined && (
+                          <span className="px-2 py-0.5 bg-slate-700/60 text-slate-300 text-[10px] rounded-full border border-slate-600/50">
+                            {log.metadata.duration_ms >= 1000
+                              ? `${(log.metadata.duration_ms / 1000).toFixed(1)}s`
+                              : `${log.metadata.duration_ms}ms`}
+                          </span>
+                        )}
+                        {log.metadata.errors !== undefined && log.metadata.errors > 0 && (
+                          <span className="px-2 py-0.5 bg-red-900/60 text-red-300 text-[10px] rounded-full border border-red-700/50">
+                            {log.metadata.errors} Fehler
+                          </span>
+                        )}
+                        {log.metadata.subject_cn && (
+                          <span className="px-2 py-0.5 bg-emerald-900/60 text-emerald-300 text-[10px] rounded-full border border-emerald-700/50 font-mono">
+                            CN: {log.metadata.subject_cn}
+                          </span>
+                        )}
+                        {log.metadata.port && (
+                          <span className="px-2 py-0.5 bg-slate-700/60 text-slate-300 text-[10px] rounded-full border border-slate-600/50 font-mono">
+                            :{log.metadata.port}
+                          </span>
+                        )}
+                        {log.metadata.scan_mode && (
+                          <span className="px-2 py-0.5 bg-violet-900/60 text-violet-300 text-[10px] rounded-full border border-violet-700/50">
+                            {log.metadata.scan_mode}
+                          </span>
+                        )}
+                      </div>
+                      {/* Device type distribution in final summary */}
+                      {log.metadata.device_types && typeof log.metadata.device_types === 'object' && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {Object.entries(log.metadata.device_types).map(([type, count]) => (
+                            <span key={type} className="px-2 py-0.5 bg-slate-700/40 text-slate-400 text-[10px] rounded border border-slate-600/30">
+                              {type}: {String(count)}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {/* Services list */}
+                      {log.metadata.services && Array.isArray(log.metadata.services) && log.metadata.services.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {log.metadata.services.map((svc: string, i: number) => (
+                            <span key={i} className="px-1.5 py-0.5 bg-blue-900/40 text-blue-400 text-[10px] rounded border border-blue-800/30">
+                              {svc}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

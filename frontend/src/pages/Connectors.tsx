@@ -346,10 +346,15 @@ export default function Connectors() {
         },
         (payload) => {
           const newHost = payload.new as any
+          const deviceIcon: Record<string, string> = { router: '🌐', firewall: '🛡️', server: '🖥️', nas: '💾', printer: '🖨️', hypervisor: '☁️', switch: '🔀', 'access-point': '📡', camera: '📷' }
+          const icon = deviceIcon[newHost.device_type] || '🔵'
+          const hostLabel = newHost.hostname || newHost.ip_address
+          const deviceLabel = newHost.device_type ? ` [${newHost.device_type}]` : ''
+          const gatewayLabel = newHost.is_gateway ? ' ⭐Gateway' : ''
           setActivityLog(prev => [
-            `🌐 Host gefunden: ${newHost.ip_address} (${newHost.open_ports?.length || 0} Ports offen)`,
+            `${icon} Host: ${hostLabel}${deviceLabel}${gatewayLabel} - ${newHost.open_ports?.length || 0} Ports`,
             ...prev
-          ].slice(0, 20))
+          ].slice(0, 30))
           fetchConnectorDetails(connector.id)
         }
       )

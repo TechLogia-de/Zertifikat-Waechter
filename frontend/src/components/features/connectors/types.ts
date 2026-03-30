@@ -14,6 +14,8 @@ export interface Connector {
       current: number
       total: number
       status: string
+      percentage?: number
+      updated_at?: string
     }
     last_scan?: {
       total: number

@@ -56,6 +56,8 @@ export default function Dashboard() {
   const [showAddDomainModal, setShowAddDomainModal] = useState(false)
   const [recentCertificates, setRecentCertificates] = useState<RecentCertificate[]>([])
   const [showUserDropdown, setShowUserDropdown] = useState(false)
+  const [deviceTypeCounts, setDeviceTypeCounts] = useState<Record<string, number>>({})
+  const [gatewayCount, setGatewayCount] = useState(0)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -187,6 +189,17 @@ export default function Dashboard() {
       const servicesFound = (discoveryResults as any)?.reduce((sum: number, result: any) => {
         return sum + (result.services?.length || 0)
       }, 0) || 0
+
+      // Compute device type stats for dashboard
+      const dtCounts: Record<string, number> = {}
+      let gwCount = 0
+      for (const r of (discoveryResults as any[] || [])) {
+        const dt = r.device_type || 'unknown'
+        dtCounts[dt] = (dtCounts[dt] || 0) + 1
+        if (r.is_gateway) gwCount++
+      }
+      setDeviceTypeCounts(dtCounts)
+      setGatewayCount(gwCount)
 
       setStats({
         totalCertificates: totalCount || 0,
@@ -459,6 +472,49 @@ export default function Dashboard() {
             <li><strong>Aktive Alerts:</strong> Unquittierte Benachrichtigungen über ablaufende oder problematische Zertifikate.</li>
           </ul>
         </PageInfoBox>
+
+        {/* Network Device Overview */}
+        {Object.keys(deviceTypeCounts).length > 0 && (
+          <div className="mb-6 sm:mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg sm:text-xl font-bold text-[#0F172A] flex items-center gap-2">
+                <span>🏷️</span>
+                <span>Erkannte Geräte im Netzwerk</span>
+              </h3>
+              <Link
+                to="/connectors"
+                className="text-sm text-[#3B82F6] hover:text-[#2563EB] font-medium flex items-center gap-1"
+              >
+                Details anzeigen
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              {Object.entries(deviceTypeCounts)
+                .sort(([, a], [, b]) => b - a)
+                .map(([type, count]) => {
+                  const icons: Record<string, string> = { router: '🌐', firewall: '🛡️', switch: '🔀', server: '🖥️', nas: '💾', printer: '🖨️', hypervisor: '☁️', 'management-controller': '🎛️', 'access-point': '📡', camera: '📷', 'voip-device': '📞', 'network-device': '📟', unknown: '❓' }
+                  const labels: Record<string, string> = { router: 'Router', firewall: 'Firewall', switch: 'Switch', server: 'Server', nas: 'NAS', printer: 'Drucker', hypervisor: 'Hypervisor', 'management-controller': 'Management', 'access-point': 'Access-Point', camera: 'Kamera', 'voip-device': 'VoIP', 'network-device': 'Netzwerk', unknown: 'Unbekannt' }
+                  return (
+                    <div key={type} className="bg-white rounded-xl border border-[#E2E8F0] p-3 sm:p-4 text-center hover:shadow-md transition-shadow">
+                      <span className="text-2xl block mb-1">{icons[type] || '❓'}</span>
+                      <p className="text-2xl font-bold text-[#0F172A]">{count}</p>
+                      <p className="text-[10px] font-medium text-[#64748B] uppercase tracking-wide mt-0.5">{labels[type] || type}</p>
+                    </div>
+                  )
+                })}
+              {gatewayCount > 0 && (
+                <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-xl border-2 border-yellow-200 p-3 sm:p-4 text-center">
+                  <span className="text-2xl block mb-1">⭐</span>
+                  <p className="text-2xl font-bold text-amber-700">{gatewayCount}</p>
+                  <p className="text-[10px] font-medium text-amber-600 uppercase tracking-wide mt-0.5">Gateways</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* ACME Auto-Renewal Section */}
         {stats.acmeAccounts > 0 && (

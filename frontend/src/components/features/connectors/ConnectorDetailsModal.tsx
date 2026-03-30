@@ -1,8 +1,59 @@
-import { memo } from 'react'
+import { memo, useMemo } from 'react'
 import Modal from '../../ui/Modal'
 import Badge from '../../ui/Badge'
 import { Connector } from './types'
 import { getStatusBadge, formatLastSeen, maskToken, getSetupCommand } from './utils'
+
+// Device type icon mapping
+const deviceIcons: Record<string, string> = {
+  'router': '🌐',
+  'firewall': '🛡️',
+  'switch': '🔀',
+  'server': '🖥️',
+  'nas': '💾',
+  'printer': '🖨️',
+  'hypervisor': '☁️',
+  'management-controller': '🎛️',
+  'access-point': '📡',
+  'camera': '📷',
+  'voip-device': '📞',
+  'network-device': '📟',
+  'unknown': '❓',
+}
+
+// Device type labels (German)
+const deviceLabels: Record<string, string> = {
+  'router': 'Router',
+  'firewall': 'Firewall',
+  'switch': 'Switch',
+  'server': 'Server',
+  'nas': 'NAS-Speicher',
+  'printer': 'Drucker',
+  'hypervisor': 'Hypervisor',
+  'management-controller': 'Management',
+  'access-point': 'Access-Point',
+  'camera': 'Kamera',
+  'voip-device': 'VoIP-Gerät',
+  'network-device': 'Netzwerkgerät',
+  'unknown': 'Unbekannt',
+}
+
+// Device type badge colors
+const deviceColors: Record<string, string> = {
+  'router': 'bg-orange-100 text-orange-800 border-orange-200',
+  'firewall': 'bg-red-100 text-red-800 border-red-200',
+  'switch': 'bg-cyan-100 text-cyan-800 border-cyan-200',
+  'server': 'bg-blue-100 text-blue-800 border-blue-200',
+  'nas': 'bg-violet-100 text-violet-800 border-violet-200',
+  'printer': 'bg-amber-100 text-amber-800 border-amber-200',
+  'hypervisor': 'bg-indigo-100 text-indigo-800 border-indigo-200',
+  'management-controller': 'bg-slate-100 text-slate-800 border-slate-200',
+  'access-point': 'bg-teal-100 text-teal-800 border-teal-200',
+  'camera': 'bg-pink-100 text-pink-800 border-pink-200',
+  'voip-device': 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  'network-device': 'bg-gray-100 text-gray-800 border-gray-200',
+  'unknown': 'bg-gray-50 text-gray-600 border-gray-200',
+}
 
 interface ConnectorDetailsModalProps {
   isOpen: boolean
@@ -35,6 +86,22 @@ function ConnectorDetailsModal({
   onCopyToClipboard,
   onRegenerateToken,
 }: ConnectorDetailsModalProps) {
+  // Compute device type stats
+  const deviceStats = useMemo(() => {
+    const counts: Record<string, number> = {}
+    let gateways = 0
+    for (const r of discoveryResults) {
+      const dt = r.device_type || 'unknown'
+      counts[dt] = (counts[dt] || 0) + 1
+      if (r.is_gateway) gateways++
+    }
+    return { counts, gateways }
+  }, [discoveryResults])
+
+  // Scan progress from connector config
+  const scanProgress = connector.config?.scan_progress
+  const isScanning = connector.config?.scanning
+
   return (
     <Modal
       isOpen={isOpen}
@@ -42,140 +109,215 @@ function ConnectorDetailsModal({
       title={`📊 Agent Details: ${connector.name}`}
     >
       <div className="space-y-4">
-        {/* Info */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex gap-3">
-            <span className="text-2xl">ℹ️</span>
-            <div>
-              <h4 className="font-semibold text-[#0F172A] mb-1">
-                Setup-Informationen
-              </h4>
-              <p className="text-sm text-[#64748B]">
-                Dies sind die Einstellungen für diesen Agent.
-                <strong className="text-red-600"> Der Token wurde aus Sicherheitsgründen bereits gelöscht.</strong>
-              </p>
+        {/* Scan Progress Bar - nur wenn aktiv */}
+        {isScanning && scanProgress && scanProgress.total > 0 && (
+          <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50 rounded-xl p-4 border border-blue-200 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <div className="w-2.5 h-2.5 bg-blue-500 rounded-full animate-pulse"></div>
+                <span className="font-bold text-[#0F172A] text-sm">Scan läuft...</span>
+              </div>
+              <span className="text-lg font-bold text-blue-600">
+                {scanProgress.percentage || Math.round((scanProgress.current / scanProgress.total) * 100)}%
+              </span>
+            </div>
+            <div className="w-full bg-white rounded-full h-3 shadow-inner mb-2">
+              <div
+                className="bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 h-3 rounded-full transition-all duration-700 shadow-sm"
+                style={{ width: `${(scanProgress.current / scanProgress.total) * 100}%` }}
+              ></div>
+            </div>
+            <div className="flex items-center justify-between text-xs text-[#64748B]">
+              <span>{scanProgress.status}</span>
+              <span>{scanProgress.current} / {scanProgress.total}</span>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Live Activity Feed */}
         {activityLog.length > 0 && (
-          <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-4 border border-green-200">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="font-semibold text-[#0F172A]">🔴 Live Activity</span>
+          <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-xl p-4 border border-slate-700 shadow-lg">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              <span className="font-bold text-white text-sm">Live Activity</span>
+              <span className="text-xs text-slate-400 ml-auto">{activityLog.length} Einträge</span>
             </div>
-            <div className="space-y-1 max-h-32 overflow-y-auto text-sm">
+            <div className="space-y-1.5 max-h-40 overflow-y-auto font-mono text-xs">
               {activityLog.map((log, idx) => (
-                <div key={idx} className="text-[#64748B] animate-fade-in">
-                  {log}
+                <div key={idx} className="text-slate-300 leading-relaxed animate-fade-in flex gap-2">
+                  <span className="text-slate-500 flex-shrink-0">{String(idx + 1).padStart(2, '0')}</span>
+                  <span>{log}</span>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Status Übersicht */}
-        <div className="grid grid-cols-3 gap-4">
-          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4">
-            <div className="text-2xl mb-1">🤖</div>
-            <div className="text-sm text-[#64748B]">Status</div>
+        {/* Status Übersicht - erweitert mit Gerätetypen */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-3 border border-blue-200">
+            <div className="text-xl mb-1">🤖</div>
+            <div className="text-xs text-[#64748B]">Status</div>
             <div className="mt-1">{getStatusBadge(connector.status)}</div>
-            <div className="text-xs text-[#64748B] mt-1">
+            <div className="text-[10px] text-[#64748B] mt-1">
               {formatLastSeen(connector.last_seen)}
             </div>
           </div>
-          <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4">
-            <div className="text-2xl mb-1">🌐</div>
-            <div className="text-sm text-[#64748B]">Hosts entdeckt</div>
-            <div className="text-2xl font-bold text-[#0F172A] mt-1">
+          <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-3 border border-purple-200">
+            <div className="text-xl mb-1">🌐</div>
+            <div className="text-xs text-[#64748B]">Hosts</div>
+            <div className="text-xl font-bold text-[#0F172A] mt-1">
               {discoveryResults.length}
             </div>
           </div>
-          <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4">
-            <div className="text-2xl mb-1">🔐</div>
-            <div className="text-sm text-[#64748B]">Zertifikate</div>
-            <div className="text-2xl font-bold text-[#0F172A] mt-1">
+          <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-3 border border-green-200">
+            <div className="text-xl mb-1">🔐</div>
+            <div className="text-xs text-[#64748B]">Zertifikate</div>
+            <div className="text-xl font-bold text-[#0F172A] mt-1">
               {connectorCertificates.length}
+            </div>
+          </div>
+          <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-3 border border-orange-200">
+            <div className="text-xl mb-1">🌐</div>
+            <div className="text-xs text-[#64748B]">Gateways</div>
+            <div className="text-xl font-bold text-[#0F172A] mt-1">
+              {deviceStats.gateways}
             </div>
           </div>
         </div>
 
-        {/* Discovery Results (Network Scan) */}
+        {/* Device Type Distribution */}
+        {Object.keys(deviceStats.counts).length > 0 && (
+          <div className="bg-white rounded-xl p-4 border border-[#E2E8F0]">
+            <h4 className="font-bold text-[#0F172A] mb-3 text-sm flex items-center gap-2">
+              🏷️ Erkannte Gerätetypen
+            </h4>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(deviceStats.counts)
+                .sort(([, a], [, b]) => b - a)
+                .map(([type, count]) => (
+                  <div
+                    key={type}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium ${deviceColors[type] || deviceColors.unknown}`}
+                  >
+                    <span>{deviceIcons[type] || '❓'}</span>
+                    <span>{deviceLabels[type] || type}</span>
+                    <span className="font-bold ml-0.5">{count}</span>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
+
+        {/* Discovery Results (Network Scan) - Enhanced */}
         {loadingDetails ? (
-          <div className="text-center py-4 text-[#64748B]">
+          <div className="text-center py-6 text-[#64748B]">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3B82F6] mx-auto mb-2"></div>
             Lade Details...
           </div>
         ) : discoveryResults.length > 0 ? (
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="font-semibold text-[#0F172A]">🌐 Netzwerk-Scan Ergebnisse</h4>
-              <span className="text-xs text-[#64748B]">
-                Letzte Aktualisierung: {new Date(discoveryResults[0]?.discovered_at).toLocaleString('de-DE')}
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-bold text-[#0F172A] text-sm flex items-center gap-2">
+                🌐 Netzwerk-Scan Ergebnisse
+              </h4>
+              <span className="text-[10px] text-[#64748B]">
+                {new Date(discoveryResults[0]?.discovered_at).toLocaleString('de-DE')}
               </span>
             </div>
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {discoveryResults.map((result) => (
-                <div key={result.id} className="bg-white rounded-lg p-4 border border-[#E2E8F0] shadow-sm">
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <span className="font-bold text-[#0F172A]">{result.host}</span>
-                      {result.ip_address !== result.host && (
-                        <span className="text-sm text-[#64748B] ml-2">({result.ip_address})</span>
-                      )}
+            <div className="space-y-2 max-h-[28rem] overflow-y-auto pr-1">
+              {discoveryResults.map((result) => {
+                const devType = result.device_type || 'unknown'
+                const icon = deviceIcons[devType] || '❓'
+                const colorClass = deviceColors[devType] || deviceColors.unknown
+                return (
+                  <div key={result.id} className="bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{icon}</span>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-[#0F172A]">
+                              {result.hostname || result.host}
+                            </span>
+                            {result.hostname && result.ip_address !== result.hostname && (
+                              <span className="text-xs text-[#94A3B8] font-mono">{result.ip_address}</span>
+                            )}
+                            {!result.hostname && result.ip_address !== result.host && (
+                              <span className="text-xs text-[#94A3B8] font-mono">({result.ip_address})</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold border ${colorClass}`}>
+                              {icon} {deviceLabels[devType] || devType}
+                            </span>
+                            {result.os_type && result.os_type !== 'unknown' && (
+                              <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] rounded font-medium border border-slate-200">
+                                OS: {result.os_type}
+                              </span>
+                            )}
+                            {result.is_gateway && (
+                              <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-[10px] rounded font-bold border border-yellow-200">
+                                ⭐ Gateway
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <span className="text-[10px] text-[#94A3B8] whitespace-nowrap ml-2">
+                        {result.response_time}ms
+                      </span>
                     </div>
-                    <span className="text-xs text-[#64748B]">
-                      {result.response_time}ms
-                    </span>
-                  </div>
 
-                  {/* Offene Ports */}
-                  <div className="mb-2">
-                    <span className="text-xs font-medium text-[#64748B]">Offene Ports:</span>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {result.open_ports?.map((port: number, idx: number) => (
-                        <span
-                          key={idx}
-                          className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded font-mono"
-                        >
-                          {port}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
+                    {/* Banner Info */}
+                    {result.banner_info && (
+                      <div className="mb-2 px-2 py-1 bg-slate-50 rounded text-[10px] text-slate-600 font-mono truncate border border-slate-100">
+                        Banner: {result.banner_info}
+                      </div>
+                    )}
 
-                  {/* Services */}
-                  {result.services && result.services.length > 0 && (
-                    <div>
-                      <span className="text-xs font-medium text-[#64748B]">Services:</span>
+                    {/* Offene Ports */}
+                    <div className="mb-2">
+                      <span className="text-[10px] font-semibold text-[#64748B] uppercase tracking-wide">Ports ({result.open_ports?.length || 0}):</span>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {result.services.map((service: string, idx: number) => (
-                          <Badge key={idx} variant="info">
-                            {service}
-                          </Badge>
+                        {result.open_ports?.map((port: number, idx: number) => (
+                          <span
+                            key={idx}
+                            className="px-1.5 py-0.5 bg-blue-50 text-blue-700 text-[10px] rounded font-mono border border-blue-100"
+                          >
+                            {port}
+                          </span>
                         ))}
                       </div>
                     </div>
-                  )}
-                </div>
-              ))}
+
+                    {/* Services */}
+                    {result.services && result.services.length > 0 && (
+                      <div>
+                        <span className="text-[10px] font-semibold text-[#64748B] uppercase tracking-wide">Services:</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {result.services.map((service: string, idx: number) => (
+                            <Badge key={idx} variant="info">
+                              {service}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
         ) : null}
 
         {/* Assets Liste */}
-        {loadingDetails ? (
-          <div className="text-center py-4 text-[#64748B]">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3B82F6] mx-auto mb-2"></div>
-            Lade Details...
-          </div>
-        ) : connectorAssets.length > 0 ? (
+        {!loadingDetails && connectorAssets.length > 0 && (
           <div>
-            <h4 className="font-semibold text-[#0F172A] mb-2">📡 Gescannte Assets</h4>
+            <h4 className="font-bold text-[#0F172A] mb-2 text-sm">📡 Gescannte Assets</h4>
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {connectorAssets.map((asset) => (
-                <div key={asset.id} className="bg-[#F8FAFC] rounded-lg p-3 text-sm">
+                <div key={asset.id} className="bg-[#F8FAFC] rounded-lg p-3 text-sm border border-[#E2E8F0]">
                   <div className="flex items-center justify-between">
                     <span className="font-medium text-[#0F172A]">
                       {asset.host}:{asset.port}
@@ -191,12 +333,12 @@ function ConnectorDetailsModal({
               ))}
             </div>
           </div>
-        ) : null}
+        )}
 
         {/* Certificates Vorschau */}
         {connectorCertificates.length > 0 && (
           <div>
-            <h4 className="font-semibold text-[#0F172A] mb-2">🔐 Zertifikate (letzte 10)</h4>
+            <h4 className="font-bold text-[#0F172A] mb-2 text-sm">🔐 Zertifikate</h4>
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {connectorCertificates.map((cert) => {
                 const daysLeft = Math.floor((new Date(cert.not_after).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
@@ -259,11 +401,11 @@ function ConnectorDetailsModal({
             >
               {copiedIndex === 99 ? '✓ Kopiert!' : '📋 Kopieren'}
             </button>
-        </div>
+          </div>
           <p className="text-xs text-[#64748B] mt-2">
             💡 Der Kopieren-Button kopiert den Befehl mit dem <strong>echten Token</strong> (auch wenn maskiert angezeigt).
-        </p>
-      </div>
+          </p>
+        </div>
 
         {/* Token regenerieren */}
         <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
@@ -285,7 +427,7 @@ function ConnectorDetailsModal({
                 className="px-4 py-2 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700 transition-colors text-sm"
               >
                 🔄 Neuen Token generieren
-      </button>
+              </button>
             </div>
           </div>
         </div>

@@ -263,11 +263,23 @@ func runNetworkDiscovery(ctx context.Context, networkScanner *scanner.NetworkSca
 	// Send Log zu UI
 	client.SendLog(ctx, connectorName, "info", "🌐 Netzwerk-Scan gestartet... Scanne alle privaten IP-Bereiche", map[string]interface{}{
 		"scan_mode": "auto-discovery",
+		"phase":     "init",
+		"phase_label": "Initialisierung",
 	})
 	
 	// Progress Callback
 	progressCallback := func(current, total int) {
 		client.UpdateScanProgress(ctx, current, total, fmt.Sprintf("Scanne Netzwerk: %d/%d", current, total))
+		// Send periodic phase updates
+		if current%10 == 0 || current == total {
+			client.SendLog(ctx, connectorName, "debug", fmt.Sprintf("🔍 Phase 1: Host-Discovery %d/%d IPs geprüft", current, total), map[string]interface{}{
+				"phase":      "discovery",
+				"phase_label": "Host-Discovery",
+				"current":    current,
+				"total":      total,
+				"percentage": (current * 100) / total,
+			})
+		}
 	}
 	
 	// Discover hosts im Netzwerk
@@ -286,6 +298,15 @@ func runNetworkDiscovery(ctx context.Context, networkScanner *scanner.NetworkSca
 	client.SendLog(ctx, connectorName, "info", fmt.Sprintf("✅ Netzwerk-Scan abgeschlossen: %d Hosts in %s gefunden", len(hosts), scanDuration.Round(time.Second)), map[string]interface{}{
 		"hosts_found": len(hosts),
 		"duration_ms": scanDuration.Milliseconds(),
+		"phase":       "classification",
+		"phase_label":  "Geräte-Klassifizierung",
+	})
+
+	// Phase 2 log
+	client.SendLog(ctx, connectorName, "info", fmt.Sprintf("🔬 Phase 2: Analysiere %d Hosts - TLS-Zertifikate extrahieren", len(hosts)), map[string]interface{}{
+		"phase":       "tls-scan",
+		"phase_label": "TLS-Analyse",
+		"hosts_total": len(hosts),
 	})
 
 	// Für jeden gefundenen Host
@@ -395,14 +416,28 @@ func runNetworkDiscovery(ctx context.Context, networkScanner *scanner.NetworkSca
 	metrics.SetHostsDiscovered(len(hosts))
 	metrics.SetCertificatesFound(successCount)
 	
+	// Count device types for summary
+	deviceTypeCounts := make(map[string]int)
+	gatewayCount := 0
+	for _, host := range hosts {
+		deviceTypeCounts[host.DeviceType]++
+		if host.IsGateway {
+			gatewayCount++
+		}
+	}
+
 	// Send Final Log
 	totalDuration := time.Since(startTime)
 	client.SendLog(ctx, connectorName, "info", fmt.Sprintf("✅ Scan abgeschlossen: %d Hosts, %d Zertifikate gefunden, %d Fehler (Dauer: %s)", len(hosts), successCount, failCount, totalDuration.Round(time.Second)), map[string]interface{}{
-		"hosts_found":   len(hosts),
-		"certificates":  successCount,
-		"errors":        failCount,
-		"duration_ms":   totalDuration.Milliseconds(),
-		"scan_mode":     "auto-discovery",
+		"hosts_found":      len(hosts),
+		"certificates":     successCount,
+		"errors":           failCount,
+		"duration_ms":      totalDuration.Milliseconds(),
+		"scan_mode":        "auto-discovery",
+		"phase":            "completed",
+		"phase_label":      "Abgeschlossen",
+		"device_types":     deviceTypeCounts,
+		"gateways_found":   gatewayCount,
 	})
 	
 	// Clear Progress

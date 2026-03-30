@@ -416,6 +416,11 @@ func (c *Client) UpsertDiscoveryResult(ctx context.Context, result *scanner.Disc
 		"open_ports":    result.OpenPorts,
 		"services":      result.Services,
 		"response_time": result.ResponseTime,
+		"hostname":      result.Hostname,
+		"device_type":   result.DeviceType,
+		"os_type":       result.OSType,
+		"is_gateway":    result.IsGateway,
+		"banner_info":   result.BannerInfo,
 		"discovered_at": time.Now().UTC().Format(time.RFC3339),
 	}
 
@@ -503,9 +508,16 @@ func (c *Client) UpdateScanProgress(ctx context.Context, current, total int, sta
 
 	config["scanning"] = current < total
 	config["scan_progress"] = map[string]interface{}{
-		"current": current,
-		"total":   total,
-		"status":  status,
+		"current":    current,
+		"total":      total,
+		"status":     status,
+		"percentage": func() int {
+			if total == 0 {
+				return 0
+			}
+			return (current * 100) / total
+		}(),
+		"updated_at": time.Now().UTC().Format(time.RFC3339),
 	}
 
 	url := c.apiURL(fmt.Sprintf("connectors?id=eq.%s", c.ConnectorID))
