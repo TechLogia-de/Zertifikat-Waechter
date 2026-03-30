@@ -40,15 +40,16 @@ func TestIsPrivateIP(t *testing.T) {
 	}
 }
 
-func TestGeneratePrioritizedIPs(t *testing.T) {
+func TestGenerateCIDRAwareIPs_24(t *testing.T) {
 	netInfo := &NetworkInfo{
-		Network: "192.168.1",
-		CIDR:    "192.168.1.0/24",
-		OwnIP:   "192.168.1.50",
-		Gateway: "192.168.1.1",
+		Network:  "192.168.1",
+		CIDR:     "192.168.1.0/24",
+		OwnIP:    "192.168.1.50",
+		Gateway:  "192.168.1.1",
+		MaskBits: 24,
 	}
 
-	ips := generatePrioritizedIPs(netInfo)
+	ips := generateCIDRAwareIPs(netInfo)
 
 	// Should generate 253 IPs (1-254 minus own IP)
 	if len(ips) != 253 {
@@ -80,25 +81,22 @@ func TestGeneratePrioritizedIPs(t *testing.T) {
 	}
 }
 
-func TestGeneratePrioritizedIPsPriorityOrder(t *testing.T) {
+func TestGenerateCIDRAwareIPs_PriorityOrder(t *testing.T) {
 	netInfo := &NetworkInfo{
-		Network: "10.0.0",
-		CIDR:    "10.0.0.0/24",
-		OwnIP:   "10.0.0.200",
-		Gateway: "10.0.0.1",
+		Network:  "10.0.0",
+		CIDR:     "10.0.0.0/24",
+		OwnIP:    "10.0.0.200",
+		Gateway:  "10.0.0.1",
+		MaskBits: 24,
 	}
 
-	ips := generatePrioritizedIPs(netInfo)
+	ips := generateCIDRAwareIPs(netInfo)
 
-	// Find positions of a high-priority, medium-priority, and low-priority IP
 	posMap := map[string]int{}
 	for i, ip := range ips {
 		posMap[ip] = i
 	}
 
-	// High priority: gateway (.1) and .254
-	// Medium priority: .10, .20 and early IPs like .5
-	// Low priority: late IPs like .150
 	posGateway := posMap["10.0.0.1"]
 	posMedium := posMap["10.0.0.10"]
 	posLow := posMap["10.0.0.150"]
@@ -108,6 +106,139 @@ func TestGeneratePrioritizedIPsPriorityOrder(t *testing.T) {
 	}
 	if posMedium >= posLow {
 		t.Errorf("medium priority IP (pos %d) should come before low priority IP (pos %d)", posMedium, posLow)
+	}
+}
+
+func TestGenerateCIDRAwareIPs_LargeSubnet(t *testing.T) {
+	netInfo := &NetworkInfo{
+		Network:  "10.0.0",
+		CIDR:     "10.0.0.0/20",
+		OwnIP:    "10.0.1.50",
+		Gateway:  "10.0.0.1",
+		MaskBits: 20,
+	}
+
+	ips := generateCIDRAwareIPs(netInfo)
+
+	// /20 has 4094 hosts, should be capped at maxScanIPs
+	if len(ips) > maxScanIPs {
+		t.Errorf("expected at most %d IPs, got %d", maxScanIPs, len(ips))
+	}
+
+	// Gateway should still be prioritized
+	if len(ips) > 0 && ips[0] != "10.0.0.1" {
+		t.Errorf("expected gateway 10.0.0.1 to be first, got %s", ips[0])
+	}
+}
+
+func TestClassifyDevice(t *testing.T) {
+	tests := []struct {
+		name       string
+		result     DiscoveryResult
+		gateways   map[string]bool
+		wantType   string
+		wantGW     bool
+	}{
+		{
+			name: "Router by gateway IP",
+			result: DiscoveryResult{
+				IPAddress: "192.168.1.1",
+				OpenPorts: []int{53, 80, 443},
+				Services:  []string{"DNS", "HTTP", "HTTPS"},
+			},
+			gateways: map[string]bool{"192.168.1.1": true},
+			wantType: "router",
+			wantGW:   true,
+		},
+		{
+			name: "Printer by ports",
+			result: DiscoveryResult{
+				IPAddress: "192.168.1.100",
+				OpenPorts: []int{80, 631, 9100},
+				Services:  []string{"HTTP", "IPP-Print", "RAW-Print"},
+			},
+			gateways: map[string]bool{},
+			wantType: "printer",
+			wantGW:   false,
+		},
+		{
+			name: "Linux server",
+			result: DiscoveryResult{
+				IPAddress: "192.168.1.10",
+				OpenPorts: []int{22, 80, 443, 3306},
+				Services:  []string{"SSH", "HTTP", "HTTPS", "MySQL"},
+			},
+			gateways: map[string]bool{},
+			wantType: "server",
+			wantGW:   false,
+		},
+		{
+			name: "MikroTik router by banner",
+			result: DiscoveryResult{
+				IPAddress:  "192.168.1.1",
+				OpenPorts:  []int{80, 443},
+				Services:   []string{"HTTP", "HTTPS"},
+				BannerInfo: "MikroTik HttpProxy",
+			},
+			gateways: map[string]bool{},
+			wantType: "router",
+			wantGW:   false,
+		},
+		{
+			name: "Windows server",
+			result: DiscoveryResult{
+				IPAddress: "10.0.0.5",
+				OpenPorts: []int{135, 445, 3389},
+				Services:  []string{"MSRPC", "SMB/CIFS", "RDP"},
+			},
+			gateways: map[string]bool{},
+			wantType: "server",
+			wantGW:   false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			classifyDevice(&tc.result, tc.gateways)
+			if tc.result.DeviceType != tc.wantType {
+				t.Errorf("classifyDevice() DeviceType = %q, want %q", tc.result.DeviceType, tc.wantType)
+			}
+			if tc.result.IsGateway != tc.wantGW {
+				t.Errorf("classifyDevice() IsGateway = %v, want %v", tc.result.IsGateway, tc.wantGW)
+			}
+		})
+	}
+}
+
+func TestParseHexIP(t *testing.T) {
+	tests := []struct {
+		hex      string
+		expected string
+	}{
+		{"0101A8C0", "192.168.1.1"},    // 192.168.1.1 in little-endian hex
+		{"00000000", "0.0.0.0"},
+		{"", ""},
+		{"ZZZZZZZZ", ""},
+	}
+
+	for _, tc := range tests {
+		result := parseHexIP(tc.hex)
+		if result != tc.expected {
+			t.Errorf("parseHexIP(%q) = %q, want %q", tc.hex, result, tc.expected)
+		}
+	}
+}
+
+func TestContainsAny(t *testing.T) {
+	// containsAny is case-sensitive; classifyDevice lowercases before calling it
+	if !containsAny("mikrotik httpproxy", "mikrotik") {
+		t.Error("should match mikrotik")
+	}
+	if containsAny("apache httpd", "mikrotik", "ubiquiti") {
+		t.Error("should not match")
+	}
+	if !containsAny("ubiquiti edgeos", "ubiquiti", "edgeos") {
+		t.Error("should match ubiquiti or edgeos")
 	}
 }
 

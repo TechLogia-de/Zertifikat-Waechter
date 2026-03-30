@@ -300,15 +300,26 @@ func runNetworkDiscovery(ctx context.Context, networkScanner *scanner.NetworkSca
 		if err := client.UpsertDiscoveryResult(ctx, &host); err != nil {
 			log.WithError(err).Warn("Failed to upsert discovery result")
 		} else {
-			// Send Log zu UI
 			servicesStr := "keine Services"
 			if len(host.Services) > 0 {
 				servicesStr = strings.Join(host.Services, ", ")
 			}
-			client.SendLog(ctx, connectorName, "info", fmt.Sprintf("🌐 Host gefunden: %s (%d Ports: %s)", host.IPAddress, len(host.OpenPorts), servicesStr), map[string]interface{}{
-				"ip":         host.IPAddress,
-				"open_ports": host.OpenPorts,
-				"services":   host.Services,
+			displayName := host.IPAddress
+			if host.Hostname != "" {
+				displayName = fmt.Sprintf("%s (%s)", host.Hostname, host.IPAddress)
+			}
+			deviceLabel := host.DeviceType
+			if host.IsGateway {
+				deviceLabel = "Gateway/" + deviceLabel
+			}
+			client.SendLog(ctx, connectorName, "info", fmt.Sprintf("Host gefunden: %s [%s] - %d Ports: %s", displayName, deviceLabel, len(host.OpenPorts), servicesStr), map[string]interface{}{
+				"ip":          host.IPAddress,
+				"hostname":    host.Hostname,
+				"device_type": host.DeviceType,
+				"os_type":     host.OSType,
+				"is_gateway":  host.IsGateway,
+				"open_ports":  host.OpenPorts,
+				"services":    host.Services,
 			})
 		}
 
@@ -355,13 +366,19 @@ func runNetworkDiscovery(ctx context.Context, networkScanner *scanner.NetworkSca
 				"port":        port,
 				"subject_cn":  cert.SubjectCN,
 				"fingerprint": cert.Fingerprint,
+				"device_type": host.DeviceType,
 			}).Info("Certificate discovered and reported")
-			
-			// Send Log zu UI
-			client.SendLog(ctx, connectorName, "info", fmt.Sprintf("🔐 Zertifikat gefunden: %s auf %s:%d", cert.SubjectCN, host.IPAddress, port), map[string]interface{}{
-				"host":       host.IPAddress,
-				"port":       port,
-				"subject_cn": cert.SubjectCN,
+
+			certDisplayHost := host.IPAddress
+			if host.Hostname != "" {
+				certDisplayHost = host.Hostname
+			}
+			client.SendLog(ctx, connectorName, "info", fmt.Sprintf("Zertifikat gefunden: %s auf %s:%d [%s]", cert.SubjectCN, certDisplayHost, port, host.DeviceType), map[string]interface{}{
+				"host":        host.IPAddress,
+				"hostname":    host.Hostname,
+				"port":        port,
+				"subject_cn":  cert.SubjectCN,
+				"device_type": host.DeviceType,
 			})
 		}
 	}
