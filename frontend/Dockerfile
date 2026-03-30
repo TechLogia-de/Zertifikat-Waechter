@@ -24,6 +24,7 @@ RUN cat > /etc/nginx/conf.d/default.conf << 'NGINXEOF'
 server {
     listen 80;
     server_name _;
+    server_tokens off;
     root /usr/share/nginx/html;
     index index.html;
 
@@ -37,6 +38,10 @@ server {
     add_header X-Frame-Options "DENY" always;
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()" always;
+    add_header Cross-Origin-Opener-Policy "same-origin" always;
+    add_header Cross-Origin-Resource-Policy "same-origin" always;
 
     # Cache static assets
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {

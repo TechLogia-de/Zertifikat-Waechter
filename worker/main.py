@@ -68,13 +68,15 @@ def send_email_via_smtp(smtp_config: dict, to: str, subject: str, body: str) -> 
         msg.attach(MIMEText(body, 'plain'))
         msg.attach(MIMEText(html_body, 'html'))
 
-        # SMTP Verbindung
+        # SMTP connection with proper TLS certificate verification
+        import ssl
+        tls_context = ssl.create_default_context()
         if smtp_config.get('secure') and smtp_config['port'] == 465:
-            server = smtplib.SMTP_SSL(smtp_config['host'], smtp_config['port'])
+            server = smtplib.SMTP_SSL(smtp_config['host'], smtp_config['port'], timeout=10, context=tls_context)
         else:
-            server = smtplib.SMTP(smtp_config['host'], smtp_config['port'])
+            server = smtplib.SMTP(smtp_config['host'], smtp_config['port'], timeout=10)
             if smtp_config.get('secure'):
-                server.starttls()
+                server.starttls(context=tls_context)
 
         server.login(smtp_config['user'], smtp_config['password'])
         server.send_message(msg)

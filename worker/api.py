@@ -27,7 +27,9 @@ import metrics as prom_metrics
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)  # Erlaube CORS für Frontend
+# Restrict CORS to configured origins (defaults to localhost in dev)
+allowed_origins = os.getenv('ALLOWED_ORIGINS', 'http://localhost:5173').split(',')
+CORS(app, origins=[o.strip() for o in allowed_origins])
 
 
 # Simple in-memory rate limiter keyed by API key (or IP) and endpoint
