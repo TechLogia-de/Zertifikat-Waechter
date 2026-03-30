@@ -1,4 +1,5 @@
 import { Response, NextFunction } from 'express';
+import { createHmac } from 'crypto';
 import jwt from 'jsonwebtoken';
 import { createClient } from '@supabase/supabase-js';
 import { config } from '../config/index.js';
@@ -18,14 +19,18 @@ export async function authMiddleware(req: MCPRequest, res: Response, next: NextF
       });
     }
 
-    // Session ID für Context State
-    req.sessionId = req.header('X-Session-ID') || 'default';
+    // Session ID für Context State - sanitize to prevent cache poisoning
+    const rawSessionId = req.header('X-Session-ID') || 'default';
+    req.sessionId = rawSessionId.replace(/[^a-zA-Z0-9\-_]/g, '').slice(0, 128) || 'default';
 
     if (bearer) {
       // JWT Token validieren
       try {
+        // Restrict to configured algorithm only - prevents algorithm confusion attacks
+        const allowedAlgorithms: jwt.Algorithm[] = [config.jwt.algorithm];
         const decoded = jwt.verify(bearer, config.jwt.secret, {
-          algorithms: [config.jwt.algorithm],
+          algorithms: allowedAlgorithms,
+          complete: false,
         }) as { sub: string; tenant_id?: string };
         
         req.userId = decoded.sub;
@@ -76,18 +81,16 @@ export async function authMiddleware(req: MCPRequest, res: Response, next: NextF
     
     next();
   } catch (err) {
-    console.error('Auth middleware error:', err);
-    res.status(500).json({ 
-      error: 'internal_error', 
-      message: 'Authentifizierung fehlgeschlagen' 
+    console.error('Auth middleware error:', err instanceof Error ? err.message : 'Unknown error');
+    res.status(500).json({
+      error: 'internal_error',
+      message: 'Authentifizierung fehlgeschlagen'
     });
   }
 }
 
 function hashApiKey(key: string): string {
-  const crypto = require('crypto');
-  return crypto
-    .createHmac('sha256', config.security.apiKeyHashSecret)
+  return createHmac('sha256', config.security.apiKeyHashSecret)
     .update(key)
     .digest('hex');
 }

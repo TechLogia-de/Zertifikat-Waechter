@@ -1,12 +1,90 @@
 import tls from 'tls';
+import dns from 'dns/promises';
+import net from 'net';
 import { ScanResult, CertificateInfo, CertificateChain, AnomalyCheckResult } from '../types/index.js';
 
+// SSRF protection: block private, loopback, link-local, and metadata IPs
+const BLOCKED_IP_RANGES = [
+  /^127\./,                    // Loopback
+  /^0\./,                      // Current network
+  /^10\./,                     // RFC 1918 Class A
+  /^172\.(1[6-9]|2\d|3[01])\./, // RFC 1918 Class B
+  /^192\.168\./,               // RFC 1918 Class C
+  /^169\.254\./,               // Link-local
+  /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./, // CGN (RFC 6598)
+  /^::1$/,                     // IPv6 loopback
+  /^fe80:/i,                   // IPv6 link-local
+  /^fc00:/i,                   // IPv6 ULA
+  /^fd/i,                      // IPv6 ULA
+  /^ff/i,                      // IPv6 multicast
+  /^::$/,                      // IPv6 unspecified
+  /^::ffff:127\./,             // IPv4-mapped loopback
+  /^::ffff:10\./,              // IPv4-mapped private
+  /^::ffff:192\.168\./,        // IPv4-mapped private
+  /^::ffff:172\.(1[6-9]|2\d|3[01])\./, // IPv4-mapped private
+];
+
+function isBlockedIP(ip: string): boolean {
+  return BLOCKED_IP_RANGES.some(pattern => pattern.test(ip));
+}
+
+// Validate hostname format (domain or IP)
+const VALID_HOST_REGEX = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$/;
+
+function isValidHost(host: string): boolean {
+  // Allow valid IPs
+  if (net.isIP(host)) return true;
+  // Allow valid hostnames
+  if (host.length > 253) return false;
+  return VALID_HOST_REGEX.test(host);
+}
+
 export class CertificateScanner {
-  
+
+  // Resolve host and check for SSRF before connecting
+  private async validateHost(host: string): Promise<void> {
+    if (!isValidHost(host)) {
+      throw new Error('Ungültiger Hostname');
+    }
+
+    // If it's a direct IP, check immediately
+    if (net.isIP(host)) {
+      if (isBlockedIP(host)) {
+        throw new Error('Zugriff auf interne/private Adressen ist nicht erlaubt');
+      }
+      return;
+    }
+
+    // Resolve DNS and check all resolved IPs
+    try {
+      const addresses = await dns.resolve4(host).catch(() => [] as string[]);
+      const addresses6 = await dns.resolve6(host).catch(() => [] as string[]);
+      const allAddresses = [...addresses, ...addresses6];
+
+      if (allAddresses.length === 0) {
+        throw new Error('Hostname konnte nicht aufgelöst werden');
+      }
+
+      for (const ip of allAddresses) {
+        if (isBlockedIP(ip)) {
+          throw new Error('Zugriff auf interne/private Adressen ist nicht erlaubt');
+        }
+      }
+    } catch (err: any) {
+      if (err.message.includes('interne/private') || err.message.includes('aufgelöst')) {
+        throw err;
+      }
+      throw new Error('DNS-Auflösung fehlgeschlagen');
+    }
+  }
+
   async scanHost(host: string, port: number = 443, timeoutMs: number = 5000): Promise<ScanResult> {
     const startTime = Date.now();
-    
+
     try {
+      // SSRF protection: validate host before connecting
+      await this.validateHost(host);
+
       const socket = await this.connectTLS(host, port, timeoutMs);
       const peerCert = socket.getPeerCertificate(true);
       

@@ -30,8 +30,8 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
-// Rate Limiting
-const limiter = rateLimit({
+// Global rate limiting
+const globalLimiter = rateLimit({
   windowMs: config.security.rateLimitWindowMs,
   max: config.security.rateLimitMaxRequests,
   message: {
@@ -42,15 +42,37 @@ const limiter = rateLimit({
   legacyHeaders: false,
 });
 
-app.use('/mcp/', limiter);
+// Stricter rate limit for scan endpoints (expensive operations)
+const scanLimiter = rateLimit({
+  windowMs: 60_000, // 1 minute
+  max: 10,          // 10 scans per minute
+  message: {
+    error: 'rate_limit_exceeded',
+    message: 'Zu viele Scan-Anfragen. Bitte warten Sie einen Moment.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
-// Health Check
+// Stricter rate limit for alert triggers
+const alertTriggerLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 20,
+  message: {
+    error: 'rate_limit_exceeded',
+    message: 'Zu viele Alert-Anfragen.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.use('/mcp/', globalLimiter);
+
+// Health Check - no sensitive info like uptime
 app.get('/health', (req: Request, res: Response) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    version: '1.0.0',
-    uptime: process.uptime(),
   });
 });
 
@@ -65,12 +87,6 @@ app.get('/mcp/manifest', async (req: Request, res: Response) => {
       ...manifest,
       health: 'ok',
       updatedAt: new Date().toISOString(),
-      endpoints: {
-        tools: '/mcp/tools/*',
-        alerts: '/mcp/alerts/*',
-        manifest: '/mcp/manifest',
-        health: '/health',
-      },
     });
   } catch (error) {
     console.error('Manifest loading error:', error);
@@ -81,6 +97,20 @@ app.get('/mcp/manifest', async (req: Request, res: Response) => {
   }
 });
 
+// Scan tool routes with stricter rate limiting
+app.use(
+  '/mcp/tools/cert.scan',
+  scanLimiter,
+);
+app.use(
+  '/mcp/tools/cert.chain',
+  scanLimiter,
+);
+app.use(
+  '/mcp/tools/security.anomalyScan',
+  scanLimiter,
+);
+
 // MCP Tool Routes (mit Auth und Context)
 app.use(
   '/mcp/tools',
@@ -88,6 +118,12 @@ app.use(
   tenantMiddleware,
   contextMiddleware,
   toolsRouter
+);
+
+// Alert trigger with stricter rate limiting
+app.use(
+  '/mcp/alerts/trigger',
+  alertTriggerLimiter,
 );
 
 // Alert Routes (mit Auth)
@@ -109,17 +145,11 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   });
 });
 
-// 404 Handler
+// 404 Handler - don't expose available endpoints
 app.use((req: Request, res: Response) => {
   res.status(404).json({
     error: 'not_found',
-    message: `Route ${req.method} ${req.path} nicht gefunden`,
-    availableEndpoints: {
-      manifest: 'GET /mcp/manifest',
-      health: 'GET /health',
-      tools: 'POST /mcp/tools/*',
-      alerts: 'GET /mcp/alerts/*',
-    },
+    message: 'Route nicht gefunden',
   });
 });
 

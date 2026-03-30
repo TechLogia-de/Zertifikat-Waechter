@@ -1,45 +1,83 @@
 import { Router, Response } from 'express';
+import { ZodError } from 'zod';
 import { MCPRequest } from '../types/index.js';
 import { CertificateScanner } from '../services/scanner.js';
 import { SupabaseService } from '../services/supabase.js';
 import { saveToContext, getFromContext } from '../middleware/context.js';
 import { z } from 'zod';
+import { config } from '../config/index.js';
+
+// Safe error message helper - hide internal details in production
+function safeErrorMessage(error: any, fallback: string): string {
+  if (error instanceof ZodError) {
+    return `Validierungsfehler: ${error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')}`;
+  }
+  if (config.nodeEnv === 'development') {
+    return error?.message || fallback;
+  }
+  return fallback;
+}
 
 const router = Router();
 const scanner = new CertificateScanner();
 const supabase = new SupabaseService();
 
+// Host validation: valid hostname or IP address
+const hostSchema = z.string()
+  .min(1)
+  .max(253)
+  .regex(
+    /^(?:(?:\d{1,3}\.){3}\d{1,3}|(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)$/,
+    'Ungültiger Hostname oder IP-Adresse'
+  );
+
+// Domain name validation (no raw IPs for domain registration)
+const domainNameSchema = z.string()
+  .min(1)
+  .max(253)
+  .regex(
+    /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/,
+    'Ungültiger Domainname'
+  );
+
+// Tag validation: alphanumeric + basic punctuation, bounded length
+const tagSchema = z.string().min(1).max(64).regex(/^[a-zA-Z0-9\-_.:]+$/);
+
 // Validierungs-Schemas
 const certScanSchema = z.object({
-  host: z.string().min(1),
+  host: hostSchema,
   port: z.number().int().min(1).max(65535).optional().default(443),
   timeoutMs: z.number().int().min(1000).max(30000).optional().default(5000),
 });
 
 const certChainSchema = z.object({
-  host: z.string().min(1),
+  host: hostSchema,
   port: z.number().int().min(1).max(65535).optional().default(443),
 });
 
 const certExpirySchema = z.object({
-  host: z.string().min(1),
+  host: hostSchema,
   warnDays: z.number().int().min(1).max(365).optional().default(30),
 });
 
 const anomalyScanSchema = z.object({
-  host: z.string().min(1),
+  host: hostSchema,
   port: z.number().int().min(1).max(65535).optional().default(443),
 });
 
 const domainRegisterSchema = z.object({
-  name: z.string().min(1),
+  name: domainNameSchema,
   port: z.number().int().min(1).max(65535).optional().default(443),
-  tags: z.array(z.string()).optional().default([]),
+  tags: z.array(tagSchema).max(20).optional().default([]),
 });
 
 const domainListSchema = z.object({
   filter: z.enum(['all', 'expiring', 'expired', 'valid']).optional().default('all'),
   limit: z.number().int().min(1).max(500).optional().default(100),
+});
+
+const complianceReportSchema = z.object({
+  format: z.enum(['json', 'csv']).optional().default('json'),
 });
 
 // Tool: cert.scan
@@ -92,10 +130,11 @@ router.post('/cert.scan', async (req: MCPRequest, res: Response) => {
       data: result,
     });
   } catch (error: any) {
-    console.error('cert.scan error:', error);
-    res.status(500).json({
-      error: 'internal_error',
-      message: error.message || 'Scan fehlgeschlagen',
+    console.error('cert.scan error:', error instanceof Error ? error.message : error);
+    const status = error instanceof ZodError ? 400 : 500;
+    res.status(status).json({
+      error: error instanceof ZodError ? 'validation_error' : 'internal_error',
+      message: safeErrorMessage(error, 'Scan fehlgeschlagen'),
     });
   }
 });
@@ -129,10 +168,11 @@ router.post('/cert.chain', async (req: MCPRequest, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error('cert.chain error:', error);
-    res.status(500).json({
-      error: 'internal_error',
-      message: error.message || 'Chain-Abruf fehlgeschlagen',
+    console.error('cert.chain error:', error instanceof Error ? error.message : error);
+    const status = error instanceof ZodError ? 400 : 500;
+    res.status(status).json({
+      error: error instanceof ZodError ? 'validation_error' : 'internal_error',
+      message: safeErrorMessage(error, 'Chain-Abruf fehlgeschlagen'),
     });
   }
 });
@@ -209,10 +249,11 @@ router.post('/cert.expiry', async (req: MCPRequest, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error('cert.expiry error:', error);
-    res.status(500).json({
-      error: 'internal_error',
-      message: error.message || 'Expiry-Check fehlgeschlagen',
+    console.error('cert.expiry error:', error instanceof Error ? error.message : error);
+    const status = error instanceof ZodError ? 400 : 500;
+    res.status(status).json({
+      error: error instanceof ZodError ? 'validation_error' : 'internal_error',
+      message: safeErrorMessage(error, 'Expiry-Check fehlgeschlagen'),
     });
   }
 });
@@ -239,10 +280,11 @@ router.post('/security.anomalyScan', async (req: MCPRequest, res: Response) => {
       data: result,
     });
   } catch (error: any) {
-    console.error('security.anomalyScan error:', error);
-    res.status(500).json({
-      error: 'internal_error',
-      message: error.message || 'Anomaly-Scan fehlgeschlagen',
+    console.error('security.anomalyScan error:', error instanceof Error ? error.message : error);
+    const status = error instanceof ZodError ? 400 : 500;
+    res.status(status).json({
+      error: error instanceof ZodError ? 'validation_error' : 'internal_error',
+      message: safeErrorMessage(error, 'Anomaly-Scan fehlgeschlagen'),
     });
   }
 });
@@ -278,10 +320,11 @@ router.post('/domains.register', async (req: MCPRequest, res: Response) => {
       data: domain,
     });
   } catch (error: any) {
-    console.error('domains.register error:', error);
-    res.status(500).json({
-      error: 'internal_error',
-      message: error.message || 'Domain-Registrierung fehlgeschlagen',
+    console.error('domains.register error:', error instanceof Error ? error.message : error);
+    const status = error instanceof ZodError ? 400 : 500;
+    res.status(status).json({
+      error: error instanceof ZodError ? 'validation_error' : 'internal_error',
+      message: safeErrorMessage(error, 'Domain-Registrierung fehlgeschlagen'),
     });
   }
 });
@@ -314,10 +357,11 @@ router.post('/domains.list', async (req: MCPRequest, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error('domains.list error:', error);
-    res.status(500).json({
-      error: 'internal_error',
-      message: error.message || 'Domain-Liste konnte nicht geladen werden',
+    console.error('domains.list error:', error instanceof Error ? error.message : error);
+    const status = error instanceof ZodError ? 400 : 500;
+    res.status(status).json({
+      error: error instanceof ZodError ? 'validation_error' : 'internal_error',
+      message: safeErrorMessage(error, 'Domain-Liste konnte nicht geladen werden'),
     });
   }
 });
@@ -332,7 +376,7 @@ router.post('/compliance.report', async (req: MCPRequest, res: Response) => {
       });
     }
     
-    const { format = 'json' } = req.body;
+    const { format } = complianceReportSchema.parse(req.body);
 
     // Fetch domains, certificate stats, and alert stats in parallel
     const [domains, certStats, alertStats] = await Promise.all([
@@ -406,10 +450,11 @@ router.post('/compliance.report', async (req: MCPRequest, res: Response) => {
       data: report,
     });
   } catch (error: any) {
-    console.error('compliance.report error:', error);
-    res.status(500).json({
-      error: 'internal_error',
-      message: error.message || 'Report-Generierung fehlgeschlagen',
+    console.error('compliance.report error:', error instanceof Error ? error.message : error);
+    const status = error instanceof ZodError ? 400 : 500;
+    res.status(status).json({
+      error: error instanceof ZodError ? 'validation_error' : 'internal_error',
+      message: safeErrorMessage(error, 'Report-Generierung fehlgeschlagen'),
     });
   }
 });

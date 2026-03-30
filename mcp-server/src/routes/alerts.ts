@@ -1,12 +1,23 @@
 import { Router, Response } from 'express';
+import { z } from 'zod';
 import { MCPRequest } from '../types/index.js';
 import { SupabaseService } from '../services/supabase.js';
 
 const router = Router();
 const supabase = new SupabaseService();
 
-// SSE-Clients verwalten
+// SSE-Clients verwalten - bounded to prevent memory exhaustion
+const MAX_SSE_CLIENTS = 100;
 const sseClients = new Map<string, Response>();
+
+// Zod schemas for alerts endpoints
+const alertTriggerSchema = z.object({
+  type: z.enum(['CERT_EXPIRES_SOON', 'CERT_EXPIRED', 'ANOMALY_DETECTED', 'SCAN_FAILED', 'CERT_RENEWED']).optional().default('CERT_EXPIRES_SOON'),
+  severity: z.enum(['low', 'medium', 'high', 'critical']).optional().default('high'),
+  host: z.string().min(1).max(253).optional().default('test.example.com'),
+  message: z.string().min(1).max(1000).optional().default('Test-Alert'),
+  metadata: z.record(z.unknown()).optional().default({}),
+});
 
 // SSE Stream für Alerts
 router.get('/stream', async (req: MCPRequest, res: Response) => {
@@ -24,16 +35,23 @@ router.get('/stream', async (req: MCPRequest, res: Response) => {
   res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
   
-  const clientId = `${req.tenantId}-${Date.now()}`;
+  // Prevent unbounded SSE client growth
+  if (sseClients.size >= MAX_SSE_CLIENTS) {
+    return res.status(503).json({
+      error: 'service_unavailable',
+      message: 'Maximale Anzahl an SSE-Verbindungen erreicht',
+    });
+  }
+
+  const clientId = `${req.tenantId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   sseClients.set(clientId, res);
-  
+
   console.log(`SSE Client verbunden: ${clientId} (Tenant: ${req.tenantId})`);
-  
-  // Initiale Nachricht
-  res.write(`event: connected\ndata: ${JSON.stringify({ 
-    clientId, 
+
+  // Initial message - don't leak internal clientId to response
+  res.write(`event: connected\ndata: ${JSON.stringify({
     tenantId: req.tenantId,
-    timestamp: new Date().toISOString() 
+    timestamp: new Date().toISOString()
   })}\n\n`);
   
   // Keepalive alle 15 Sekunden
@@ -82,39 +100,55 @@ export function broadcastAlert(tenantId: string, event: any) {
 
 // Manuelle Alert-Trigger (für Testing)
 router.post('/trigger', async (req: MCPRequest, res: Response) => {
-  if (!req.tenantId) {
-    return res.status(403).json({
-      error: 'no_tenant',
-      message: 'Tenant erforderlich',
+  try {
+    if (!req.tenantId) {
+      return res.status(403).json({
+        error: 'no_tenant',
+        message: 'Tenant erforderlich',
+      });
+    }
+
+    const params = alertTriggerSchema.parse(req.body);
+
+    const event = {
+      id: `alert-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      type: params.type,
+      severity: params.severity,
+      host: params.host,
+      message: params.message,
+      timestamp: new Date().toISOString(),
+      metadata: params.metadata,
+    };
+
+    broadcastAlert(req.tenantId, event);
+
+    // In DB loggen
+    await supabase.logEvent(req.tenantId, 'mcp.alert.triggered', event);
+
+    const clientCount = Array.from(sseClients.keys()).filter(k => k.startsWith(req.tenantId + '-')).length;
+
+    res.json({
+      success: true,
+      message: 'Alert getriggert',
+      event,
+      clients: clientCount,
+    });
+  } catch (error: any) {
+    if (error.name === 'ZodError') {
+      return res.status(400).json({
+        error: 'validation_error',
+        message: `Validierungsfehler: ${error.errors.map((e: any) => `${e.path.join('.')}: ${e.message}`).join(', ')}`,
+      });
+    }
+    console.error('alert trigger error:', error instanceof Error ? error.message : error);
+    res.status(500).json({
+      error: 'internal_error',
+      message: 'Alert konnte nicht getriggert werden',
     });
   }
-  
-  const { type, severity, host, message, metadata } = req.body;
-  
-  const event = {
-    id: `alert-${Date.now()}`,
-    type: type || 'CERT_EXPIRES_SOON',
-    severity: severity || 'high',
-    host: host || 'test.example.com',
-    message: message || 'Test-Alert',
-    timestamp: new Date().toISOString(),
-    metadata: metadata || {},
-  };
-  
-  broadcastAlert(req.tenantId, event);
-  
-  // In DB loggen
-  await supabase.logEvent(req.tenantId, 'mcp.alert.triggered', event);
-  
-  res.json({
-    success: true,
-    message: 'Alert getriggert',
-    event,
-    clients: Array.from(sseClients.keys()).filter(k => k.startsWith(req.tenantId + '-')).length,
-  });
 });
 
-// Aktuelle Clients auflisten (für Debugging)
+// Aktuelle Clients auflisten - only show count, not internal IDs
 router.get('/clients', async (req: MCPRequest, res: Response) => {
   if (!req.tenantId) {
     return res.status(403).json({
@@ -122,18 +156,14 @@ router.get('/clients', async (req: MCPRequest, res: Response) => {
       message: 'Tenant erforderlich',
     });
   }
-  
-  const clients = Array.from(sseClients.keys())
-    .filter(k => k.startsWith(req.tenantId + '-'));
-  
+
+  const clientCount = Array.from(sseClients.keys())
+    .filter(k => k.startsWith(req.tenantId + '-')).length;
+
   res.json({
     success: true,
     tenantId: req.tenantId,
-    count: clients.length,
-    clients: clients.map(id => ({
-      id,
-      connectedSince: id.split('-')[1],
-    })),
+    count: clientCount,
   });
 });
 
@@ -146,10 +176,12 @@ router.get('/recent', async (req: MCPRequest, res: Response) => {
         message: 'Tenant erforderlich',
       });
     }
-    
-    const limit = parseInt(req.query.limit as string || '50', 10);
+
+    // Validate and bound the limit parameter
+    const rawLimit = parseInt(req.query.limit as string || '50', 10);
+    const limit = Number.isNaN(rawLimit) ? 50 : Math.min(Math.max(rawLimit, 1), 200);
     const alerts = await supabase.getRecentAlerts(req.tenantId, limit);
-    
+
     res.json({
       success: true,
       data: {
@@ -158,10 +190,10 @@ router.get('/recent', async (req: MCPRequest, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error('recent alerts error:', error);
+    console.error('recent alerts error:', error instanceof Error ? error.message : error);
     res.status(500).json({
       error: 'internal_error',
-      message: error.message || 'Alerts konnten nicht geladen werden',
+      message: 'Alerts konnten nicht geladen werden',
     });
   }
 });

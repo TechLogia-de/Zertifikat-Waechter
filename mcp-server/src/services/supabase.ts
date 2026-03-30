@@ -120,8 +120,24 @@ export class SupabaseService {
     // Filter anwenden
     if (filter !== 'all') {
       return domains.filter(domain => {
-        // Hier könnte man basierend auf dem Filter filtern
-        return true;
+        switch (filter) {
+          case 'expired':
+            return domain.status === 'error';
+          case 'expiring': {
+            // Check if cert expires within 30 days (requires certificate data)
+            const asset = (data || []).find((a: any) => a.id === domain.id);
+            const cert = asset?.certificates?.[0];
+            if (!cert) return false;
+            const now = Date.now();
+            const expiresAt = new Date(cert.not_after).getTime();
+            const daysLeft = Math.ceil((expiresAt - now) / (1000 * 60 * 60 * 24));
+            return daysLeft > 0 && daysLeft <= 30;
+          }
+          case 'valid':
+            return domain.status === 'active';
+          default:
+            return true;
+        }
       });
     }
     
@@ -274,6 +290,8 @@ export class SupabaseService {
     tenantId: string,
     limit: number = 50
   ): Promise<AlertEvent[]> {
+    // Enforce upper bound
+    const boundedLimit = Math.min(Math.max(limit, 1), 200);
     const { data, error } = await supabase
       .from('alerts')
       .select(`
@@ -292,7 +310,7 @@ export class SupabaseService {
       `)
       .eq('tenant_id', tenantId)
       .order('first_triggered_at', { ascending: false })
-      .limit(limit);
+      .limit(boundedLimit);
     
     if (error) {
       throw new Error('Alerts konnten nicht geladen werden');

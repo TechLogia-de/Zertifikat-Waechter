@@ -25,12 +25,20 @@ export function getRedisClient() {
   return redisClient;
 }
 
+// Sanitize session ID for safe use as Redis key
+function sanitizeSessionId(sessionId: string): string {
+  return sessionId.replace(/[^a-zA-Z0-9\-_]/g, '').slice(0, 128) || 'default';
+}
+
+// Max number of fields per context to prevent unbounded growth
+const MAX_CONTEXT_FIELDS = 50;
+
 export async function contextMiddleware(req: MCPRequest, res: Response, next: NextFunction) {
   if (!req.sessionId) {
     req.sessionId = 'default';
   }
-  
-  const contextKey = `mcp:ctx:${req.sessionId}`;
+
+  const contextKey = `mcp:ctx:${sanitizeSessionId(req.sessionId)}`;
   
   try {
     const redis = getRedisClient();
@@ -61,7 +69,18 @@ export async function contextMiddleware(req: MCPRequest, res: Response, next: Ne
     (req as any).context = {
       key: contextKey,
       get: async (field: string) => await redis.hGet(contextKey, field),
-      set: async (field: string, value: string) => await redis.hSet(contextKey, field, value),
+      set: async (field: string, value: string) => {
+        // Limit context size to prevent unbounded growth
+        const fieldCount = await redis.hLen(contextKey);
+        if (fieldCount >= MAX_CONTEXT_FIELDS) {
+          throw new Error('Context field limit reached');
+        }
+        // Limit value size to 64KB
+        if (value.length > 65536) {
+          throw new Error('Context value too large');
+        }
+        return await redis.hSet(contextKey, field, value);
+      },
       getAll: async () => await redis.hGetAll(contextKey),
       delete: async (field: string) => await redis.hDel(contextKey, field),
     };
@@ -75,31 +94,39 @@ export async function contextMiddleware(req: MCPRequest, res: Response, next: Ne
 }
 
 export async function saveToContext(
-  sessionId: string, 
+  sessionId: string,
   data: Record<string, string>
 ): Promise<void> {
   const redis = getRedisClient();
-  const contextKey = `mcp:ctx:${sessionId}`;
-  
-  await redis.hSet(contextKey, data);
+  const contextKey = `mcp:ctx:${sanitizeSessionId(sessionId)}`;
+
+  // Limit number of fields being set at once
+  const entries = Object.entries(data).slice(0, MAX_CONTEXT_FIELDS);
+  const sanitizedData: Record<string, string> = {};
+  for (const [key, value] of entries) {
+    // Limit each value to 64KB
+    sanitizedData[key] = typeof value === 'string' ? value.slice(0, 65536) : String(value);
+  }
+
+  await redis.hSet(contextKey, sanitizedData);
   await redis.expire(contextKey, 3600);
 }
 
 export async function getFromContext(
-  sessionId: string, 
+  sessionId: string,
   field: string
 ): Promise<string | null> {
   const redis = getRedisClient();
-  const contextKey = `mcp:ctx:${sessionId}`;
-  
+  const contextKey = `mcp:ctx:${sanitizeSessionId(sessionId)}`;
+
   const result = await redis.hGet(contextKey, field);
   return result ?? null;
 }
 
 export async function clearContext(sessionId: string): Promise<void> {
   const redis = getRedisClient();
-  const contextKey = `mcp:ctx:${sessionId}`;
-  
+  const contextKey = `mcp:ctx:${sanitizeSessionId(sessionId)}`;
+
   await redis.del(contextKey);
 }
 
