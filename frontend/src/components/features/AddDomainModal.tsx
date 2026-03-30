@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, memo} from 'react'
 import { supabase } from '../../lib/supabase'
 import Modal from '../ui/Modal'
 
@@ -18,7 +18,7 @@ const commonPorts = [
   { value: 465, label: 'SMTPS (465)', icon: '✉️' },
 ]
 
-export default function AddDomainModal({ isOpen, onClose, tenantId, onSuccess }: AddDomainModalProps) {
+function AddDomainModal({ isOpen, onClose, tenantId, onSuccess }: AddDomainModalProps) {
   const [host, setHost] = useState('')
   const [port, setPort] = useState(443)
   const [customPort, setCustomPort] = useState('')
@@ -50,13 +50,6 @@ export default function AddDomainModal({ isOpen, onClose, tenantId, onSuccess }:
         throw new Error('Ungültiger Port (1-65535)')
       }
 
-      console.log('Creating asset:', {
-        tenant_id: tenantId,
-        host: host.trim(),
-        port: finalPort,
-        proto: protocol
-      })
-
       // Asset erstellen
       const { data: assetData, error: assetError } = await supabase
         .from('assets')
@@ -74,8 +67,6 @@ export default function AddDomainModal({ isOpen, onClose, tenantId, onSuccess }:
         console.error('Asset creation error:', assetError)
         throw assetError
       }
-
-      console.log('Asset created successfully:', assetData)
 
       setSuccess(true)
       setTimeout(() => {
@@ -257,3 +248,4 @@ export default function AddDomainModal({ isOpen, onClose, tenantId, onSuccess }:
   )
 }
 
+export default memo(AddDomainModal)

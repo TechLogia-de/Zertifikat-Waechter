@@ -1,3 +1,4 @@
+import { memo } from 'react'
 // Table displaying ACME renewal orders with status and actions
 
 import { ACMEOrder, getStatusBadgeProps } from './types'
@@ -22,7 +23,7 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-export default function ACMEOrderTable({
+function ACMEOrderTable({
   orders,
   accountCount,
   onCreateOrder,
@@ -128,3 +129,5 @@ export default function ACMEOrderTable({
     </div>
   )
 }
+
+export default memo(ACMEOrderTable)

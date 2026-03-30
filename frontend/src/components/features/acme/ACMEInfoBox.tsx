@@ -1,6 +1,7 @@
+import { memo } from 'react'
 // Informational box explaining what ACME Auto-Renewal is
 
-export default function ACMEInfoBox() {
+function ACMEInfoBox() {
   return (
     <div className="bg-gradient-to-r from-[#DBEAFE] to-[#E0E7FF] rounded-xl p-6 border-2 border-[#3B82F6] shadow-lg">
       <div className="flex items-start space-x-4">
@@ -33,3 +34,5 @@ export default function ACMEInfoBox() {
     </div>
   )
 }
+
+export default memo(ACMEInfoBox)

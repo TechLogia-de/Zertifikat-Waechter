@@ -1,3 +1,4 @@
+import { memo } from 'react'
 // Modal form for creating a new ACME renewal order
 
 import React from 'react'
@@ -19,7 +20,7 @@ interface CreateOrderModalProps {
   onClose: () => void
 }
 
-export default function CreateOrderModal({
+function CreateOrderModal({
   isOpen,
   saving,
   accounts,
@@ -120,3 +121,5 @@ export default function CreateOrderModal({
     </Modal>
   )
 }
+
+export default memo(CreateOrderModal)

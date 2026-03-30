@@ -37,21 +37,13 @@ export function useMfa(user: User | null | undefined) {
     setMfaLoading(true)
     setMfaError(null)
     try {
-      console.log('📡 Lade MFA-Status von Supabase...')
       const { data, error } = await (supabase.auth as any).mfa.listFactors()
       if (error) throw error
 
       const factors: any[] = (data?.factors as any[]) || []
-      console.log('📋 Gefundene MFA-Faktoren:', factors.length)
 
       const totp = factors.find((f) => f.factor_type === 'totp') || null
       if (totp) {
-        console.log('🔐 TOTP-Faktor gefunden:', {
-          id: totp.id.substring(0, 8) + '...',
-          status: totp.status,
-          friendly_name: totp.friendly_name
-        })
-
         setTotpFactor({
           id: totp.id,
           factor_type: 'totp',
@@ -61,10 +53,7 @@ export function useMfa(user: User | null | undefined) {
 
         const isVerified = totp.status === 'verified'
         setTotpEnabled(isVerified)
-
-        console.log(isVerified ? '✅ MFA ist aktiviert (verified)' : '⚠️ MFA nicht aktiviert (Status: ' + totp.status + ')')
       } else {
-        console.log('❌ Kein TOTP-Faktor gefunden')
         setTotpFactor(null)
         setTotpEnabled(false)
       }
@@ -106,34 +95,24 @@ export function useMfa(user: User | null | undefined) {
     setMfaSuccess(null)
 
     try {
-      console.log('🔄 Refreshe Session vor MFA-Enrollment...')
-
       const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
       if (refreshError) {
-        console.warn('⚠️ Session-Refresh fehlgeschlagen:', refreshError)
-      } else {
-        console.log('✅ Session erfolgreich aktualisiert')
+        console.warn('Session refresh failed:', refreshError)
       }
 
-      console.log('🔍 Prüfe auf existierende MFA-Faktoren...')
       const { data: factorsData, error: factorsErr } = await (supabase.auth as any).mfa.listFactors()
 
       if (!factorsErr && factorsData?.factors && factorsData.factors.length > 0) {
-        console.log(`🗑️ Gefunden: ${factorsData.factors.length} Faktor(en). Lösche alle vor neuem Enrollment...`)
-
         for (const factor of factorsData.factors) {
           try {
             await (supabase.auth as any).mfa.unenroll({ factorId: factor.id })
-            console.log(`✅ Faktor ${factor.id.substring(0, 8)}... gelöscht`)
           } catch (deleteErr) {
-            console.warn(`⚠️ Konnte Faktor ${factor.id.substring(0, 8)}... nicht löschen:`, deleteErr)
+            console.warn(`Could not unenroll factor ${factor.id.substring(0, 8)}...:`, deleteErr)
           }
         }
 
         // Brief wait for Supabase to process the deletion
         await new Promise(resolve => setTimeout(resolve, 500))
-      } else {
-        console.log('✅ Keine existierenden Faktoren gefunden')
       }
 
       // Start MFA enrollment directly
@@ -184,44 +163,6 @@ export function useMfa(user: User | null | undefined) {
       metadata: { method: 'TOTP' }
     })
 
-    // Log current auth status for debugging
-    const { data: { session } } = await supabase.auth.getSession()
-    const currentAAL = session?.user?.aal || 'unknown'
-    const currentProvider = session?.user?.app_metadata?.provider
-    const providers = session?.user?.app_metadata?.providers || []
-    const hasPassword = providers.includes('email') || currentProvider === 'email'
-
-    console.log('📊 Auth-Status:', {
-      aal: currentAAL,
-      provider: currentProvider,
-      providers: providers,
-      hasPassword: hasPassword
-    })
-
-    // Check AAL level explicitly
-    try {
-      const { data: aalData, error: aalError } = await (supabase.auth as any).mfa.getAuthenticatorAssuranceLevel()
-      console.log('🔐 AAL Level Details:', {
-        currentLevel: aalData?.currentLevel,
-        nextLevel: aalData?.nextLevel,
-        currentAuthenticationMethods: aalData?.currentAuthenticationMethods,
-        error: aalError
-      })
-    } catch (aalErr) {
-      console.warn('⚠️ Konnte AAL Level nicht abrufen:', aalErr)
-    }
-
-    // Log full session details
-    console.log('🔍 Session Details:', {
-      userId: session?.user?.id?.substring(0, 8) + '...',
-      email: session?.user?.email,
-      role: session?.user?.role,
-      aal: session?.user?.aal,
-      amr: session?.user?.app_metadata?.amr,
-      sessionCreatedAt: session?.user?.created_at,
-      lastSignInAt: session?.user?.last_sign_in_at
-    })
-
     try {
       // 0) Check if a TOTP factor already exists
       try {
@@ -248,9 +189,6 @@ export function useMfa(user: User | null | undefined) {
 
       // 2) Set issuer for Authenticator app recognition
       const issuer = 'Zertifikat-Wächter'
-
-      console.log('🚀 Starte MFA.enroll() mit:', { factorType: 'totp', friendlyName, issuer })
-      console.log('⚠️ WICHTIG: Stelle sicher, dass im Supabase Dashboard unter "Authentication > Providers > Enhanced MFA Security" die Option "Limit duration of AAL1 sessions" auf OFF steht!')
 
       const { data, error } = await (supabase.auth as any).mfa.enroll({
         factorType: 'totp',
@@ -287,8 +225,6 @@ export function useMfa(user: User | null | undefined) {
         throw error
       }
 
-      console.log('✅ MFA.enroll() erfolgreich!')
-
       const factorId: string = data?.id
       const totpData = data?.totp || {}
       const qrFromServer: string | undefined = totpData.qr_code
@@ -312,11 +248,6 @@ export function useMfa(user: User | null | undefined) {
           `issuer=${encodeURIComponent(issuer)}`
         )
 
-        console.log('📱 TOTP URI korrigiert:', {
-          original: totpData.uri?.substring(0, 80),
-          corrected: otpauthUri.substring(0, 80),
-          issuer
-        })
       }
 
       if (factorId) {
@@ -339,8 +270,6 @@ export function useMfa(user: User | null | undefined) {
       if (qrFromServer) {
         setQrImageUrl(qrFromServer)
       } else if (otpauthUri) {
-        const parsedForLog = parseOtpAuthUri(otpauthUri)
-
         // Generate QR code with optimal settings for Authenticator apps
         const dataUrl = await QRCode.toDataURL(otpauthUri, {
           width: 280,
@@ -353,15 +282,6 @@ export function useMfa(user: User | null | undefined) {
         })
         setQrImageUrl(dataUrl)
 
-        if ((import.meta as any).env.DEV) {
-          console.log('✅ TOTP QR-Code generiert:', {
-            issuer: parsedForLog.issuer || issuer,
-            label: parsedForLog.label,
-            secret_length: (secretFromServer || parsedForLog.secret)?.length,
-            uri_length: otpauthUri.length,
-            uri_preview: `${otpauthUri.substring(0, 50)}...`
-          })
-        }
       } else {
         throw new Error('Kein QR-Code/URI vom Server erhalten')
       }
@@ -483,7 +403,6 @@ export function useMfa(user: User | null | undefined) {
       }
 
       const challengeId = challengeData.id
-      console.log('🔐 Challenge ID erhalten:', challengeId)
 
       // Verify with challenge ID and code
       const { error: verifyError } = await (supabase.auth as any).mfa.verify({
@@ -503,8 +422,6 @@ export function useMfa(user: User | null | undefined) {
       setTotpLabel(null)
       setVerificationCode('')
 
-      console.log('✅ MFA erfolgreich aktiviert für Faktor:', factorIdToUse)
-
       await logMFASecurityEvent({
         event_type: 'mfa.enrollment.completed',
         factor_id: factorIdToUse,
@@ -515,7 +432,6 @@ export function useMfa(user: User | null | undefined) {
       })
 
       // Reload status to ensure persistence
-      console.log('🔄 Lade MFA-Status neu nach Verifizierung...')
       await new Promise(resolve => setTimeout(resolve, 1000))
       await loadMfaStatus()
     } catch (err: any) {
@@ -576,7 +492,6 @@ export function useMfa(user: User | null | undefined) {
     setMfaError(null)
     setMfaSuccess(null)
     try {
-      console.log('🗑️ Deaktiviere MFA-Faktor:', totpFactor.id.substring(0, 8) + '...')
       const { error } = await (supabase.auth as any).mfa.unenroll({ factorId: totpFactor.id })
       if (error) throw error
 
@@ -594,7 +509,6 @@ export function useMfa(user: User | null | undefined) {
       })
 
       // Reload status
-      console.log('🔄 Lade MFA-Status neu nach Deaktivierung...')
       await new Promise(resolve => setTimeout(resolve, 500))
       await loadMfaStatus()
     } catch (err: any) {

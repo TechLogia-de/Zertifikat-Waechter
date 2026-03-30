@@ -1,3 +1,4 @@
+import { memo } from 'react'
 // Custom webhook configuration form with HMAC signing and payload documentation
 
 interface WebhookConfig {
@@ -16,7 +17,7 @@ interface WebhookConfigFormProps {
   onTest: () => void
 }
 
-export default function WebhookConfigForm({
+function WebhookConfigForm({
   webhookConfig,
   onWebhookConfigChange,
   saving,
@@ -215,3 +216,5 @@ X-Webhook-Signature-Timestamp: 2025-10-18T12:00:00Z`}
     </div>
   )
 }
+
+export default memo(WebhookConfigForm)

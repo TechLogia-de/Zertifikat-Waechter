@@ -232,11 +232,6 @@ export default function Reports() {
       .limit(50)
       : { data: null }
 
-    console.log('Report data loaded:', {
-      certificates: certificates?.length,
-      events: events?.length
-    })
-
     // Versuche Edge Function (Produktiv-Lösung)
     try {
       setSuccess('📄 Generiere professionellen PDF-Report... (Edge Function)')

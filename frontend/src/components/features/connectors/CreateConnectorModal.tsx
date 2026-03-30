@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import Modal from '../../ui/Modal'
 
 interface FormData {
@@ -16,7 +17,7 @@ interface CreateConnectorModalProps {
   creating: boolean
 }
 
-export default function CreateConnectorModal({
+function CreateConnectorModal({
   isOpen,
   onClose,
   formData,
@@ -206,3 +207,5 @@ export default function CreateConnectorModal({
     </Modal>
   )
 }
+
+export default memo(CreateConnectorModal)

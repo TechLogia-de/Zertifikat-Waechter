@@ -65,7 +65,6 @@ export default function Login() {
 
     if (!signInError && data?.session) {
       // Erfolgreich eingeloggt, navigiere zum Dashboard
-      console.log('✅ Login erfolgreich (ohne MFA)')
       setLoading(false)
       // Verwende window.location.href für harten Reload
       window.location.href = '/dashboard'
@@ -101,7 +100,6 @@ export default function Login() {
         setSelectedFactorId(factorId)
 
         // Challenge starten (notwendig, bevor verifiziert werden kann)
-        console.log('🔐 Erstelle MFA Challenge für Faktor:', factorId.substring(0, 8) + '...')
         const { data: challengeData, error: challengeError } = await (supabase.auth as any).mfa.challenge({ factorId })
         if (challengeError) throw challengeError
 
@@ -110,7 +108,6 @@ export default function Login() {
         }
 
         const newChallengeId = challengeData.id
-        console.log('✅ Challenge ID erhalten:', newChallengeId.substring(0, 8) + '...')
         setChallengeId(newChallengeId)
 
         setMfaRequired(true)
@@ -156,7 +153,6 @@ export default function Login() {
     setError(null)
     setSuccess(null)
     try {
-      console.log('🔐 Verifiziere MFA Code...')
       const { error: verifyError } = await (supabase.auth as any).mfa.verify({
         factorId: selectedFactorId,
         challengeId: challengeId,
@@ -165,7 +161,6 @@ export default function Login() {
       if (verifyError) throw verifyError
 
       // Erfolgreich: Session wird gesetzt, navigiere zum Dashboard
-      console.log('✅ MFA Verifizierung erfolgreich')
       setSuccess('Anmeldung erfolgreich')
       setMfaRequired(false)
       setOtpCode('')

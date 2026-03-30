@@ -150,12 +150,6 @@ export default function ACME() {
     setSuccess(null)
 
     try {
-      console.log('Creating ACME account...', {
-        tenant_id: tenantId,
-        provider: newAccount.provider,
-        email: newAccount.email
-      })
-
       const { data, error: insertError } = await supabase
         .from('acme_accounts')
         .insert({
@@ -177,8 +171,6 @@ export default function ACME() {
         }
         throw new Error(insertError.message)
       }
-
-      console.log('Account created successfully:', data)
 
       setSuccess(`✅ ACME Account erfolgreich erstellt!\n📧 ${newAccount.email}\n🔒 ${getProviderInfo(newAccount.provider).name}`)
       setShowAccountModal(false)

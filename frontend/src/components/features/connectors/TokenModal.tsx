@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import Modal from '../../ui/Modal'
 import { ConnectorWithToken } from './types'
 import { getDockerCommand, getDockerComposeContent, getWindowsCommand } from './utils'
@@ -12,7 +13,7 @@ interface TokenModalProps {
   onSelectedTabChange: (tab: 'docker' | 'compose' | 'windows') => void
 }
 
-export default function TokenModal({
+function TokenModal({
   isOpen,
   onClose,
   connector,
@@ -165,3 +166,5 @@ export default function TokenModal({
     </Modal>
   )
 }
+
+export default memo(TokenModal)

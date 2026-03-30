@@ -205,12 +205,6 @@ export default function Profile() {
       const providers = session?.user?.app_metadata?.providers || []
       const hasPassword = providers.includes('email')
       
-      console.log('🔐 Passwort-Änderung:', {
-        provider: currentProvider,
-        providers: providers,
-        hasPassword: hasPassword
-      })
-      
       // Wenn OAuth-User ohne Passwort: Spezielle Behandlung
       if (currentProvider === 'google' && !hasPassword) {
         setError(

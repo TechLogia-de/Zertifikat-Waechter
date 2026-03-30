@@ -38,13 +38,11 @@ function AppContent() {
     const hasOAuthCode = params.has('code') || params.has('access_token') || params.has('refresh_token')
     
     if (hasOAuthCode && !user) {
-      console.log('🔐 Detected OAuth callback - waiting for auth...')
       setIsOAuthCallback(true)
-      
+
       // Clear flag after 10 seconds to prevent infinite loading
       const timeoutId = setTimeout(() => {
         setIsOAuthCallback(false)
-        console.log('⏱️ OAuth callback timeout - clearing flag')
       }, 10000)
       
       return () => clearTimeout(timeoutId)

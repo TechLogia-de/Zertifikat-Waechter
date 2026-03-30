@@ -1,3 +1,4 @@
+import { memo } from 'react'
 // Tab navigation for integration types (SMTP, Slack, Webhook)
 
 export type IntegrationTab = 'smtp' | 'slack' | 'webhook'
@@ -7,7 +8,7 @@ interface IntegrationTabsProps {
   onTabChange: (tab: IntegrationTab) => void
 }
 
-export default function IntegrationTabs({ activeTab, onTabChange }: IntegrationTabsProps) {
+function IntegrationTabs({ activeTab, onTabChange }: IntegrationTabsProps) {
   const tabs: { key: IntegrationTab; label: string }[] = [
     { key: 'smtp', label: '📧 SMTP / E-Mail' },
     { key: 'slack', label: '💬 Slack' },
@@ -32,3 +33,5 @@ export default function IntegrationTabs({ activeTab, onTabChange }: IntegrationT
     </div>
   )
 }
+
+export default memo(IntegrationTabs)

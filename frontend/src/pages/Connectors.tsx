@@ -73,7 +73,6 @@ export default function Connectors() {
                   filter: `tenant_id=eq.${tenantId}` // ✅ NUR EIGENER TENANT!
                 },
                 (payload) => {
-                  console.log('Connector changed:', payload)
                   setInitialLoad(false)
                   fetchConnectors()
                 }
@@ -379,7 +378,6 @@ export default function Connectors() {
           filter: `connector_id=eq.${connector.id}`,
         },
         (payload) => {
-          console.log('New discovery:', payload)
           const newHost = payload.new as any
           setActivityLog(prev => [
             `🌐 Host gefunden: ${newHost.ip_address} (${newHost.open_ports?.length || 0} Ports offen)`,
@@ -493,6 +491,7 @@ export default function Connectors() {
                 fetchConnectors()
               }}
               className="px-3 py-2 bg-slate-700/50 border border-slate-600/50 text-white rounded-lg font-medium text-sm hover:bg-slate-700 hover:border-slate-500 transition-all duration-200"
+              aria-label="Aktualisieren"
             >
               🔄
             </button>

@@ -1,3 +1,4 @@
+import { memo } from 'react'
 interface SaveButtonProps {
   saving: boolean
   onSave: () => void
@@ -6,7 +7,7 @@ interface SaveButtonProps {
 /**
  * Save button for persisting settings changes.
  */
-export default function SaveButton({ saving, onSave }: SaveButtonProps) {
+function SaveButton({ saving, onSave }: SaveButtonProps) {
   return (
     <div className="flex space-x-3">
       <button
@@ -19,3 +20,5 @@ export default function SaveButton({ saving, onSave }: SaveButtonProps) {
     </div>
   )
 }
+
+export default memo(SaveButton)

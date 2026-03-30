@@ -196,7 +196,9 @@ func (ns *NetworkScanner) isHostAlive(ctx context.Context, ip string) bool {
 		// Schnellerer Timeout für Alive-Check (300ms statt 500ms)
 		conn, err := net.DialTimeout("tcp", address, 300*time.Millisecond)
 		if err == nil {
-			conn.Close()
+			if closeErr := conn.Close(); closeErr != nil {
+				ns.log.WithError(closeErr).WithField("address", address).Debug("Failed to close connection during alive check")
+			}
 			return true
 		}
 	}
@@ -297,7 +299,9 @@ func (ns *NetworkScanner) isPortOpen(ip string, port int) bool {
 	if err != nil {
 		return false
 	}
-	conn.Close()
+	if closeErr := conn.Close(); closeErr != nil {
+		ns.log.WithError(closeErr).WithField("address", address).Debug("Failed to close connection during port check")
+	}
 	return true
 }
 

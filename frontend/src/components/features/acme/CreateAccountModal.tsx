@@ -1,3 +1,4 @@
+import { memo } from 'react'
 // Modal form for creating a new ACME account
 
 import React from 'react'
@@ -14,7 +15,7 @@ interface CreateAccountModalProps {
   onClose: () => void
 }
 
-export default function CreateAccountModal({
+function CreateAccountModal({
   isOpen,
   saving,
   provider,
@@ -85,3 +86,5 @@ export default function CreateAccountModal({
     </Modal>
   )
 }
+
+export default memo(CreateAccountModal)

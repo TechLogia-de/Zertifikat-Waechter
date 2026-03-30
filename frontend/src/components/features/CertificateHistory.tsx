@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, memo} from 'react'
 import { supabase } from '../../lib/supabase'
 import LoadingState from '../ui/LoadingState'
 
@@ -15,7 +15,7 @@ interface CertificateHistoryProps {
   certificateId: string
 }
 
-export default function CertificateHistory({ certificateId }: CertificateHistoryProps) {
+function CertificateHistory({ certificateId }: CertificateHistoryProps) {
   const [checks, setChecks] = useState<Check[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -202,3 +202,4 @@ export default function CertificateHistory({ certificateId }: CertificateHistory
   )
 }
 
+export default memo(CertificateHistory)

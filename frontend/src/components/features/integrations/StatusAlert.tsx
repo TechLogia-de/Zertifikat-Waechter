@@ -1,3 +1,4 @@
+import { memo } from 'react'
 // Status alert banners for success and error messages
 
 interface StatusAlertProps {
@@ -5,7 +6,7 @@ interface StatusAlertProps {
   error: string | null
 }
 
-export default function StatusAlert({ success, error }: StatusAlertProps) {
+function StatusAlert({ success, error }: StatusAlertProps) {
   return (
     <>
       {success && (
@@ -36,3 +37,5 @@ export default function StatusAlert({ success, error }: StatusAlertProps) {
     </>
   )
 }
+
+export default memo(StatusAlert)

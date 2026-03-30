@@ -1,10 +1,11 @@
+import { memo } from 'react'
 interface ACMEProviderInfoProps {
   domain: string
   challengeType: string
   hasCloudflare: boolean
 }
 
-export default function ACMEProviderInfo({ domain, challengeType, hasCloudflare }: ACMEProviderInfoProps) {
+function ACMEProviderInfo({ domain, challengeType, hasCloudflare }: ACMEProviderInfoProps) {
   const isWildcard = domain.startsWith('*.')
   const canAutoProcess = challengeType === 'dns-01' && hasCloudflare
 
@@ -75,3 +76,4 @@ export default function ACMEProviderInfo({ domain, challengeType, hasCloudflare 
   )
 }
 
+export default memo(ACMEProviderInfo)

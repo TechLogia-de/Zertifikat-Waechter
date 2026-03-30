@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, memo} from 'react'
 import { supabase } from '../../lib/supabase'
 
 interface SSLHealthButtonProps {
@@ -8,7 +8,7 @@ interface SSLHealthButtonProps {
   onSuccess?: () => void
 }
 
-export default function SSLHealthButton({ assetId, host, port, onSuccess }: SSLHealthButtonProps) {
+function SSLHealthButton({ assetId, host, port, onSuccess }: SSLHealthButtonProps) {
   const [loading, setLoading] = useState(false)
   const [lastScore, setLastScore] = useState<number | null>(null)
 
@@ -77,3 +77,4 @@ export default function SSLHealthButton({ assetId, host, port, onSuccess }: SSLH
   )
 }
 
+export default memo(SSLHealthButton)

@@ -1,3 +1,4 @@
+import { memo } from 'react'
 // Slack integration configuration form
 
 interface SlackConfig {
@@ -13,7 +14,7 @@ interface SlackConfigFormProps {
   onTest: () => void
 }
 
-export default function SlackConfigForm({
+function SlackConfigForm({
   slackConfig,
   onSlackConfigChange,
   saving,
@@ -84,3 +85,5 @@ export default function SlackConfigForm({
     </div>
   )
 }
+
+export default memo(SlackConfigForm)

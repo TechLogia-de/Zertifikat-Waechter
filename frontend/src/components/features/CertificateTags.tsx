@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, memo} from 'react'
 
 interface Tag {
   id: string
@@ -15,7 +15,7 @@ interface CertificateTagsProps {
   onCreateTag: (name: string, color: string) => void
 }
 
-export default function CertificateTags({
+function CertificateTags({
   certificateId,
   currentTags,
   availableTags,
@@ -68,6 +68,7 @@ export default function CertificateTags({
                 <button
                   onClick={() => onRemoveTag(certificateId, tag.id)}
                   className="hover:opacity-70"
+                  aria-label="Löschen"
                 >
                   ✕
                 </button>
@@ -148,3 +149,4 @@ export default function CertificateTags({
   )
 }
 
+export default memo(CertificateTags)

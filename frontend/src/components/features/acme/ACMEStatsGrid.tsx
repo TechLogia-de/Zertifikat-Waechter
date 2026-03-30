@@ -1,3 +1,4 @@
+import { memo } from 'react'
 // Statistics grid showing account and order counts
 
 import { ACMEOrder } from './types'
@@ -7,7 +8,7 @@ interface ACMEStatsGridProps {
   orders: ACMEOrder[]
 }
 
-export default function ACMEStatsGrid({ accountCount, orders }: ACMEStatsGridProps) {
+function ACMEStatsGrid({ accountCount, orders }: ACMEStatsGridProps) {
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
       <div className="bg-white rounded-xl border-2 border-[#E2E8F0] p-6 hover:shadow-lg transition-shadow">
@@ -35,3 +36,5 @@ export default function ACMEStatsGrid({ accountCount, orders }: ACMEStatsGridPro
     </div>
   )
 }
+
+export default memo(ACMEStatsGrid)

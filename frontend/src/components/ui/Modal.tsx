@@ -28,6 +28,7 @@ export default function Modal({ isOpen, onClose, title, children }: ModalProps) 
             <button
               onClick={onClose}
               className="p-2 hover:bg-[#F1F5F9] rounded-lg transition-colors"
+              aria-label="Schließen"
             >
               <svg className="w-6 h-6 text-[#64748B]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

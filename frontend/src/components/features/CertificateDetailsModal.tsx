@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, memo} from 'react'
 import Modal from '../ui/Modal'
 import CertificateHistory from './CertificateHistory'
 import Badge from '../ui/Badge'
@@ -26,7 +26,7 @@ interface CertificateDetailsModalProps {
   port: number
 }
 
-export default function CertificateDetailsModal({ 
+function CertificateDetailsModal({ 
   isOpen, 
   onClose, 
   certificate, 
@@ -253,3 +253,4 @@ export default function CertificateDetailsModal({
   )
 }
 
+export default memo(CertificateDetailsModal)

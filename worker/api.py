@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 import ssl
 import socket
 from datetime import datetime, timedelta
+import time
 import hashlib
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -26,6 +27,48 @@ load_dotenv()
 
 app = Flask(__name__)
 CORS(app)  # Erlaube CORS für Frontend
+
+
+# Simple in-memory rate limiter keyed by API key (or IP) and endpoint
+class RateLimiter:
+    """In-memory sliding window rate limiter per key per endpoint."""
+
+    def __init__(self):
+        # Structure: { (key, endpoint): [timestamp, ...] }
+        self._requests: dict[tuple[str, str], list[float]] = {}
+        self._last_cleanup = time.time()
+
+    def _cleanup(self):
+        """Remove entries older than 120 seconds to prevent unbounded growth."""
+        now = time.time()
+        if now - self._last_cleanup < 60:
+            return
+        self._last_cleanup = now
+        stale_keys = []
+        for k, timestamps in self._requests.items():
+            self._requests[k] = [t for t in timestamps if now - t < 120]
+            if not self._requests[k]:
+                stale_keys.append(k)
+        for k in stale_keys:
+            del self._requests[k]
+
+    def is_rate_limited(self, key: str, endpoint: str, max_requests: int, window_seconds: int = 60) -> bool:
+        """Return True if the request should be rejected (rate exceeded)."""
+        self._cleanup()
+        now = time.time()
+        bucket = (key, endpoint)
+        timestamps = self._requests.get(bucket, [])
+        # Keep only timestamps within the current window
+        timestamps = [t for t in timestamps if now - t < window_seconds]
+        if len(timestamps) >= max_requests:
+            self._requests[bucket] = timestamps
+            return True
+        timestamps.append(now)
+        self._requests[bucket] = timestamps
+        return False
+
+
+rate_limiter = RateLimiter()
 
 # Supabase Client
 supabase_url = os.getenv('SUPABASE_URL') or os.getenv('VITE_SUPABASE_URL')
@@ -112,6 +155,11 @@ def sanitize_header(value: str) -> str:
 @app.route('/send-email', methods=['POST'])
 def send_email():
     try:
+        # Rate limit: 10 requests per minute per API key (or IP)
+        rate_key = request.headers.get('Authorization', request.remote_addr or 'unknown')
+        if rate_limiter.is_rate_limited(rate_key, '/send-email', max_requests=10, window_seconds=60):
+            return jsonify({'success': False, 'error': 'Rate limit exceeded. Max 10 requests per minute.'}), 429
+
         data = request.json
         use_system_smtp = data.get('use_system_smtp', False)
         to = data.get('to')
@@ -258,12 +306,13 @@ Von: {smtp_config['from']}
         msg.attach(MIMEText(plain_body, 'plain'))
         msg.attach(MIMEText(html_body, 'html'))
 
-        # SMTP-Verbindung
+        # SMTP connection with proper TLS certificate verification
+        tls_context = ssl.create_default_context()
         if smtp_config['port'] == 465:
-            server = smtplib.SMTP_SSL(smtp_config['host'], smtp_config['port'], timeout=10)
+            server = smtplib.SMTP_SSL(smtp_config['host'], smtp_config['port'], timeout=10, context=tls_context)
         else:
             server = smtplib.SMTP(smtp_config['host'], smtp_config['port'], timeout=10)
-            server.starttls()
+            server.starttls(context=tls_context)
 
         server.login(smtp_config['user'], smtp_config['password'])
         server.send_message(msg)
@@ -288,6 +337,11 @@ Von: {smtp_config['from']}
 def scan_certificate():
     """Scannt ein TLS-Zertifikat von einem Host"""
     try:
+        # Rate limit: 30 requests per minute per API key (or IP)
+        rate_key = request.headers.get('Authorization', request.remote_addr or 'unknown')
+        if rate_limiter.is_rate_limited(rate_key, '/scan-certificate', max_requests=30, window_seconds=60):
+            return jsonify({'success': False, 'error': 'Rate limit exceeded. Max 30 requests per minute.'}), 429
+
         data = request.json
         host = data.get('host')
         port = data.get('port', 443)

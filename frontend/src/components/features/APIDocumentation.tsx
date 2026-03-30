@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, memo} from 'react'
 
 interface Endpoint {
   method: string
@@ -174,7 +174,7 @@ const API_ENDPOINTS: Endpoint[] = [
   }
 ]
 
-export default function APIDocumentation() {
+function APIDocumentation() {
   const [selectedEndpoint, setSelectedEndpoint] = useState<Endpoint | null>(null)
   const [selectedLanguage, setSelectedLanguage] = useState<'curl' | 'javascript' | 'python' | 'go'>('curl')
 
@@ -282,6 +282,7 @@ func main() {
                 }}
                 className="text-xs text-blue-600 hover:text-blue-700"
                 title="URL kopieren"
+                aria-label="In Zwischenablage kopieren"
               >
                 📋
               </button>
@@ -335,6 +336,7 @@ func main() {
               <button
                 onClick={() => setSelectedEndpoint(null)}
                 className="text-gray-400 hover:text-gray-600 text-2xl"
+                aria-label="Schließen"
               >
                 ✕
               </button>
@@ -577,3 +579,4 @@ func main() {
   )
 }
 
+export default memo(APIDocumentation)

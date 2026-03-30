@@ -1,5 +1,16 @@
 import type { ReportConfig } from '../pages/Reports'
 
+// Escape HTML special characters to prevent XSS when interpolating into HTML
+function escapeHtml(str: string | null | undefined): string {
+  if (!str) return ''
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
 interface ReportData {
   tenant_name: string
   certificates: any[]
@@ -49,9 +60,9 @@ export function generateHTMLReport(data: ReportData): string {
 
       return `
         <tr>
-          <td><strong>${cert.subject_cn || 'N/A'}</strong></td>
-          <td>${asset.host || 'N/A'}:${asset.port || ''}</td>
-          <td class="issuer">${cert.issuer || 'N/A'}</td>
+          <td><strong>${escapeHtml(cert.subject_cn) || 'N/A'}</strong></td>
+          <td>${escapeHtml(asset.host) || 'N/A'}:${escapeHtml(String(asset.port ?? ''))}</td>
+          <td class="issuer">${escapeHtml(cert.issuer) || 'N/A'}</td>
           <td>${expiryDate.toLocaleDateString('de-DE')}</td>
           <td style="color: ${statusColor}; font-weight: bold;">
             ${daysRemaining >= 0 ? daysRemaining + ' Tage' : 'Abgelaufen'}
@@ -70,9 +81,9 @@ export function generateHTMLReport(data: ReportData): string {
     if (config.includeAuditLog && events && events.length > 0) {
       const eventRows = events.slice(0, 50).map((event: any) => `
         <tr>
-          <td class="timestamp">${new Date(event.ts).toLocaleString('de-DE')}</td>
-          <td><code style="background: #F8FAFC; padding: 2px 6px; border-radius: 4px; font-size: 11px;">${event.type}</code></td>
-          <td class="payload">${JSON.stringify(event.payload).substring(0, 100)}...</td>
+          <td class="timestamp">${escapeHtml(new Date(event.ts).toLocaleString('de-DE'))}</td>
+          <td><code style="background: #F8FAFC; padding: 2px 6px; border-radius: 4px; font-size: 11px;">${escapeHtml(event.type)}</code></td>
+          <td class="payload">${escapeHtml(JSON.stringify(event.payload).substring(0, 100))}...</td>
         </tr>
       `).join('')
 
@@ -104,12 +115,12 @@ export function generateHTMLReport(data: ReportData): string {
         <div class="hash-chain-section page-break">
           <h2>🔒 Kryptographische Hash-Chain Verifizierung</h2>
           <div class="hash-info">
-            <p><strong>Letzter Event:</strong> ${lastEvent.type}</p>
-            <p><strong>Timestamp:</strong> ${new Date(lastEvent.ts).toLocaleString('de-DE')}</p>
+            <p><strong>Letzter Event:</strong> ${escapeHtml(lastEvent.type)}</p>
+            <p><strong>Timestamp:</strong> ${escapeHtml(new Date(lastEvent.ts).toLocaleString('de-DE'))}</p>
             <p><strong>Hash (SHA-256):</strong></p>
-            <code>${lastEvent.hash}</code>
+            <code>${escapeHtml(lastEvent.hash)}</code>
             <p><strong>Vorheriger Hash:</strong></p>
-            <code>${lastEvent.prev_hash}</code>
+            <code>${escapeHtml(lastEvent.prev_hash)}</code>
             <div class="hash-note">
               <strong>✅ Hash-Chain Validierung bestanden!</strong><br><br>
               Diese Hash-Kette beweist kryptographisch, dass die Audit-Log-Daten seit Erstellung
@@ -127,7 +138,7 @@ export function generateHTMLReport(data: ReportData): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${config.title || 'Certificate Compliance Report'}</title>
+  <title>${escapeHtml(config.title) || 'Certificate Compliance Report'}</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
@@ -450,13 +461,13 @@ export function generateHTMLReport(data: ReportData): string {
   <!-- TITLE PAGE -->
   <div class="title-page">
     <div class="logo">🛡️</div>
-    <h1>${config.title || 'Certificate Compliance Report'}</h1>
-    <p class="subtitle">${config.description || 'SSL/TLS Zertifikats-Übersicht & Compliance-Dokumentation'}</p>
+    <h1>${escapeHtml(config.title) || 'Certificate Compliance Report'}</h1>
+    <p class="subtitle">${escapeHtml(config.description) || 'SSL/TLS Zertifikats-Übersicht &amp; Compliance-Dokumentation'}</p>
 
     <div class="metadata">
       <div class="metadata-item">
         <span><strong>Organisation:</strong></span>
-        <span>${tenant_name}</span>
+        <span>${escapeHtml(tenant_name)}</span>
       </div>
       <div class="metadata-item">
         <span><strong>Erstellt am:</strong></span>
@@ -464,7 +475,7 @@ export function generateHTMLReport(data: ReportData): string {
       </div>
       <div class="metadata-item">
         <span><strong>Erstellt von:</strong></span>
-        <span>${generated_by}</span>
+        <span>${escapeHtml(generated_by)}</span>
       </div>
       <div class="metadata-item">
         <span><strong>Zertifikate gesamt:</strong></span>
@@ -591,7 +602,7 @@ export function generateHTMLReport(data: ReportData): string {
     <div class="footer-hash">
       <p style="font-size: 15px; margin-bottom: 16px;"><strong>Report-Hash (SHA-256):</strong></p>
       <p style="word-break: break-all; line-height: 1.6;">
-        ${events[0]?.hash || 'N/A'}
+        ${escapeHtml(events[0]?.hash) || 'N/A'}
       </p>
       <p style="margin-top: 20px; font-size: 12px; opacity: 0.7; line-height: 1.6;">
         Dieser kryptographische Hash dient als unveränderlicher Nachweis der Report-Integrität

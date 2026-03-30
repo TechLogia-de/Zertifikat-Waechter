@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import type { ReportConfig, ReportStats } from '../../pages/Reports'
 
 interface ReportConfigFormProps {
@@ -9,7 +10,7 @@ interface ReportConfigFormProps {
   onGenerate: () => void
 }
 
-export default function ReportConfigForm({
+function ReportConfigForm({
   config,
   setConfig,
   stats,
@@ -292,3 +293,5 @@ export default function ReportConfigForm({
     </div>
   )
 }
+
+export default memo(ReportConfigForm)

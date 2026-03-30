@@ -1,4 +1,5 @@
-export default function QuickStartGuide() {
+import { memo } from 'react'
+function QuickStartGuide() {
   return (
     <div className="mt-8 bg-white rounded-xl border border-[#E2E8F0] overflow-hidden shadow-sm">
       <div className="bg-gradient-to-r from-blue-500 to-indigo-500 px-6 py-4">
@@ -115,3 +116,5 @@ export default function QuickStartGuide() {
     </div>
   )
 }
+
+export default memo(QuickStartGuide)

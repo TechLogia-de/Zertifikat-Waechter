@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import type { ReportStats } from '../../pages/Reports'
 
 interface ReportMessagesProps {
@@ -5,7 +6,7 @@ interface ReportMessagesProps {
   error: string | null
 }
 
-export function ReportMessages({ success, error }: ReportMessagesProps) {
+export const ReportMessages = memo(function ReportMessages({ success, error }: ReportMessagesProps) {
   return (
     <>
       {success && (
@@ -33,9 +34,9 @@ export function ReportMessages({ success, error }: ReportMessagesProps) {
       )}
     </>
   )
-}
+})
 
-export function ReportInfoBox() {
+export const ReportInfoBox = memo(function ReportInfoBox() {
   return (
     <div className="bg-gradient-to-r from-[#DBEAFE] to-[#E0E7FF] rounded-xl p-6 border-2 border-[#3B82F6] shadow-lg">
       <div className="flex items-start space-x-4">
@@ -66,13 +67,13 @@ export function ReportInfoBox() {
       </div>
     </div>
   )
-}
+})
 
 interface ReportStatsCardsProps {
   stats: ReportStats
 }
 
-export function ReportStatsCards({ stats }: ReportStatsCardsProps) {
+export const ReportStatsCards = memo(function ReportStatsCards({ stats }: ReportStatsCardsProps) {
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
       <div className="bg-white rounded-xl border-2 border-[#E2E8F0] p-6 hover:shadow-lg transition-shadow">
@@ -93,4 +94,4 @@ export function ReportStatsCards({ stats }: ReportStatsCardsProps) {
       </div>
     </div>
   )
-}
+})

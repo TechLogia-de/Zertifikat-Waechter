@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import type { ReportConfig, ReportStats } from '../../pages/Reports'
 
 interface ReportPreviewProps {
@@ -7,7 +8,7 @@ interface ReportPreviewProps {
   userEmail: string | undefined
 }
 
-export default function ReportPreview({
+function ReportPreview({
   config,
   stats,
   tenantName,
@@ -96,3 +97,5 @@ export default function ReportPreview({
     </div>
   )
 }
+
+export default memo(ReportPreview)

@@ -19,7 +19,6 @@ export default function ResetPassword() {
     
     if (type === 'recovery' && accessToken) {
       setValidToken(true)
-      console.log('✅ Gültiger Password-Reset-Token erkannt')
     } else {
       setError('Ungültiger oder abgelaufener Reset-Link. Bitte fordere einen neuen an.')
     }

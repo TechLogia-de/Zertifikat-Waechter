@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import Modal from '../../ui/Modal'
 import { Connector } from './types'
 
@@ -8,7 +9,7 @@ interface EditConnectorModalProps {
   onSave: (connectorId: string, newSettings: any) => void
 }
 
-export default function EditConnectorModal({
+function EditConnectorModal({
   isOpen,
   onClose,
   connector,
@@ -104,3 +105,5 @@ export default function EditConnectorModal({
     </Modal>
   )
 }
+
+export default memo(EditConnectorModal)

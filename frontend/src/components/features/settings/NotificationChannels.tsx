@@ -1,3 +1,4 @@
+import { memo } from 'react'
 interface Policy {
   id: string
   tenant_id: string
@@ -18,7 +19,7 @@ interface NotificationChannelsProps {
 /**
  * Displays notification channel toggles (Email, Webhook, Slack, Teams).
  */
-export default function NotificationChannels({ policy, onToggleChannel }: NotificationChannelsProps) {
+function NotificationChannels({ policy, onToggleChannel }: NotificationChannelsProps) {
   return (
     <div className="bg-white rounded-xl border border-[#E2E8F0] p-6">
       <h2 className="text-xl font-bold text-[#0F172A] mb-4">
@@ -62,3 +63,5 @@ export default function NotificationChannels({ policy, onToggleChannel }: Notifi
     </div>
   )
 }
+
+export default memo(NotificationChannels)

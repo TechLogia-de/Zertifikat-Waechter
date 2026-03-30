@@ -1,11 +1,17 @@
 import Badge from '../../ui/Badge'
 import { Connector, ConnectorWithToken } from './types'
 
+// Read Supabase config from env vars only; use placeholders if missing
+function getSupabaseConfig(): { supabaseUrl: string; anonKey: string } {
+  const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || '<SUPABASE_URL>'
+  const anonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '<SUPABASE_ANON_KEY>'
+  return { supabaseUrl, anonKey }
+}
+
 export function getDockerCommand(connector: ConnectorWithToken): string {
   const targets = connector.config?.scan_targets?.join(',') || 'localhost'
   const ports = connector.config?.scan_ports?.join(',') || '443'
-  const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || 'https://***REMOVED***'
-  const anonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0aHdrendzeGtoY2V4aWJ1dndwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mjg4MzM1NzAsImV4cCI6MjA0NDQwOTU3MH0.sEddNv_LaKJiSnN81KbTGDH3fF83TZ7rZ9sKqRvQOYc'
+  const { supabaseUrl, anonKey } = getSupabaseConfig()
 
   return `docker run -d \\
   --name certwatcher-agent-${connector.name.toLowerCase().replace(/\s+/g, '-')} \\
@@ -23,8 +29,7 @@ export function getDockerCommand(connector: ConnectorWithToken): string {
 export function getDockerComposeContent(connector: ConnectorWithToken): string {
   const targets = connector.config?.scan_targets?.join(',') || 'localhost'
   const ports = connector.config?.scan_ports?.join(',') || '443'
-  const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || 'https://***REMOVED***'
-  const anonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0aHdrendzeGtoY2V4aWJ1dndwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mjg4MzM1NzAsImV4cCI6MjA0NDQwOTU3MH0.sEddNv_LaKJiSnN81KbTGDH3fF83TZ7rZ9sKqRvQOYc'
+  const { supabaseUrl, anonKey } = getSupabaseConfig()
 
   return `version: '3.8'
 
@@ -54,8 +59,7 @@ services:
 export function getWindowsCommand(connector: ConnectorWithToken): string {
   const targets = connector.config?.scan_targets?.join(',') || 'localhost'
   const ports = connector.config?.scan_ports?.join(',') || '443'
-  const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || 'https://***REMOVED***'
-  const anonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0aHdrendzeGtoY2V4aWJ1dndwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mjg4MzM1NzAsImV4cCI6MjA0NDQwOTU3MH0.sEddNv_LaKJiSnN81KbTGDH3fF83TZ7rZ9sKqRvQOYc'
+  const { supabaseUrl, anonKey } = getSupabaseConfig()
 
   return `# Windows PowerShell
 docker run -d \`
@@ -81,8 +85,7 @@ export function maskToken(token: string | null): string {
 export function getSetupCommand(connector: Connector, showToken: boolean = false): string {
   const targets = connector.config?.scan_targets?.join(',') || 'localhost'
   const ports = connector.config?.scan_ports?.join(',') || '443'
-  const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || 'https://***REMOVED***'
-  const anonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0aHdrendzeGtoY2V4aWJ1dndwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mjg4MzM1NzAsImV4cCI6MjA0NDQwOTU3MH0.sEddNv_LaKJiSnN81KbTGDH3fF83TZ7rZ9sKqRvQOYc'
+  const { supabaseUrl, anonKey } = getSupabaseConfig()
   const token = showToken ? (connector.auth_token || '<TOKEN_NICHT_VERFÜGBAR>') : maskToken(connector.auth_token)
 
   return `docker run -d \\

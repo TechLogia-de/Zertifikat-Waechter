@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import Modal from '../../ui/Modal'
 import Badge from '../../ui/Badge'
 import { Connector } from './types'
@@ -19,7 +20,7 @@ interface ConnectorDetailsModalProps {
   onRegenerateToken: (connectorId: string) => void
 }
 
-export default function ConnectorDetailsModal({
+function ConnectorDetailsModal({
   isOpen,
   onClose,
   connector,
@@ -299,3 +300,5 @@ export default function ConnectorDetailsModal({
     </Modal>
   )
 }
+
+export default memo(ConnectorDetailsModal)

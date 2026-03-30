@@ -1,3 +1,4 @@
+import { memo } from 'react'
 // Success and error alert banners for the ACME page
 
 interface AlertMessagesProps {
@@ -5,7 +6,7 @@ interface AlertMessagesProps {
   error: string | null
 }
 
-export default function AlertMessages({ success, error }: AlertMessagesProps) {
+function AlertMessages({ success, error }: AlertMessagesProps) {
   return (
     <>
       {success && (
@@ -34,3 +35,5 @@ export default function AlertMessages({ success, error }: AlertMessagesProps) {
     </>
   )
 }
+
+export default memo(AlertMessages)

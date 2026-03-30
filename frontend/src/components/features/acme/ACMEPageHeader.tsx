@@ -1,6 +1,7 @@
+import { memo } from 'react'
 // Page header with gradient background for the ACME page
 
-export default function ACMEPageHeader() {
+function ACMEPageHeader() {
   return (
     <div className="flex-shrink-0 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border-b border-slate-700/50 px-4 sm:px-6 lg:px-8 py-3 sm:py-4 shadow-lg">
       <div className="flex items-center gap-2 mb-1">
@@ -15,3 +16,5 @@ export default function ACMEPageHeader() {
     </div>
   )
 }
+
+export default memo(ACMEPageHeader)

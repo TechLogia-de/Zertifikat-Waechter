@@ -1,9 +1,10 @@
+import { memo } from 'react'
 import { Link } from 'react-router-dom'
 
 /**
  * Page header for the Settings page with gradient background and navigation link.
  */
-export default function SettingsHeader() {
+function SettingsHeader() {
   return (
     <div className="flex-shrink-0 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border-b border-slate-700/50 px-4 sm:px-6 lg:px-8 py-3 sm:py-4 shadow-lg">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -28,3 +29,5 @@ export default function SettingsHeader() {
     </div>
   )
 }
+
+export default memo(SettingsHeader)

@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Connector } from './types'
 import { getStatusBadge, formatLastSeen } from './utils'
 
@@ -10,7 +11,7 @@ interface ConnectorCardProps {
   onDeleteConnector: (connectorId: string) => void
 }
 
-export default function ConnectorCard({
+function ConnectorCard({
   connector,
   deleting,
   onShowSetup,
@@ -176,3 +177,5 @@ export default function ConnectorCard({
     </div>
   )
 }
+
+export default memo(ConnectorCard)

@@ -1,10 +1,11 @@
+import { memo } from 'react'
 // Quick start banner that launches the ACME wizard for beginners
 
 interface ACMEQuickStartProps {
   onStartWizard: () => void
 }
 
-export default function ACMEQuickStart({ onStartWizard }: ACMEQuickStartProps) {
+function ACMEQuickStart({ onStartWizard }: ACMEQuickStartProps) {
   return (
     <div className="bg-gradient-to-r from-[#10B981] to-[#059669] rounded-xl p-6 shadow-lg text-white">
       <div className="flex flex-col md:flex-row items-center gap-6">
@@ -28,3 +29,5 @@ export default function ACMEQuickStart({ onStartWizard }: ACMEQuickStartProps) {
     </div>
   )
 }
+
+export default memo(ACMEQuickStart)

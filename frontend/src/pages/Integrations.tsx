@@ -263,9 +263,6 @@ export default function Integrations() {
           throw new Error(`Webhook antwortete mit Status ${response.status}: ${errorText}`)
         }
 
-        console.log('✅ Webhook test successful:', {
-          url: webhookConfig.url, status: response.status, has_signature: !!webhookConfig.secret
-        })
         setSuccess(`✅ Webhook erfolgreich getestet!\n\n• Status: ${response.status}\n• Signatur: ${webhookConfig.secret ? 'HMAC-SHA256 ✅' : 'Keine'}\n• Timeout: ${webhookConfig.timeout_seconds}s`)
         await saveWebhook()
         setTimeout(() => setSuccess(null), 7000)

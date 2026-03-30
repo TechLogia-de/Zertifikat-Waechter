@@ -1,3 +1,4 @@
+import { memo } from 'react'
 interface Policy {
   id: string
   tenant_id: string
@@ -18,7 +19,7 @@ interface WarnDaysEditorProps {
 /**
  * Editor for warning day thresholds with quick presets.
  */
-export default function WarnDaysEditor({ policy, onPolicyChange }: WarnDaysEditorProps) {
+function WarnDaysEditor({ policy, onPolicyChange }: WarnDaysEditorProps) {
   return (
     <div className="bg-white rounded-xl border border-[#E2E8F0] p-6">
       <h2 className="text-xl font-bold text-[#0F172A] mb-4">
@@ -43,6 +44,7 @@ export default function WarnDaysEditor({ policy, onPolicyChange }: WarnDaysEdito
                     onPolicyChange({ ...policy, warn_days: newWarnDays })
                   }}
                   className="text-[#EF4444] hover:text-[#DC2626] text-xs"
+                  aria-label="Löschen"
                 >
                   ✕
                 </button>
@@ -104,3 +106,5 @@ export default function WarnDaysEditor({ policy, onPolicyChange }: WarnDaysEdito
     </div>
   )
 }
+
+export default memo(WarnDaysEditor)

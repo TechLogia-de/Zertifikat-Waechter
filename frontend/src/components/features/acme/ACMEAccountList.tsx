@@ -1,3 +1,4 @@
+import { memo } from 'react'
 // Displays the list of ACME accounts with provider info and status badges
 
 import { ACMEAccount, getProviderInfo, getStatusBadgeProps } from './types'
@@ -22,7 +23,7 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-export default function ACMEAccountList({
+function ACMEAccountList({
   accounts,
   tenantId,
   onCreateAccount,
@@ -105,3 +106,5 @@ export default function ACMEAccountList({
     </div>
   )
 }
+
+export default memo(ACMEAccountList)

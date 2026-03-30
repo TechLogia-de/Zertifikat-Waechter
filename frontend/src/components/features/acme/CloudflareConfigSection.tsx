@@ -1,3 +1,4 @@
+import { memo } from 'react'
 // Cloudflare DNS-01 integration configuration form
 
 import React from 'react'
@@ -13,7 +14,7 @@ interface CloudflareConfigSectionProps {
   onTest: () => void
 }
 
-export default function CloudflareConfigSection({
+function CloudflareConfigSection({
   config,
   configured,
   saving,
@@ -106,3 +107,5 @@ export default function CloudflareConfigSection({
     </div>
   )
 }
+
+export default memo(CloudflareConfigSection)

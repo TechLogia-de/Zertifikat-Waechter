@@ -1,3 +1,4 @@
+import { memo } from 'react'
 // SMTP configuration form with system SMTP toggle and test email section
 
 interface SMTPConfig {
@@ -27,7 +28,7 @@ interface SmtpConfigFormProps {
   onTest: () => void
 }
 
-export default function SmtpConfigForm({
+function SmtpConfigForm({
   smtpConfig,
   onSmtpConfigChange,
   testEmail,
@@ -222,3 +223,5 @@ export default function SmtpConfigForm({
     </div>
   )
 }
+
+export default memo(SmtpConfigForm)

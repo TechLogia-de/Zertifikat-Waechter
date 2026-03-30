@@ -448,6 +448,7 @@ export default function Compliance() {
                 <button
                   onClick={() => setShowAutoFixModal(false)}
                   className="text-gray-400 hover:text-gray-600"
+                  aria-label="Schließen"
                 >
                   ✕
                 </button>

@@ -11,8 +11,6 @@ export function useScanDomain() {
     setError(null)
 
     try {
-      console.log('Scanning certificate for:', { assetId, host, port })
-
       // Vereinfachter Scan: Hole Cert-Info über externe API
       // Für MVP: Verwende SSL Labs API oder direkten Fetch
       const certData = await scanCertificateSimple(host, port)
@@ -79,13 +77,6 @@ export function useScanDomain() {
         .from('checks')
         .insert(checkInsert as any)
 
-      console.log('✅ ECHTE ZERTIFIKATSDATEN gespeichert:', {
-        domain: certData2.subject_cn,
-        issuer: certData2.issuer,
-        expires: certData2.not_after,
-        fingerprint: certData2.fingerprint?.substring(0, 16) + '...'
-      })
-      
       return certData2
     } catch (err: any) {
       console.error('Scan error:', err)
@@ -101,15 +92,12 @@ export function useScanDomain() {
 
 async function scanCertificateSimple(host: string, port: number) {
   try {
-    console.log(`🔍 Scanning TLS certificate for ${host}:${port}...`)
-    
     // Methode 1: Python Worker API - ECHTE SCANS!
     // In Production: /api/ (Nginx Reverse Proxy)
     // In Development: http://localhost:5000
     const apiUrl = (import.meta as any).env.VITE_WORKER_API_URL || '/api'
     
     try {
-      console.log('Trying Worker API...', apiUrl)
       const workerResponse = await fetch(`${apiUrl}/scan-certificate`, {
         method: 'POST',
         headers: {
@@ -121,7 +109,6 @@ async function scanCertificateSimple(host: string, port: number) {
       if (workerResponse.ok) {
         const workerData = await workerResponse.json()
         if (workerData.success && workerData.certificate) {
-          console.log('✅ Worker API scan successful! REAL DATA!')
           return workerData.certificate
         }
       }
@@ -133,13 +120,11 @@ async function scanCertificateSimple(host: string, port: number) {
 
     // Methode 2: Supabase Edge Function (falls deployed)
     try {
-      console.log('Trying Edge Function...')
       const { data, error } = await supabase.functions.invoke('scan-domain', {
         body: { host, port }
       })
 
       if (!error && data?.certificate) {
-        console.log('✅ Edge Function scan successful! REAL DATA!')
         return data.certificate
       }
       
@@ -151,10 +136,8 @@ async function scanCertificateSimple(host: string, port: number) {
     // Methode 3: SSL Labs API (nur für HTTPS, öffentliche Domains)
     if (port === 443) {
       try {
-        console.log('Trying SSL Labs API...')
         const sslLabsData = await fetchFromSSLLabs(host)
         if (sslLabsData) {
-          console.log('✅ SSL Labs API scan successful! REAL DATA!')
           return sslLabsData
         }
       } catch (sslLabsError) {

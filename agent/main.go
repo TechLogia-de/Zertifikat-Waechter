@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -16,6 +17,11 @@ import (
 	"github.com/zertifikat-waechter/agent/scanner"
 	"github.com/zertifikat-waechter/agent/supabase"
 )
+
+// cfgMu protects concurrent access to the shared Config struct.
+// The config polling goroutine writes fields (Lock), while the
+// main scan loop reads them (RLock).
+var cfgMu sync.RWMutex
 
 var log = logrus.New()
 
@@ -97,7 +103,10 @@ func main() {
 	defer heartbeatTicker.Stop()
 
 	// Network Discovery beim Start (wenn keine Targets konfiguriert)
-	if len(cfg.ScanTargets) == 0 || (len(cfg.ScanTargets) == 1 && cfg.ScanTargets[0] == "localhost") {
+	cfgMu.RLock()
+	needsDiscovery := len(cfg.ScanTargets) == 0 || (len(cfg.ScanTargets) == 1 && cfg.ScanTargets[0] == "localhost")
+	cfgMu.RUnlock()
+	if needsDiscovery {
 		log.Info("No targets configured - running network discovery...")
 		runNetworkDiscovery(ctx, networkScanner, certScanner, supabaseClient, cfg)
 	} else {
@@ -110,13 +119,19 @@ func main() {
 		select {
 		case <-scanTicker.C:
 			// Check ob Discovery oder normale Scans
-			if len(cfg.ScanTargets) == 0 || (len(cfg.ScanTargets) == 1 && cfg.ScanTargets[0] == "localhost") {
+			cfgMu.RLock()
+			needsDiscovery := len(cfg.ScanTargets) == 0 || (len(cfg.ScanTargets) == 1 && cfg.ScanTargets[0] == "localhost")
+			cfgMu.RUnlock()
+			if needsDiscovery {
 				runNetworkDiscovery(ctx, networkScanner, certScanner, supabaseClient, cfg)
 			} else {
 				runScan(ctx, certScanner, supabaseClient, cfg)
 			}
 		case <-heartbeatTicker.C:
-			if cfg.ConnectorID != "" {
+			cfgMu.RLock()
+			connectorID := cfg.ConnectorID
+			cfgMu.RUnlock()
+			if connectorID != "" {
 				if err := supabaseClient.UpdateConnectorHeartbeat(ctx); err != nil {
 					log.WithError(err).Warn("Failed to update heartbeat")
 				} else {
@@ -126,7 +141,10 @@ func main() {
 		case <-sigChan:
 			log.Info("Shutting down gracefully...")
 			// Update connector status to offline
-			if cfg.ConnectorID != "" {
+			cfgMu.RLock()
+			connectorID := cfg.ConnectorID
+			cfgMu.RUnlock()
+			if connectorID != "" {
 				log.Info("Marking connector as offline...")
 			}
 			return
@@ -144,7 +162,11 @@ func startConfigPolling(ctx context.Context, client *supabase.Client, cfg *confi
 		select {
 		case <-ticker.C:
 			// Config vom Backend holen und ggf. aktualisieren
-			newConfig, err := client.GetConnectorConfig(ctx, cfg.ConnectorID)
+			cfgMu.RLock()
+			connectorID := cfg.ConnectorID
+			cfgMu.RUnlock()
+
+			newConfig, err := client.GetConnectorConfig(ctx, connectorID)
 			if err != nil {
 				log.WithError(err).Debug("Failed to fetch config")
 				continue
@@ -160,7 +182,9 @@ func startConfigPolling(ctx context.Context, client *supabase.Client, cfg *confi
 						}
 					}
 					if len(newTargets) > 0 {
+						cfgMu.Lock()
 						cfg.ScanTargets = newTargets
+						cfgMu.Unlock()
 						log.WithField("targets", newTargets).Info("Updated scan targets from backend")
 					}
 				}
@@ -173,7 +197,9 @@ func startConfigPolling(ctx context.Context, client *supabase.Client, cfg *confi
 						}
 					}
 					if len(newPorts) > 0 {
+						cfgMu.Lock()
 						cfg.ScanPorts = newPorts
+						cfgMu.Unlock()
 						log.WithField("ports", newPorts).Info("Updated scan ports from backend")
 					}
 				}
@@ -183,7 +209,7 @@ func startConfigPolling(ctx context.Context, client *supabase.Client, cfg *confi
 					if triggerScan > 0 {
 						log.Info("Triggered scan from backend - running scan now...")
 						// Lösche Trigger
-						client.ClearScanTrigger(ctx, cfg.ConnectorID)
+						client.ClearScanTrigger(ctx, connectorID)
 					}
 				}
 			}
@@ -196,9 +222,15 @@ func startConfigPolling(ctx context.Context, client *supabase.Client, cfg *confi
 func runNetworkDiscovery(ctx context.Context, networkScanner *scanner.NetworkScanner, certScanner *scanner.Scanner, client *supabase.Client, cfg *config.Config) {
 	startTime := time.Now()
 	log.Info("Starting network discovery...")
-	
+
+	// Snapshot mutable config fields under read lock
+	cfgMu.RLock()
+	connectorName := cfg.ConnectorName
+	tenantID := cfg.TenantID
+	cfgMu.RUnlock()
+
 	// Send Log zu UI
-	client.SendLog(ctx, cfg.ConnectorName, "info", "🌐 Netzwerk-Scan gestartet... Scanne alle privaten IP-Bereiche", map[string]interface{}{
+	client.SendLog(ctx, connectorName, "info", "🌐 Netzwerk-Scan gestartet... Scanne alle privaten IP-Bereiche", map[string]interface{}{
 		"scan_mode": "auto-discovery",
 	})
 	
@@ -211,7 +243,7 @@ func runNetworkDiscovery(ctx context.Context, networkScanner *scanner.NetworkSca
 	hosts, err := networkScanner.DiscoverLocalNetwork(ctx, progressCallback)
 	if err != nil {
 		log.WithError(err).Error("Network discovery failed")
-		client.SendLog(ctx, cfg.ConnectorName, "error", fmt.Sprintf("❌ Netzwerk-Scan fehlgeschlagen: %v", err), nil)
+		client.SendLog(ctx, connectorName, "error", fmt.Sprintf("❌ Netzwerk-Scan fehlgeschlagen: %v", err), nil)
 		return
 	}
 
@@ -220,7 +252,7 @@ func runNetworkDiscovery(ctx context.Context, networkScanner *scanner.NetworkSca
 		"hosts_found": len(hosts),
 		"duration":    scanDuration,
 	}).Info("Network discovery completed")
-	client.SendLog(ctx, cfg.ConnectorName, "info", fmt.Sprintf("✅ Netzwerk-Scan abgeschlossen: %d Hosts in %s gefunden", len(hosts), scanDuration.Round(time.Second)), map[string]interface{}{
+	client.SendLog(ctx, connectorName, "info", fmt.Sprintf("✅ Netzwerk-Scan abgeschlossen: %d Hosts in %s gefunden", len(hosts), scanDuration.Round(time.Second)), map[string]interface{}{
 		"hosts_found": len(hosts),
 		"duration_ms": scanDuration.Milliseconds(),
 	})
@@ -242,7 +274,7 @@ func runNetworkDiscovery(ctx context.Context, networkScanner *scanner.NetworkSca
 			if len(host.Services) > 0 {
 				servicesStr = strings.Join(host.Services, ", ")
 			}
-			client.SendLog(ctx, cfg.ConnectorName, "info", fmt.Sprintf("🌐 Host gefunden: %s (%d Ports: %s)", host.IPAddress, len(host.OpenPorts), servicesStr), map[string]interface{}{
+			client.SendLog(ctx, connectorName, "info", fmt.Sprintf("🌐 Host gefunden: %s (%d Ports: %s)", host.IPAddress, len(host.OpenPorts), servicesStr), map[string]interface{}{
 				"ip":         host.IPAddress,
 				"open_ports": host.OpenPorts,
 				"services":   host.Services,
@@ -277,7 +309,7 @@ func runNetworkDiscovery(ctx context.Context, networkScanner *scanner.NetworkSca
 				cert.AssetID = assetID
 			}
 
-			cert.TenantID = cfg.TenantID
+			cert.TenantID = tenantID
 
 			// Certificate upserten
 			if err := client.UpsertCertificate(ctx, cert); err != nil {
@@ -295,7 +327,7 @@ func runNetworkDiscovery(ctx context.Context, networkScanner *scanner.NetworkSca
 			}).Info("Certificate discovered and reported")
 			
 			// Send Log zu UI
-			client.SendLog(ctx, cfg.ConnectorName, "info", fmt.Sprintf("🔐 Zertifikat gefunden: %s auf %s:%d", cert.SubjectCN, host.IPAddress, port), map[string]interface{}{
+			client.SendLog(ctx, connectorName, "info", fmt.Sprintf("🔐 Zertifikat gefunden: %s auf %s:%d", cert.SubjectCN, host.IPAddress, port), map[string]interface{}{
 				"host":       host.IPAddress,
 				"port":       port,
 				"subject_cn": cert.SubjectCN,
@@ -311,7 +343,7 @@ func runNetworkDiscovery(ctx context.Context, networkScanner *scanner.NetworkSca
 	
 	// Send Final Log
 	totalDuration := time.Since(startTime)
-	client.SendLog(ctx, cfg.ConnectorName, "info", fmt.Sprintf("✅ Scan abgeschlossen: %d Hosts, %d Zertifikate gefunden, %d Fehler (Dauer: %s)", len(hosts), successCount, failCount, totalDuration.Round(time.Second)), map[string]interface{}{
+	client.SendLog(ctx, connectorName, "info", fmt.Sprintf("✅ Scan abgeschlossen: %d Hosts, %d Zertifikate gefunden, %d Fehler (Dauer: %s)", len(hosts), successCount, failCount, totalDuration.Round(time.Second)), map[string]interface{}{
 		"hosts_found":   len(hosts),
 		"certificates":  successCount,
 		"errors":        failCount,
@@ -356,8 +388,18 @@ func runScan(ctx context.Context, scanner *scanner.Scanner, client *supabase.Cli
 	successCount := 0
 	failCount := 0
 
-	for _, target := range cfg.ScanTargets {
-		for _, port := range cfg.ScanPorts {
+	// Snapshot mutable config fields under read lock
+	cfgMu.RLock()
+	targets := make([]string, len(cfg.ScanTargets))
+	copy(targets, cfg.ScanTargets)
+	ports := make([]int, len(cfg.ScanPorts))
+	copy(ports, cfg.ScanPorts)
+	tenantID := cfg.TenantID
+	connectorID := cfg.ConnectorID
+	cfgMu.RUnlock()
+
+	for _, target := range targets {
+		for _, port := range ports {
 			log.WithFields(logrus.Fields{
 				"host": target,
 				"port": port,
@@ -376,7 +418,7 @@ func runScan(ctx context.Context, scanner *scanner.Scanner, client *supabase.Cli
 
 			// Upsert Asset first (wenn TenantID verfügbar)
 			var assetID string
-			if cfg.TenantID != "" && cfg.ConnectorID != "" {
+			if tenantID != "" && connectorID != "" {
 				assetID, err = client.UpsertAsset(ctx, target, port)
 				if err != nil {
 					log.WithFields(logrus.Fields{
@@ -395,8 +437,8 @@ func runScan(ctx context.Context, scanner *scanner.Scanner, client *supabase.Cli
 			}
 
 			// Setze TenantID
-			if cfg.TenantID != "" {
-				cert.TenantID = cfg.TenantID
+			if tenantID != "" {
+				cert.TenantID = tenantID
 			}
 
 			// Send certificate to Supabase

@@ -412,6 +412,7 @@ export default function SSLHealth() {
                 <button
                   onClick={() => setSelectedCheck(null)}
                   className="text-gray-400 hover:text-gray-600"
+                  aria-label="Schließen"
                 >
                   ✕
                 </button>

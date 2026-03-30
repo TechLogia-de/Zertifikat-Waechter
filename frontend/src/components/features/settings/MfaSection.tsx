@@ -1,3 +1,4 @@
+import { memo } from 'react'
 interface MfaSectionProps {
   mfaLoading: boolean
   mfaSuccess: string | null
@@ -23,7 +24,7 @@ interface MfaSectionProps {
 /**
  * MFA/TOTP settings section: shows status, enrollment QR code, verification, and disable controls.
  */
-export default function MfaSection({
+function MfaSection({
   mfaLoading,
   mfaSuccess,
   mfaError,
@@ -260,3 +261,5 @@ function MfaStartView({ enrolling, onInitiateEnrollment }: { enrolling: boolean;
     </div>
   )
 }
+
+export default memo(MfaSection)

@@ -1,8 +1,10 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+const ALLOWED_ORIGIN = Deno.env.get('CORS_ORIGIN') || '*'
+
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
@@ -44,41 +46,86 @@ async function generateSignature(payload: string, secret: string): Promise<strin
   return hashHex
 }
 
-// URL-Validierung: Blockiere private IP-Ranges
-function validateWebhookUrl(url: string): void {
+// Check if an IP address belongs to a private/reserved range
+function isPrivateIP(ip: string): boolean {
+  // IPv4 private ranges
+  const ipv4Parts = ip.split('.').map(Number)
+  if (ipv4Parts.length === 4 && ipv4Parts.every(p => p >= 0 && p <= 255)) {
+    const [a, b] = ipv4Parts
+    if (a === 127) return true                              // 127.0.0.0/8 loopback
+    if (a === 10) return true                               // 10.0.0.0/8 private
+    if (a === 172 && b >= 16 && b <= 31) return true        // 172.16.0.0/12 private
+    if (a === 192 && b === 168) return true                 // 192.168.0.0/16 private
+    if (a === 169 && b === 254) return true                 // 169.254.0.0/16 link-local
+    if (a === 0) return true                                // 0.0.0.0/8
+    return false
+  }
+
+  // IPv6 private ranges
+  const normalized = ip.toLowerCase()
+  if (normalized === '::1') return true                     // IPv6 loopback
+  if (normalized.startsWith('fc') || normalized.startsWith('fd')) return true  // fc00::/7 unique local
+  if (normalized.startsWith('fe80')) return true            // fe80::/10 link-local
+  if (normalized === '::') return true                      // unspecified address
+
+  return false
+}
+
+// URL validation: block private IP ranges using proper DNS resolution
+async function validateWebhookUrl(url: string): Promise<void> {
+  let parsed: URL
   try {
-    const parsed = new URL(url)
-    
-    // Nur HTTPS erlauben (außer localhost)
-    if (parsed.protocol !== 'https:' && !parsed.hostname.includes('localhost')) {
-      throw new Error('Only HTTPS URLs are allowed (except localhost)')
-    }
+    parsed = new URL(url)
+  } catch {
+    throw new Error('Invalid webhook URL: malformed URL')
+  }
 
-    const hostname = parsed.hostname.toLowerCase()
-    
-    // Private IP-Ranges blockieren
-    const privatePatterns = [
-      /^10\./,
-      /^172\.(1[6-9]|2[0-9]|3[0-1])\./,
-      /^192\.168\./,
-      /^169\.254\./,
-      /^::1$/,
-      /^fe80:/,
-      /^fc00:/,
-      /^127\./,
-    ]
+  // Only allow HTTPS
+  if (parsed.protocol !== 'https:') {
+    throw new Error('Only HTTPS URLs are allowed')
+  }
 
-    // localhost ist OK
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return
-    }
+  const hostname = parsed.hostname.toLowerCase()
 
-    // Prüfe private IPs
-    if (privatePatterns.some(pattern => pattern.test(hostname))) {
-      throw new Error('Private IP addresses are not allowed')
+  // Block localhost and common loopback aliases
+  if (hostname === 'localhost' || hostname === 'localhost.localdomain') {
+    throw new Error('Loopback addresses are not allowed')
+  }
+
+  // If hostname looks like a raw IP, check it directly
+  if (isPrivateIP(hostname)) {
+    throw new Error('Private IP addresses are not allowed')
+  }
+
+  // Resolve hostname to IP addresses and verify none are private
+  try {
+    const resolved = await Deno.resolveDns(hostname, 'A')
+    for (const ip of resolved) {
+      if (isPrivateIP(ip)) {
+        throw new Error(`Hostname resolves to private IP address (${ip})`)
+      }
     }
-  } catch (err) {
-    throw new Error(`Invalid webhook URL: ${err.message}`)
+  } catch (err: any) {
+    // If the error is one we threw ourselves, re-throw it
+    if (err.message.includes('private IP') || err.message.includes('Loopback')) {
+      throw err
+    }
+    // DNS resolution failed - also try AAAA records before giving up
+  }
+
+  // Also check AAAA records for IPv6
+  try {
+    const resolved = await Deno.resolveDns(hostname, 'AAAA')
+    for (const ip of resolved) {
+      if (isPrivateIP(ip)) {
+        throw new Error(`Hostname resolves to private IPv6 address (${ip})`)
+      }
+    }
+  } catch (err: any) {
+    if (err.message.includes('private IP')) {
+      throw err
+    }
+    // AAAA resolution failure is not fatal
   }
 }
 
@@ -201,7 +248,7 @@ serve(async (req) => {
 
     // URL validieren
     try {
-      validateWebhookUrl(config.url)
+      await validateWebhookUrl(config.url)
     } catch (err: any) {
       console.error('Invalid webhook URL:', err.message)
       return new Response(

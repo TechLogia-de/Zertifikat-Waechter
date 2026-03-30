@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, memo} from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import LoadingState from '../ui/LoadingState'
@@ -15,7 +15,7 @@ interface ActivityTimelineProps {
   limit?: number
 }
 
-export default function ActivityTimeline({ tenantId, limit = 10 }: ActivityTimelineProps) {
+function ActivityTimeline({ tenantId, limit = 10 }: ActivityTimelineProps) {
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -246,3 +246,4 @@ export default function ActivityTimeline({ tenantId, limit = 10 }: ActivityTimel
   )
 }
 
+export default memo(ActivityTimeline)

@@ -86,8 +86,6 @@ export default function APIKeys() {
 
   async function createAPIKey() {
     try {
-      console.log('Creating API Key...', formData)
-      
       const randomKey = generateAPIKey()
       const keyHash = await hashKey(randomKey)
       const keyPrefix = randomKey.substring(0, 8)
@@ -244,7 +242,6 @@ export default function APIKeys() {
           {activeTab === 'keys' && (
             <button
               onClick={() => {
-                console.log('Opening modal, current state:', showCreateModal)
                 setShowCreateModal(true)
               }}
               className="flex items-center justify-center space-x-1.5 px-3 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-medium text-sm hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg shadow-blue-500/20 whitespace-nowrap"
