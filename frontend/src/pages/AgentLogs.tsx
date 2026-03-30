@@ -274,6 +274,33 @@ export default function AgentLogs() {
           </div>
           </div>
 
+          {/* Log Level Stats */}
+          {logs.length > 0 && (
+            <div className="grid grid-cols-4 gap-3 mb-4">
+              {(['info', 'warning', 'error', 'debug'] as const).map((level) => {
+                const count = logs.filter(l => l.level === level).length
+                const configs = {
+                  info: { bg: 'from-blue-500/20 to-blue-600/10', border: 'border-blue-500/30', text: 'text-blue-400', icon: 'ℹ️', label: 'Info' },
+                  warning: { bg: 'from-yellow-500/20 to-yellow-600/10', border: 'border-yellow-500/30', text: 'text-yellow-400', icon: '⚠️', label: 'Warn' },
+                  error: { bg: 'from-red-500/20 to-red-600/10', border: 'border-red-500/30', text: 'text-red-400', icon: '❌', label: 'Error' },
+                  debug: { bg: 'from-slate-500/20 to-slate-600/10', border: 'border-slate-500/30', text: 'text-slate-400', icon: '🔧', label: 'Debug' },
+                }
+                const cfg = configs[level]
+                return (
+                  <button
+                    key={level}
+                    onClick={() => setSelectedLevel(selectedLevel === level ? 'all' : level)}
+                    className={`bg-gradient-to-br ${cfg.bg} rounded-xl border ${cfg.border} p-3 text-center transition-all hover:scale-105 ${selectedLevel === level ? 'ring-2 ring-offset-1 ring-offset-[#F8FAFC] ring-blue-400' : ''}`}
+                  >
+                    <span className="text-lg block">{cfg.icon}</span>
+                    <p className={`text-xl font-bold ${cfg.text}`}>{count}</p>
+                    <p className="text-[10px] text-[#94A3B8] font-medium">{cfg.label}</p>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
           {/* Logs */}
           <div className="bg-[#1E293B] rounded-xl border border-[#334155] overflow-hidden">
           <div className="px-4 py-3 border-b border-[#334155] bg-[#0F172A] flex items-center justify-between">
@@ -281,12 +308,14 @@ export default function AgentLogs() {
               <span className="text-white font-semibold">📋 Live Logs</span>
               <Badge variant="success">{logs.length} Einträge</Badge>
             </div>
-            <button
-              onClick={() => fetchLogs()}
-              className="px-3 py-1 bg-[#334155] hover:bg-[#475569] text-white text-xs rounded transition-colors"
-            >
-              🔄 Aktualisieren
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => fetchLogs()}
+                className="px-3 py-1 bg-[#334155] hover:bg-[#475569] text-white text-xs rounded transition-colors"
+              >
+                🔄 Aktualisieren
+              </button>
+            </div>
           </div>
 
           <div

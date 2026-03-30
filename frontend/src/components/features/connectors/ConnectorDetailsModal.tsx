@@ -209,6 +209,127 @@ function ConnectorDetailsModal({
           </div>
         )}
 
+        {/* Scan Phases Timeline */}
+        {(discoveryResults.length > 0 || isScanning) && (
+          <div className="bg-white rounded-xl p-4 border border-[#E2E8F0]">
+            <h4 className="font-bold text-[#0F172A] mb-3 text-sm">📋 Scan-Phasen</h4>
+            <div className="flex items-center justify-between gap-1">
+              {[
+                { phase: 'init', label: 'Start', icon: '🚀' },
+                { phase: 'discovery', label: 'Host-Scan', icon: '🔍' },
+                { phase: 'classification', label: 'Erkennung', icon: '🏷️' },
+                { phase: 'tls-scan', label: 'TLS-Analyse', icon: '🔐' },
+                { phase: 'completed', label: 'Fertig', icon: '✅' },
+              ].map((step, idx) => {
+                const currentPhase = isScanning
+                  ? (scanProgress?.status?.includes('Netzwerk') ? 'discovery' : scanProgress?.status?.includes('Analysiere') ? 'tls-scan' : 'init')
+                  : discoveryResults.length > 0 ? 'completed' : 'init'
+                const phases = ['init', 'discovery', 'classification', 'tls-scan', 'completed']
+                const currentIdx = phases.indexOf(currentPhase)
+                const stepIdx = phases.indexOf(step.phase)
+                const isActive = stepIdx === currentIdx
+                const isDone = stepIdx < currentIdx
+                const isFuture = stepIdx > currentIdx
+
+                return (
+                  <div key={step.phase} className="flex flex-col items-center flex-1">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm mb-1 transition-all duration-500 ${
+                      isActive ? 'bg-blue-500 text-white ring-4 ring-blue-200 animate-pulse' :
+                      isDone ? 'bg-green-500 text-white' :
+                      'bg-gray-100 text-gray-400'
+                    }`}>
+                      {isDone ? '✓' : step.icon}
+                    </div>
+                    <span className={`text-[9px] font-medium text-center leading-tight ${
+                      isActive ? 'text-blue-600' : isDone ? 'text-green-600' : 'text-gray-400'
+                    }`}>{step.label}</span>
+                    {idx < 4 && (
+                      <div className={`absolute h-0.5 w-full ${isDone ? 'bg-green-400' : 'bg-gray-200'}`} style={{display:'none'}}></div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+            {/* Progress connector line */}
+            <div className="mt-2 mx-4 h-1 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-green-400 to-blue-500 rounded-full transition-all duration-700"
+                style={{
+                  width: isScanning
+                    ? `${scanProgress ? Math.min((scanProgress.current / scanProgress.total) * 100, 95) : 20}%`
+                    : discoveryResults.length > 0 ? '100%' : '0%'
+                }}
+              ></div>
+            </div>
+          </div>
+        )}
+
+        {/* Network Mini-Map */}
+        {discoveryResults.length > 0 && (
+          <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-xl p-4 border border-slate-700">
+            <h4 className="font-bold text-white mb-3 text-sm flex items-center gap-2">
+              🗺️ Netzwerk-Karte
+            </h4>
+            <div className="relative w-full" style={{ height: '260px' }}>
+              <svg viewBox="0 0 600 260" className="w-full h-full">
+                {/* Connection lines from center to each device */}
+                {discoveryResults.slice(0, 20).map((result: any, idx: number) => {
+                  const angle = (idx / Math.min(discoveryResults.length, 20)) * Math.PI * 2 - Math.PI / 2
+                  const radiusX = 220
+                  const radiusY = 100
+                  const x = 300 + Math.cos(angle) * radiusX
+                  const y = 130 + Math.sin(angle) * radiusY
+                  return (
+                    <line key={`line-${idx}`} x1="300" y1="130" x2={x} y2={y}
+                      stroke={result.is_gateway ? '#FBBF24' : '#475569'} strokeWidth={result.is_gateway ? 2 : 1}
+                      strokeDasharray={result.is_gateway ? '' : '4 4'} opacity={0.5} />
+                  )
+                })}
+                {/* Device nodes */}
+                {discoveryResults.slice(0, 20).map((result: any, idx: number) => {
+                  const angle = (idx / Math.min(discoveryResults.length, 20)) * Math.PI * 2 - Math.PI / 2
+                  const radiusX = 220
+                  const radiusY = 100
+                  const x = 300 + Math.cos(angle) * radiusX
+                  const y = 130 + Math.sin(angle) * radiusY
+                  const devType = result.device_type || 'unknown'
+                  const nodeColors: Record<string, string> = {
+                    router: '#F97316', firewall: '#EF4444', server: '#3B82F6', nas: '#8B5CF6',
+                    printer: '#F59E0B', hypervisor: '#6366F1', switch: '#06B6D4',
+                    'access-point': '#14B8A6', 'network-device': '#64748B', unknown: '#94A3B8',
+                    'management-controller': '#475569', camera: '#EC4899', 'voip-device': '#10B981',
+                  }
+                  const color = nodeColors[devType] || '#94A3B8'
+                  const nodeIcons: Record<string, string> = {
+                    router: '🌐', firewall: '🛡️', server: '🖥️', nas: '💾', printer: '🖨️',
+                    hypervisor: '☁️', switch: '🔀', 'access-point': '📡', camera: '📷',
+                    'voip-device': '📞', 'network-device': '📟', 'management-controller': '🎛️', unknown: '❓',
+                  }
+                  return (
+                    <g key={`node-${idx}`}>
+                      <circle cx={x} cy={y} r={result.is_gateway ? 20 : 16}
+                        fill={color} opacity={0.9} stroke={result.is_gateway ? '#FBBF24' : 'none'} strokeWidth={result.is_gateway ? 3 : 0} />
+                      <text x={x} y={y + 1} textAnchor="middle" dominantBaseline="central"
+                        fontSize="12" className="select-none">{nodeIcons[devType] || '❓'}</text>
+                      <text x={x} y={y + 28} textAnchor="middle" fill="#94A3B8" fontSize="8"
+                        className="select-none">{result.hostname?.split('.')[0] || result.ip_address}</text>
+                    </g>
+                  )
+                })}
+                {/* Center node (Scanner) */}
+                <circle cx="300" cy="130" r="24" fill="#3B82F6" stroke="#60A5FA" strokeWidth="3" />
+                <text x="300" y="131" textAnchor="middle" dominantBaseline="central" fontSize="16" className="select-none">🤖</text>
+                <text x="300" y="160" textAnchor="middle" fill="#94A3B8" fontSize="9" fontWeight="bold" className="select-none">AGENT</text>
+              </svg>
+              {discoveryResults.length > 20 && (
+                <div className="absolute bottom-1 right-2 text-[10px] text-slate-500">
+                  +{discoveryResults.length - 20} weitere Geräte
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Discovery Results (Network Scan) - Enhanced */}
         {loadingDetails ? (
           <div className="text-center py-6 text-[#64748B]">

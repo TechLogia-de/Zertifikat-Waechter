@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
 import { useAuth } from '../hooks/useAuth'
 import { useTenantId } from '../hooks/useTenantId'
 import { supabase } from '../lib/supabase'
@@ -473,45 +474,105 @@ export default function Dashboard() {
           </ul>
         </PageInfoBox>
 
-        {/* Network Device Overview */}
+        {/* Network Device Overview - Charts */}
         {Object.keys(deviceTypeCounts).length > 0 && (
           <div className="mb-6 sm:mb-8">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg sm:text-xl font-bold text-[#0F172A] flex items-center gap-2">
                 <span>🏷️</span>
-                <span>Erkannte Geräte im Netzwerk</span>
+                <span>Netzwerk-Geräte</span>
               </h3>
               <Link
                 to="/connectors"
                 className="text-sm text-[#3B82F6] hover:text-[#2563EB] font-medium flex items-center gap-1"
               >
-                Details anzeigen
+                Details
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </Link>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-              {Object.entries(deviceTypeCounts)
-                .sort(([, a], [, b]) => b - a)
-                .map(([type, count]) => {
-                  const icons: Record<string, string> = { router: '🌐', firewall: '🛡️', switch: '🔀', server: '🖥️', nas: '💾', printer: '🖨️', hypervisor: '☁️', 'management-controller': '🎛️', 'access-point': '📡', camera: '📷', 'voip-device': '📞', 'network-device': '📟', unknown: '❓' }
-                  const labels: Record<string, string> = { router: 'Router', firewall: 'Firewall', switch: 'Switch', server: 'Server', nas: 'NAS', printer: 'Drucker', hypervisor: 'Hypervisor', 'management-controller': 'Management', 'access-point': 'Access-Point', camera: 'Kamera', 'voip-device': 'VoIP', 'network-device': 'Netzwerk', unknown: 'Unbekannt' }
-                  return (
-                    <div key={type} className="bg-white rounded-xl border border-[#E2E8F0] p-3 sm:p-4 text-center hover:shadow-md transition-shadow">
-                      <span className="text-2xl block mb-1">{icons[type] || '❓'}</span>
-                      <p className="text-2xl font-bold text-[#0F172A]">{count}</p>
-                      <p className="text-[10px] font-medium text-[#64748B] uppercase tracking-wide mt-0.5">{labels[type] || type}</p>
-                    </div>
-                  )
-                })}
-              {gatewayCount > 0 && (
-                <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-xl border-2 border-yellow-200 p-3 sm:p-4 text-center">
-                  <span className="text-2xl block mb-1">⭐</span>
-                  <p className="text-2xl font-bold text-amber-700">{gatewayCount}</p>
-                  <p className="text-[10px] font-medium text-amber-600 uppercase tracking-wide mt-0.5">Gateways</p>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Pie Chart */}
+              <div className="bg-white rounded-xl border border-[#E2E8F0] p-4 sm:p-6">
+                <h4 className="text-sm font-semibold text-[#64748B] mb-3">Geräteverteilung</h4>
+                <ResponsiveContainer width="100%" height={220}>
+                  <PieChart>
+                    <Pie
+                      data={Object.entries(deviceTypeCounts).map(([type, count]) => ({
+                        name: { router: 'Router', firewall: 'Firewall', switch: 'Switch', server: 'Server', nas: 'NAS', printer: 'Drucker', hypervisor: 'Hypervisor', 'management-controller': 'Management', 'access-point': 'AP', camera: 'Kamera', 'voip-device': 'VoIP', 'network-device': 'Netzwerk', unknown: 'Unbekannt' }[type] || type,
+                        value: count,
+                      }))}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={55}
+                      outerRadius={90}
+                      paddingAngle={3}
+                      dataKey="value"
+                      stroke="none"
+                    >
+                      {Object.keys(deviceTypeCounts).map((_, index) => {
+                        const colors = ['#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', '#06B6D4', '#EF4444', '#6366F1', '#14B8A6', '#F97316', '#84CC16', '#A855F7']
+                        return <Cell key={index} fill={colors[index % colors.length]} />
+                      })}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value: number) => [`${value} Geräte`, '']}
+                      contentStyle={{
+                        backgroundColor: '#1E293B',
+                        border: 'none',
+                        borderRadius: '8px',
+                        color: '#F8FAFC',
+                        fontSize: '12px',
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="flex flex-wrap gap-2 mt-2 justify-center">
+                  {Object.entries(deviceTypeCounts).sort(([,a],[,b]) => b - a).map(([type, count], index) => {
+                    const colors = ['#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', '#06B6D4', '#EF4444', '#6366F1', '#14B8A6', '#F97316', '#84CC16', '#A855F7']
+                    const labels: Record<string, string> = { router: 'Router', firewall: 'Firewall', switch: 'Switch', server: 'Server', nas: 'NAS', printer: 'Drucker', hypervisor: 'Hypervisor', 'management-controller': 'Mgmt', 'access-point': 'AP', camera: 'Kamera', 'voip-device': 'VoIP', 'network-device': 'Netzwerk', unknown: '?' }
+                    return (
+                      <div key={type} className="flex items-center gap-1.5 text-xs text-[#64748B]">
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: colors[index % colors.length] }}></div>
+                        <span>{labels[type] || type} ({count})</span>
+                      </div>
+                    )
+                  })}
                 </div>
-              )}
+              </div>
+
+              {/* Right side: Stats Summary */}
+              <div className="bg-white rounded-xl border border-[#E2E8F0] p-4 sm:p-6">
+                <h4 className="text-sm font-semibold text-[#64748B] mb-3">Übersicht</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  {Object.entries(deviceTypeCounts)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([type, count]) => {
+                      const icons: Record<string, string> = { router: '🌐', firewall: '🛡️', switch: '🔀', server: '🖥️', nas: '💾', printer: '🖨️', hypervisor: '☁️', 'management-controller': '🎛️', 'access-point': '📡', camera: '📷', 'voip-device': '📞', 'network-device': '📟', unknown: '❓' }
+                      const labels: Record<string, string> = { router: 'Router', firewall: 'Firewall', switch: 'Switch', server: 'Server', nas: 'NAS', printer: 'Drucker', hypervisor: 'Hypervisor', 'management-controller': 'Management', 'access-point': 'Access-Point', camera: 'Kamera', 'voip-device': 'VoIP', 'network-device': 'Netzwerk', unknown: 'Unbekannt' }
+                      return (
+                        <div key={type} className="flex items-center gap-3 p-2.5 bg-[#F8FAFC] rounded-lg">
+                          <span className="text-xl">{icons[type] || '❓'}</span>
+                          <div>
+                            <p className="text-lg font-bold text-[#0F172A] leading-tight">{count}</p>
+                            <p className="text-[10px] text-[#64748B] font-medium">{labels[type] || type}</p>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  {gatewayCount > 0 && (
+                    <div className="flex items-center gap-3 p-2.5 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-lg border border-yellow-200">
+                      <span className="text-xl">⭐</span>
+                      <div>
+                        <p className="text-lg font-bold text-amber-700 leading-tight">{gatewayCount}</p>
+                        <p className="text-[10px] text-amber-600 font-medium">Gateways</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -693,6 +754,54 @@ export default function Dashboard() {
             )}
           </div>
         </div>
+
+        {/* Certificate Expiry Timeline */}
+        {recentCertificates.length > 0 && (
+          <div className="bg-white rounded-xl border border-[#E2E8F0] p-4 sm:p-6 mb-6 sm:mb-8">
+            <h3 className="text-base sm:text-lg font-semibold text-[#0F172A] mb-4">Zertifikat-Ablauf Übersicht</h3>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart
+                data={recentCertificates.map((cert) => {
+                  const daysLeft = Math.floor((new Date(cert.not_after).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+                  return {
+                    name: cert.subject_cn.length > 20 ? cert.subject_cn.substring(0, 20) + '...' : cert.subject_cn,
+                    tage: Math.max(daysLeft, 0),
+                    fill: daysLeft < 0 ? '#EF4444' : daysLeft < 30 ? '#F59E0B' : daysLeft < 90 ? '#3B82F6' : '#10B981',
+                  }
+                })}
+                layout="vertical"
+                margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 11, fill: '#64748B' }} tickFormatter={(v) => `${v}d`} />
+                <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 11, fill: '#0F172A' }} />
+                <Tooltip
+                  formatter={(value: number) => [`${value} Tage verbleibend`, 'Gültigkeit']}
+                  contentStyle={{
+                    backgroundColor: '#1E293B',
+                    border: 'none',
+                    borderRadius: '8px',
+                    color: '#F8FAFC',
+                    fontSize: '12px',
+                  }}
+                />
+                <Bar dataKey="tage" radius={[0, 6, 6, 0]}>
+                  {recentCertificates.map((cert, index) => {
+                    const daysLeft = Math.floor((new Date(cert.not_after).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+                    const color = daysLeft < 0 ? '#EF4444' : daysLeft < 30 ? '#F59E0B' : daysLeft < 90 ? '#3B82F6' : '#10B981'
+                    return <Cell key={index} fill={color} />
+                  })}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <div className="flex items-center gap-4 mt-3 justify-center text-xs text-[#64748B]">
+              <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-[#10B981]"></div> &gt;90 Tage</div>
+              <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-[#3B82F6]"></div> 30-90 Tage</div>
+              <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-[#F59E0B]"></div> &lt;30 Tage</div>
+              <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-[#EF4444]"></div> Abgelaufen</div>
+            </div>
+          </div>
+        )}
 
         {/* Recent Certificates */}
         {recentCertificates.length > 0 && (

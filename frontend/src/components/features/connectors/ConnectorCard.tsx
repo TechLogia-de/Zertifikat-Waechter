@@ -68,7 +68,7 @@ function ConnectorCard({
                 <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-3 border border-blue-200">
                   <div className="flex items-center justify-between text-xs mb-2">
                     <span className="text-[#0F172A] font-semibold flex items-center gap-1">
-                      <span className="animate-spin">🔄</span>
+                      <span className="inline-block animate-spin">🔄</span>
                       Scanning läuft...
                     </span>
                     <span className="text-blue-600 font-bold">
