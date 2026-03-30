@@ -55,10 +55,11 @@ docker-compose up -d  # Full stack
 │   │   │   ├── features/   # Feature-specific components
 │   │   │   ├── layout/     # Sidebar, Layout wrapper
 │   │   │   └── ui/         # Reusable UI primitives
-│   │   ├── hooks/          # Custom hooks (useAuth, useScanDomain, etc.)
+│   │   ├── hooks/          # Custom hooks (useAuth, useTenantId, useUserRole, useToast, useConfirm, useScanDomain)
 │   │   ├── lib/            # Supabase client init
+│   │   ├── types/          # TypeScript interfaces (database.ts)
 │   │   ├── contexts/       # React contexts (LanguageContext)
-│   │   └── utils/          # Helper functions
+│   │   └── utils/          # Helpers (auditLogger, hashUtils, dateUtils, reportHtmlGenerator, etc.)
 │   ├── vite.config.ts      # Bundler config with CSP headers
 │   ├── tailwind.config.js  # Custom color scheme
 │   └── tsconfig.json       # ES2020 target, path aliases
@@ -76,7 +77,7 @@ docker-compose up -d  # Full stack
 │   ├── manifest.json       # MCP tools definition (8 tools)
 │   └── Dockerfile
 ├── supabase/
-│   ├── migrations/         # 24 SQL migration files (sequential)
+│   ├── migrations/         # 28 SQL migration files (sequential)
 │   └── functions/          # 10 Deno edge functions
 ├── docker-compose.yml      # Multi-service orchestration
 ├── Makefile                # Dev task automation
@@ -95,7 +96,8 @@ docker-compose up -d  # Full stack
 - **Python files**: snake_case
 
 ### Language
-- All documentation, code comments, and UI text are in **German**
+- UI text in **German**
+- Code comments in **English**
 - Configuration examples and environment variables in English
 
 ### Code Style
@@ -105,32 +107,44 @@ docker-compose up -d  # Full stack
 - **MCP Server**: Express middleware pattern, Zod validation, strict TypeScript
 
 ### Security
-- Row Level Security (RLS) on every PostgreSQL table
+- Row Level Security (RLS) on every PostgreSQL table (including agent_logs, discovery_results)
 - Content Security Policy headers in Vite config
-- Helmet.js + CORS + rate limiting on MCP server
-- JWT + API key authentication
+- Helmet.js + CORS (configurable origin) + rate limiting on MCP server
+- JWT + API key authentication (HMAC-SHA256 hashed keys)
 - PKCE auth flow via Supabase
 - Multi-tenant isolation by default
+- RBAC via `useUserRole` hook (owner, admin, member, viewer)
+- Soft-delete support (deleted_at columns + partial indexes)
+- XSS prevention (HTML escaping in reports)
+- SSRF protection (DNS resolution + private IP blocking in webhooks)
+- Rate limiting on worker endpoints (10/min email, 30/min scan)
+- SMTP certificate validation (ssl.create_default_context)
 
 ## Database
 
-24 sequential migrations in `supabase/migrations/`. Key tables: assets, certificates, alerts, integrations, connector_tokens, discovery_results, agent_logs, audit events.
+28 sequential migrations in `supabase/migrations/`. Key tables: assets, certificates, alerts, integrations, connectors, discovery_results, agent_logs, events (audit), acme_accounts, acme_orders, api_keys, ssl_checks, webhook_deliveries, policies.
+
+Notable migrations:
+- `00025` - Enables RLS on agent_logs + discovery_results
+- `00026` - Performance indexes (6 composite indexes)
+- `00027` - Soft-delete support (deleted_at + partial indexes)
+- `00028` - Configurable alert_interval_hours per tenant
 
 Run `make migrate` to apply. Run `make types` to regenerate TypeScript types.
 
 ## Edge Functions (Supabase)
 
 Located in `supabase/functions/`:
-- `scan-certificates/` - Certificate scanning
-- `scan-domain/` - Domain-specific scanning
-- `send-alerts/` - Alert delivery
-- `send-test-email/` - SMTP testing
-- `send-webhook/` - Webhook delivery
-- `generate-report/` - Report generation (PDF/CSV)
-- `process-acme-orders/` - ACME order processing
-- `process-webhook-queue/` - Webhook queue processing
-- `ssl-health-check/` - SSL health checks
-- `test-cloudflare/` - Cloudflare integration testing
+- `scan-certificates/` - Real TLS scanning with DER/ASN.1 X.509 parsing
+- `scan-domain/` - Domain-specific TLS scanning with ALPN detection
+- `send-alerts/` - Multi-channel delivery (SMTP, Slack, Teams, Webhooks)
+- `send-test-email/` - SMTP connection testing
+- `send-webhook/` - HMAC-signed webhook delivery with retry + SSRF protection
+- `generate-report/` - HTML/CSV report generation with hash-chain verification
+- `process-acme-orders/` - ACME DNS-01 (Cloudflare) + HTTP-01 challenge processing
+- `process-webhook-queue/` - Webhook delivery queue processor
+- `ssl-health-check/` - Deep TLS analysis (ALPN, ciphers, chain validation, scoring)
+- `test-cloudflare/` - Cloudflare API token + zone verification
 
 ## Environment Variables
 
@@ -154,9 +168,20 @@ RATE_LIMIT_WINDOW_MS, RATE_LIMIT_MAX_REQUESTS
 ```bash
 make test                              # All: frontend + agent + worker
 cd frontend && npx vitest run          # Frontend (Vitest + React Testing Library)
-cd agent && go test ./...              # Go agent (config, scanner tests)
+cd agent && go test ./...              # Go agent (config, scanner, discovery tests)
 cd worker && pytest                    # Python worker (pytest)
 cd mcp-server && npx vitest run        # MCP server (Vitest)
+
+## Key Frontend Hooks
+
+| Hook | Purpose |
+|------|---------|
+| `useAuth` | Authentication state, login/logout, session management |
+| `useTenantId` | Cached tenant_id lookup (shared across all pages) |
+| `useUserRole` | RBAC role check (owner/admin/member/viewer) |
+| `useToast` | Toast notifications (max 5, auto-dismiss) |
+| `useConfirm` | Modal-based confirmation dialogs |
+| `useScanDomain` | Domain TLS scanning via edge function |
 ```
 
 ## Linting & Code Quality
@@ -172,9 +197,9 @@ Config files: `frontend/.eslintrc.cjs`, `.prettierrc`, `agent/.golangci.yml`, `w
 ## Docker & CI/CD
 
 - GitHub Actions in `.github/workflows/`
-- `docker-publish.yml` - Builds and publishes multi-arch images (amd64 + arm64) to `ghcr.io/techlogia-de/`
+- `docker-publish.yml` - Runs tests + builds multi-arch images (amd64 + arm64) to `ghcr.io/techlogia-de/`
 - `deploy-pages.yml` - GitHub Pages deployment
-- Images: `zertifikat-waechter-agent`, `zertifikat-waechter-worker`, `zertifikat-waechter-mcp-server`
+- Images: `zertifikat-waechter-agent`, `zertifikat-waechter-worker`, `zertifikat-waechter-mcp-server`, `zertifikat-waechter-frontend`
 
 ## Dependencies (Key)
 
