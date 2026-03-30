@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
+import DarkModeToggle from '../ui/DarkModeToggle'
 
 interface SidebarProps {
   isOpen?: boolean
@@ -51,8 +52,8 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       {/* Sidebar */}
       <aside className={`
         fixed lg:static inset-y-0 left-0 z-50
-        w-72 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 h-screen flex flex-col
-        border-r border-slate-700/50 shadow-2xl
+        w-72 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 h-screen flex flex-col
+        border-r border-slate-700/50 dark:border-gray-700 shadow-2xl
         transform transition-all duration-300 ease-in-out
         ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
@@ -136,6 +137,9 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           <div className="px-3 py-2 bg-slate-800/60 rounded-lg border border-slate-700/50 flex-1">
             <p className="text-xs text-slate-400">v1.0.0</p>
           </div>
+
+          {/* Dark Mode Toggle */}
+          <DarkModeToggle />
 
           {/* Logout */}
           <button

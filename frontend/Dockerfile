@@ -48,12 +48,19 @@ server {
     location = /index.html {
         add_header Cache-Control "no-cache, no-store, must-revalidate";
     }
+
+    # Health check endpoint
+    location /healthz {
+        access_log off;
+        return 200 'ok';
+        add_header Content-Type text/plain;
+    }
 }
 NGINXEOF
 
 EXPOSE 80
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget -q --spider http://localhost:80/ || exit 1
+  CMD wget -q --spider http://localhost:80/healthz || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]

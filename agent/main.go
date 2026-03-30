@@ -14,6 +14,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"
 	"github.com/zertifikat-waechter/agent/config"
+	"github.com/zertifikat-waechter/agent/metrics"
 	"github.com/zertifikat-waechter/agent/scanner"
 	"github.com/zertifikat-waechter/agent/supabase"
 )
@@ -135,6 +136,7 @@ func main() {
 				if err := supabaseClient.UpdateConnectorHeartbeat(ctx); err != nil {
 					log.WithError(err).Warn("Failed to update heartbeat")
 				} else {
+					metrics.SetHeartbeatTimestamp()
 					log.Debug("Heartbeat updated")
 				}
 			}
@@ -350,6 +352,12 @@ func runNetworkDiscovery(ctx context.Context, networkScanner *scanner.NetworkSca
 		"success": successCount,
 		"failed":  failCount,
 	}).Info("Network discovery and certificate scan completed")
+
+	// Update Prometheus metrics
+	metrics.IncScansTotal()
+	metrics.SetScanDuration(time.Since(startTime))
+	metrics.SetHostsDiscovered(len(hosts))
+	metrics.SetCertificatesFound(successCount)
 	
 	// Send Final Log
 	totalDuration := time.Since(startTime)
@@ -378,6 +386,8 @@ func startHealthCheckServer(port string, log *logrus.Logger) {
 		w.Write([]byte("READY"))
 	})
 
+	mux.HandleFunc("/metrics", metrics.Handler())
+
 	addr := ":" + port
 	log.WithField("port", port).Info("Health check server starting")
 
@@ -394,6 +404,7 @@ func startHealthCheckServer(port string, log *logrus.Logger) {
 }
 
 func runScan(ctx context.Context, scanner *scanner.Scanner, client *supabase.Client, cfg *config.Config) {
+	scanStart := time.Now()
 	log.Info("Starting certificate scan")
 	successCount := 0
 	failCount := 0
@@ -480,6 +491,11 @@ func runScan(ctx context.Context, scanner *scanner.Scanner, client *supabase.Cli
 		"failed":  failCount,
 		"total":   successCount + failCount,
 	}).Info("Certificate scan completed")
+
+	// Update Prometheus metrics
+	metrics.IncScansTotal()
+	metrics.SetScanDuration(time.Since(scanStart))
+	metrics.SetCertificatesFound(successCount)
 }
 
 

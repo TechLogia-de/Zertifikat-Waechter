@@ -1,32 +1,51 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { LanguageProvider } from './contexts/LanguageContext'
 import Layout from './components/layout/Layout'
-import Login from './pages/Login'
-import LandingPage from './pages/LandingPage'
-import Documentation from './pages/Documentation'
-import ResetPassword from './pages/ResetPassword'
-import Dashboard from './pages/Dashboard'
-import Certificates from './pages/Certificates'
-import Alerts from './pages/Alerts'
-import Settings from './pages/Settings'
-import Profile from './pages/Profile'
-import Connectors from './pages/Connectors'
-import AgentLogs from './pages/AgentLogs'
-import Integrations from './pages/Integrations'
-import ACME from './pages/ACME'
-import Reports from './pages/Reports'
-import AuditLog from './pages/AuditLog'
-import SSLHealth from './pages/SSLHealth'
-import Compliance from './pages/Compliance'
-import APIKeys from './pages/APIKeys'
-import WebhookLogs from './pages/WebhookLogs'
-import DevSecurity from './pages/DevSecurity'
-import NotFound from './pages/NotFound'
 import LoadingBar from './components/ui/LoadingBar'
 import LoadingState from './components/ui/LoadingState'
 import ErrorBoundary from './components/ui/ErrorBoundary'
+
+// Lazy-loaded page components for route-level code splitting
+const Login = lazy(() => import('./pages/Login'))
+const LandingPage = lazy(() => import('./pages/LandingPage'))
+const Documentation = lazy(() => import('./pages/Documentation'))
+const ResetPassword = lazy(() => import('./pages/ResetPassword'))
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Certificates = lazy(() => import('./pages/Certificates'))
+const Alerts = lazy(() => import('./pages/Alerts'))
+const Settings = lazy(() => import('./pages/Settings'))
+const Profile = lazy(() => import('./pages/Profile'))
+const Connectors = lazy(() => import('./pages/Connectors'))
+const AgentLogs = lazy(() => import('./pages/AgentLogs'))
+const Integrations = lazy(() => import('./pages/Integrations'))
+const ACME = lazy(() => import('./pages/ACME'))
+const Reports = lazy(() => import('./pages/Reports'))
+const AuditLog = lazy(() => import('./pages/AuditLog'))
+const SSLHealth = lazy(() => import('./pages/SSLHealth'))
+const Compliance = lazy(() => import('./pages/Compliance'))
+const APIKeys = lazy(() => import('./pages/APIKeys'))
+const WebhookLogs = lazy(() => import('./pages/WebhookLogs'))
+const DevSecurity = lazy(() => import('./pages/DevSecurity'))
+const NotFound = lazy(() => import('./pages/NotFound'))
+
+// Inline loading fallback for Suspense boundaries
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+      <div className="flex flex-col items-center justify-center gap-3">
+        <div className="relative">
+          <div className="h-12 w-12 rounded-full border-3 border-[#E2E8F0] border-t-[#3B82F6] animate-spin" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-2 h-2 bg-[#3B82F6] rounded-full animate-pulse" />
+          </div>
+        </div>
+        <p className="text-sm text-[#64748B] font-medium animate-pulse">Wird geladen...</p>
+      </div>
+    </div>
+  )
+}
 
 function AppContent() {
   const { user, loading } = useAuth()
@@ -62,6 +81,7 @@ function AppContent() {
   return (
     <>
       <LoadingBar />
+      <Suspense fallback={<LoadingFallback />}>
       <Routes>
         {/* Landing Page - accessible for everyone */}
         <Route path="/" element={<LandingPage />} />
@@ -271,6 +291,7 @@ function AppContent() {
         {/* Catch-all route */}
         <Route path="*" element={user ? <Layout><NotFound /></Layout> : <Navigate to="/" />} />
       </Routes>
+      </Suspense>
     </>
   )
 }

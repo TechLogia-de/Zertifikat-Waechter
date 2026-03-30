@@ -3,7 +3,7 @@ Flask API für SMTP E-Mail Versand und Zertifikat-Scans
 Start: python api.py
 """
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 import smtplib
 from email.mime.text import MIMEText
@@ -22,6 +22,7 @@ from cryptography.hazmat.backends import default_backend
 from urllib.parse import urlparse
 from functools import wraps
 from supabase import create_client, Client
+import metrics as prom_metrics
 
 load_dotenv()
 
@@ -158,6 +159,7 @@ def send_email():
         # Rate limit: 10 requests per minute per API key (or IP)
         rate_key = request.headers.get('Authorization', request.remote_addr or 'unknown')
         if rate_limiter.is_rate_limited(rate_key, '/send-email', max_requests=10, window_seconds=60):
+            prom_metrics.inc("rate_limited")
             return jsonify({'success': False, 'error': 'Rate limit exceeded. Max 10 requests per minute.'}), 429
 
         data = request.json
@@ -319,7 +321,8 @@ Von: {smtp_config['from']}
         server.quit()
 
         print(f"✅ E-Mail erfolgreich gesendet via {smtp_mode}")
-        
+        prom_metrics.inc("emails_sent")
+
         return jsonify({
             'success': True,
             'message': f'E-Mail gesendet an {to} via {smtp_mode}'
@@ -327,6 +330,7 @@ Von: {smtp_config['from']}
 
     except Exception as e:
         print(f"❌ E-Mail-Versand fehlgeschlagen: {str(e)}")
+        prom_metrics.inc("emails_failed")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -340,6 +344,7 @@ def scan_certificate():
         # Rate limit: 30 requests per minute per API key (or IP)
         rate_key = request.headers.get('Authorization', request.remote_addr or 'unknown')
         if rate_limiter.is_rate_limited(rate_key, '/scan-certificate', max_requests=30, window_seconds=60):
+            prom_metrics.inc("rate_limited")
             return jsonify({'success': False, 'error': 'Rate limit exceeded. Max 30 requests per minute.'}), 429
 
         data = request.json
@@ -359,6 +364,7 @@ def scan_certificate():
 
         # TLS-Verbindung aufbauen und Zertifikat abrufen
         cert_data = get_certificate(host, port)
+        prom_metrics.inc("scans")
 
         return jsonify({
             'success': True,
@@ -609,6 +615,12 @@ def get_alerts():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/metrics', methods=['GET'])
+def prometheus_metrics():
+    """Prometheus metrics endpoint"""
+    return Response(prom_metrics.render(), mimetype='text/plain; version=0.0.4; charset=utf-8')
+
+
 @app.route('/health', methods=['GET'])
 def health():
     """Health Check Endpoint"""
@@ -619,7 +631,8 @@ def health():
         'supabase_configured': supabase is not None,
         'endpoints': {
             'public': [
-                'GET /health'
+                'GET /health',
+                'GET /metrics'
             ],
             'internal': [
                 'POST /send-email',
