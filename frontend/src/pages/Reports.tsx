@@ -312,8 +312,6 @@ export default function Reports() {
       URL.revokeObjectURL(url)
 
       showSuccess(`✅ Report heruntergeladen!\n\n📄 Öffne die HTML-Datei und drucke als PDF\n📊 ${stats.totalCerts} Zertifikate`, 12000)
-    } else {
-      clearSuccess()
     }
   }
 

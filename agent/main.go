@@ -70,7 +70,7 @@ func main() {
 			"connector_id": connector.ID,
 			"tenant_id":    connector.TenantID,
 			"name":         connector.Name,
-		}).Info("✅ Connector authenticated successfully!")
+		}).Info("Connector authenticated successfully")
 		
 		cfg.ConnectorID = connector.ID
 		cfg.TenantID = connector.TenantID
@@ -166,13 +166,17 @@ func main() {
 }
 
 func startConfigPolling(ctx context.Context, client *supabase.Client, cfg *config.Config, log *logrus.Logger) {
-	ticker := time.NewTicker(30 * time.Second)
+	const (
+		baseInterval = 30 * time.Second
+		maxInterval  = 5 * time.Minute
+	)
+	interval := baseInterval
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
-			// Config vom Backend holen und ggf. aktualisieren
 			cfgMu.RLock()
 			connectorID := cfg.ConnectorID
 			cfgMu.RUnlock()
@@ -180,7 +184,21 @@ func startConfigPolling(ctx context.Context, client *supabase.Client, cfg *confi
 			newConfig, err := client.GetConnectorConfig(ctx, connectorID)
 			if err != nil {
 				log.WithError(err).Debug("Failed to fetch config")
+				// Exponential backoff on repeated failures
+				if interval < maxInterval {
+					interval = interval * 2
+					if interval > maxInterval {
+						interval = maxInterval
+					}
+					ticker.Reset(interval)
+				}
 				continue
+			}
+
+			// Reset interval on success
+			if interval != baseInterval {
+				interval = baseInterval
+				ticker.Reset(interval)
 			}
 
 			// Config aktualisieren wenn geändert
@@ -295,9 +313,9 @@ func runNetworkDiscovery(ctx context.Context, networkScanner *scanner.NetworkSca
 		}
 
 		// Scanne TLS-Zertifikate auf HTTPS/TLS Ports
-		tlsPorts := []int{}
+		tlsPorts := make([]int, 0, len(host.OpenPorts))
 		for _, port := range host.OpenPorts {
-			if port == 443 || port == 8443 || port == 636 || port == 993 || port == 995 || port == 465 {
+			if scanner.IsTLSPort(port) {
 				tlsPorts = append(tlsPorts, port)
 			}
 		}

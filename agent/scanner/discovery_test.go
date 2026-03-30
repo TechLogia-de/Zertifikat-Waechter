@@ -133,20 +133,18 @@ func TestIdentifyService(t *testing.T) {
 	}
 }
 
-func TestContains(t *testing.T) {
-	slice := []string{"HTTP", "HTTPS", "SSH"}
-
-	if !contains(slice, "HTTP") {
-		t.Error("contains should return true for existing element")
+func TestIsTLSPort(t *testing.T) {
+	if !IsTLSPort(443) {
+		t.Error("IsTLSPort(443) should return true")
 	}
-	if contains(slice, "FTP") {
-		t.Error("contains should return false for missing element")
+	if !IsTLSPort(8443) {
+		t.Error("IsTLSPort(8443) should return true")
 	}
-	if contains(nil, "HTTP") {
-		t.Error("contains should return false for nil slice")
+	if IsTLSPort(80) {
+		t.Error("IsTLSPort(80) should return false")
 	}
-	if contains([]string{}, "HTTP") {
-		t.Error("contains should return false for empty slice")
+	if IsTLSPort(22) {
+		t.Error("IsTLSPort(22) should return false")
 	}
 }
 
