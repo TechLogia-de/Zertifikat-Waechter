@@ -3,6 +3,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useTenantId } from '../hooks/useTenantId'
 import { supabase } from '../lib/supabase'
 import LoadingState from '../components/ui/LoadingState'
+import PageInfoBox from '../components/ui/PageInfoBox'
 import logger from '../utils/logger'
 import {
   SettingsHeader,
@@ -288,6 +289,36 @@ export default function Settings() {
       {/* Content */}
       <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 bg-[#F8FAFC]">
         <div className="max-w-4xl">
+        <div className="mb-6">
+          <PageInfoBox title="Einstellungen und Benachrichtigungsrichtlinien" variant="info" collapsible defaultOpen={false}>
+            <div className="space-y-3">
+              <p className="text-[#1E3A5F]">
+                Konfigurieren Sie hier Ihre Benachrichtigungsrichtlinien, Warnschwellen und Sicherheitseinstellungen. Diese Einstellungen gelten fuer Ihre gesamte Organisation und bestimmen, wann und wie Sie ueber Zertifikatsaenderungen informiert werden.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                <div>
+                  <h4 className="font-semibold text-[#1E40AF] mb-1">Benachrichtigungen</h4>
+                  <ul className="text-xs space-y-1 list-disc list-inside">
+                    <li>Warntage definieren, wann Erinnerungen versendet werden (z.B. 30, 14, 7 Tage)</li>
+                    <li>Kanaele aktivieren: E-Mail, Slack, Teams, Webhooks</li>
+                    <li>Mehrere Warnstufen fuer stufenweise Eskalation</li>
+                    <li>Alert-Intervall pro Tenant konfigurierbar</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-[#1E40AF] mb-1">Sicherheit und Verwaltung</h4>
+                  <ul className="text-xs space-y-1 list-disc list-inside">
+                    <li>MFA/TOTP: Zwei-Faktor-Authentifizierung fuer erhoehte Sicherheit</li>
+                    <li>Konfiguration exportieren/importieren als JSON-Datei</li>
+                    <li>Passwoerter und Secrets werden beim Export nicht eingeschlossen</li>
+                    <li>Aenderungen werden sofort wirksam und im Audit-Log protokolliert</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </PageInfoBox>
+        </div>
+
         {loading ? (
           <div className="py-12">
             <LoadingState size="md" text="Lade Einstellungen..." />

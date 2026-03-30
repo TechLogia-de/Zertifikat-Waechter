@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useTenantId } from '../hooks/useTenantId'
 import { supabase } from '../lib/supabase'
+import PageInfoBox from '../components/ui/PageInfoBox'
 import LoadingState from '../components/ui/LoadingState'
 import NotificationRules from './NotificationRules'
 
@@ -140,6 +141,51 @@ export default function Alerts() {
 
       {/* Content - SCROLLBAR */}
       <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        <PageInfoBox title="Alerts & Benachrichtigungen" variant="info" collapsible defaultOpen={false}>
+          <div className="space-y-3">
+            <p className="text-[#1E3A5F]">
+              Alerts informieren Sie proaktiv über ablaufende Zertifikate und SSL/TLS-Sicherheitsprobleme.
+              Jeder Alert kann quittiert werden, um anzuzeigen, dass er bearbeitet wird.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+              <div>
+                <h4 className="font-semibold text-[#1E40AF] mb-1">Alert-Stufen</h4>
+                <ul className="text-xs space-y-1 list-disc list-inside text-[#1E3A5F]">
+                  <li><strong>Info:</strong> Zertifikat läuft in 30+ Tagen ab</li>
+                  <li><strong>Warnung:</strong> Zertifikat läuft in 14 Tagen oder weniger ab</li>
+                  <li><strong>Kritisch:</strong> Zertifikat läuft in 7 Tagen ab oder ist bereits abgelaufen</li>
+                  <li>SSL-Probleme wie schwache Ciphers oder veraltete Protokolle</li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-semibold text-[#1E40AF] mb-1">Benachrichtigungskanäle</h4>
+                <ul className="text-xs space-y-1 list-disc list-inside text-[#1E3A5F]">
+                  <li><strong>E-Mail:</strong> SMTP-basierte Benachrichtigungen</li>
+                  <li><strong>Slack:</strong> Nachrichten in konfigurierte Channels</li>
+                  <li><strong>Microsoft Teams:</strong> Webhook-Integration</li>
+                  <li><strong>Webhooks:</strong> Benutzerdefinierte HTTP-Endpunkte mit HMAC-Signierung</li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-semibold text-[#1E40AF] mb-1">Schwellenwerte konfigurieren</h4>
+                <ul className="text-xs space-y-1 list-disc list-inside text-[#1E3A5F]">
+                  <li>Alert-Intervalle pro Tenant individuell einstellbar</li>
+                  <li>Benachrichtigungsregeln im Tab "Benachrichtigungsregeln" verwalten</li>
+                  <li>Erweiterte Einstellungen unter "Alert-Einstellungen"</li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-semibold text-[#1E40AF] mb-1">Alert-Verwaltung</h4>
+                <ul className="text-xs space-y-1 list-disc list-inside text-[#1E3A5F]">
+                  <li>Alerts quittieren, um Bearbeitung zu signalisieren</li>
+                  <li>Quittierte Alerts bleiben zur Nachverfolgung sichtbar</li>
+                  <li>Alle Alert-Aktionen werden im Audit Log protokolliert</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </PageInfoBox>
+
         {activeTab === 'rules' ? (
           <NotificationRules />
         ) : loading ? (

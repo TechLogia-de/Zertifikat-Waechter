@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useTenantId } from '../hooks/useTenantId'
 import LoadingState from '../components/ui/LoadingState'
 import Badge from '../components/ui/Badge'
+import PageInfoBox from '../components/ui/PageInfoBox'
 import { useAuditLog, AuditEventTypes } from '../hooks/useAuditLog'
 
 interface ComplianceStandard {
@@ -332,6 +333,36 @@ export default function Compliance() {
       {/* Main Content - SCROLLBAR */}
       <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <div className="max-w-7xl mx-auto">
+
+        <div className="mb-6">
+          <PageInfoBox title="Compliance-Pruefungen und Sicherheitsstandards" variant="info" collapsible defaultOpen={false}>
+            <div className="space-y-3">
+              <p className="text-[#1E3A5F]">
+                Das Compliance-Dashboard prueft Ihre Zertifikate automatisch gegen gaengige Sicherheitsstandards und zeigt Verstoesse, Risiko-Scores und Handlungsempfehlungen. Automatische Remediation kann nicht-konforme Zertifikate ueber ACME erneuern.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                <div>
+                  <h4 className="font-semibold text-[#1E40AF] mb-1">Unterstuetzte Standards</h4>
+                  <ul className="text-xs space-y-1 list-disc list-inside">
+                    <li>Minimale Schluesselgroesse (z.B. 2048 Bit RSA, 256 Bit EC)</li>
+                    <li>Maximale Zertifikatslaufzeit (z.B. 398 Tage)</li>
+                    <li>Erlaubte Protokolle und Cipher-Suites</li>
+                    <li>Forward Secrecy als Pflichtanforderung</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-[#1E40AF] mb-1">Risk Score und Remediation</h4>
+                  <ul className="text-xs space-y-1 list-disc list-inside">
+                    <li>Automatischer Risk Score basierend auf Schwere der Verstoesse</li>
+                    <li>Kategorisierung: Critical, High, Medium, Low</li>
+                    <li>Auto-Fix erstellt ACME-Orders fuer nicht-konforme Zertifikate</li>
+                    <li>Audit-Trail protokolliert alle Compliance-Pruefungen und Fixes</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </PageInfoBox>
+        </div>
 
         {/* Risk Score Card */}
         {riskScore && (

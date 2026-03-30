@@ -8,6 +8,7 @@ import { generateHTMLReport } from '../utils/reportHtmlGenerator'
 import ReportConfigForm from '../components/features/ReportConfigForm'
 import ReportPreview from '../components/features/ReportPreview'
 import { ReportMessages, ReportInfoBox, ReportStatsCards } from '../components/features/ReportInfoSection'
+import PageInfoBox from '../components/ui/PageInfoBox'
 
 export interface ReportConfig {
   title: string
@@ -333,6 +334,34 @@ export default function Reports() {
       {/* Content */}
       <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 bg-[#F8FAFC]">
         <div className="max-w-5xl mx-auto space-y-6">
+
+          <PageInfoBox title="Compliance-Reports erstellen und exportieren" variant="info" collapsible defaultOpen={false}>
+            <div className="space-y-3">
+              <p className="text-[#1E3A5F]">
+                Erstellen Sie professionelle Audit-Reports Ihrer TLS/SSL-Zertifikate als PDF oder CSV. Reports enthalten optionale Hash-Chain-Verifizierung fuer manipulationssichere Nachweisfuehrung und sind geeignet fuer ISO 27001, DSGVO und interne Audits.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                <div>
+                  <h4 className="font-semibold text-[#1E40AF] mb-1">Export-Formate</h4>
+                  <ul className="text-xs space-y-1 list-disc list-inside">
+                    <li>PDF-Report: Professionelles Layout mit Diagrammen und Statistiken</li>
+                    <li>CSV-Export: Maschinenlesbar fuer Weiterverarbeitung in Excel/Datenbanken</li>
+                    <li>Hash-Chain: Kryptografische Verkettung aller Eintraege zur Integritaetspruefung</li>
+                    <li>Audit-Log: Optionale Einbindung aller Aenderungsereignisse</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-[#1E40AF] mb-1">Filteroptionen</h4>
+                  <ul className="text-xs space-y-1 list-disc list-inside">
+                    <li>Abgelaufene, bald ablaufende oder gueltige Zertifikate einschliessen</li>
+                    <li>Schwellenwert fuer "bald ablaufend" individuell konfigurierbar</li>
+                    <li>Diagramme und Statistiken ein-/ausblenden</li>
+                    <li>Reports werden client- oder serverseitig generiert (Edge Functions)</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </PageInfoBox>
 
           <ReportMessages success={success} error={error} />
 

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { useTenantId } from '../hooks/useTenantId'
 import { supabase } from '../lib/supabase'
+import PageInfoBox from '../components/ui/PageInfoBox'
 
 interface WebhookDelivery {
   id: string
@@ -142,6 +143,53 @@ export default function WebhookLogs() {
 
       {/* Content */}
       <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 bg-[#F8FAFC]">
+        <PageInfoBox title="Webhook-Zustellung & Monitoring" variant="info" collapsible defaultOpen={false}>
+          <div className="space-y-3">
+            <p className="text-[#1E3A5F]">
+              Verfolgen Sie den Zustellungsstatus aller ausgehenden Webhooks in Echtzeit. Die Seite aktualisiert
+              sich automatisch alle 30 Sekunden und zeigt den vollständigen Lebenszyklus jeder Zustellung.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+              <div>
+                <h4 className="font-semibold text-[#1E40AF] mb-1">Zustellungsstatus</h4>
+                <ul className="text-xs space-y-1 list-disc list-inside text-[#1E3A5F]">
+                  <li><strong>Pending:</strong> Webhook wartet auf Verarbeitung in der Queue</li>
+                  <li><strong>Success:</strong> Erfolgreich zugestellt (HTTP 2xx Antwort)</li>
+                  <li><strong>Retrying:</strong> Fehlgeschlagen, wird automatisch wiederholt</li>
+                  <li><strong>Failed:</strong> Alle Wiederholungsversuche erschöpft</li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-semibold text-[#1E40AF] mb-1">Retry-Logik</h4>
+                <ul className="text-xs space-y-1 list-disc list-inside text-[#1E3A5F]">
+                  <li>Exponential Backoff: Wartezeit verdoppelt sich mit jedem Versuch</li>
+                  <li>Maximale Anzahl Versuche pro Webhook konfigurierbar</li>
+                  <li>Nächster Retry-Zeitpunkt wird in der Tabelle angezeigt</li>
+                  <li>Die Webhook-Queue wird jede Minute automatisch verarbeitet</li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-semibold text-[#1E40AF] mb-1">HTTP-Statuscodes</h4>
+                <ul className="text-xs space-y-1 list-disc list-inside text-[#1E3A5F]">
+                  <li><strong>2xx:</strong> Erfolgreiche Zustellung (z.B. 200, 201, 204)</li>
+                  <li><strong>4xx:</strong> Client-Fehler (ungültige URL, Authentifizierung)</li>
+                  <li><strong>5xx:</strong> Server-Fehler beim Empfänger (wird wiederholt)</li>
+                  <li><strong>Timeout:</strong> Keine Antwort innerhalb des Zeitlimits</li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-semibold text-[#1E40AF] mb-1">Sicherheit</h4>
+                <ul className="text-xs space-y-1 list-disc list-inside text-[#1E3A5F]">
+                  <li>Alle Webhooks werden mit HMAC-SHA256 signiert</li>
+                  <li>SSRF-Schutz: Private IPs und interne Netzwerke werden blockiert</li>
+                  <li>Zugestellte Webhooks werden nach 30 Tagen automatisch bereinigt</li>
+                  <li>Rate Limiting schützt vor Überlastung der Empfänger</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </PageInfoBox>
+
         {/* Stats Cards */}
         {stats.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">

@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useTenantId } from '../hooks/useTenantId'
 import LoadingState from '../components/ui/LoadingState'
 import Modal from '../components/ui/Modal'
+import PageInfoBox from '../components/ui/PageInfoBox'
 
 interface NotificationRule {
   id: string
@@ -217,19 +218,33 @@ export default function NotificationRules() {
           </button>
         </div>
 
-        {/* Info Box */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-          <div className="flex items-start gap-3">
-            <span className="text-blue-600 text-xl">💡</span>
-            <div>
-              <h3 className="font-semibold text-blue-900 mb-1">Flexible Benachrichtigungen</h3>
-              <p className="text-sm text-blue-800">
-                Erstelle individuelle Regeln basierend auf Zertifikat-Eigenschaften, Tags, und mehr.
-                Unterstützt werden E-Mail, Slack, Teams und Webhooks.
-              </p>
+        <PageInfoBox title="Benachrichtigungsregeln konfigurieren" variant="info" collapsible defaultOpen={false}>
+          <div className="space-y-3">
+            <p className="text-[#1E3A5F]">
+              Erstellen Sie individuelle Regeln, die automatisch Benachrichtigungen auslösen, wenn bestimmte Bedingungen erfüllt sind. Regeln werden in der Reihenfolge ihrer Priorität ausgewertet.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+              <div>
+                <h4 className="font-semibold text-[#1E40AF] mb-1">Bedingungen</h4>
+                <ul className="text-xs space-y-1 list-disc list-inside">
+                  <li><strong>Ablauf-Tage:</strong> Benachrichtigung bei X Tagen bis zum Ablauf</li>
+                  <li><strong>SSL Health Score:</strong> Warnung bei Score unter einem Schwellenwert</li>
+                  <li><strong>Zertifikats-Typ:</strong> Regeln für bestimmte Issuer oder Key-Typen</li>
+                  <li><strong>Tags/Labels:</strong> Filterung nach Asset-Kategorien</li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-semibold text-[#1E40AF] mb-1">Aktionen & Kanäle</h4>
+                <ul className="text-xs space-y-1 list-disc list-inside">
+                  <li><strong>E-Mail:</strong> An einzelne Empfänger oder Verteilerlisten</li>
+                  <li><strong>Slack/Teams:</strong> Nachrichten in konfigurierte Channels</li>
+                  <li><strong>Webhooks:</strong> HTTP-Callbacks an externe Systeme</li>
+                  <li><strong>Throttling:</strong> Verhindert Benachrichtigungs-Überflutung (einstellbar in Minuten)</li>
+                </ul>
+              </div>
             </div>
           </div>
-        </div>
+        </PageInfoBox>
 
         {/* Rules List */}
         <div className="space-y-4">

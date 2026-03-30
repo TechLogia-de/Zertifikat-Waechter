@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { useTenantId } from '../hooks/useTenantId'
 import Badge from '../components/ui/Badge'
+import PageInfoBox from '../components/ui/PageInfoBox'
 
 interface LogEntry {
   id: string
@@ -180,6 +181,51 @@ export default function AgentLogs() {
       {/* Content - SCROLLBAR */}
       <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 bg-[#F8FAFC]">
         <div className="max-w-7xl mx-auto">
+          <PageInfoBox title="Agent Logs - Echtzeit-Protokollierung" variant="info" collapsible defaultOpen={false}>
+            <div className="space-y-3">
+              <p className="text-[#1E3A5F]">
+                Hier sehen Sie die Echtzeit-Logs aller verbundenen Agenten. Neue Log-Einträge werden automatisch
+                per WebSocket-Verbindung empfangen und angezeigt - ohne manuelles Aktualisieren.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                <div>
+                  <h4 className="font-semibold text-[#1E40AF] mb-1">Log-Level</h4>
+                  <ul className="text-xs space-y-1 list-disc list-inside text-[#1E3A5F]">
+                    <li><strong>INFO:</strong> Normale Betriebsmeldungen (Scan gestartet, Zertifikat gefunden)</li>
+                    <li><strong>WARN:</strong> Potenzielle Probleme (Zertifikat läuft bald ab, langsame Verbindung)</li>
+                    <li><strong>ERROR:</strong> Fehler bei Scans oder Verbindungen (Timeout, DNS-Fehler)</li>
+                    <li><strong>DEBUG:</strong> Detaillierte technische Informationen zur Fehlersuche</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-[#1E40AF] mb-1">Was Agenten melden</h4>
+                  <ul className="text-xs space-y-1 list-disc list-inside text-[#1E3A5F]">
+                    <li>TLS-Scan-Ergebnisse und entdeckte Zertifikate</li>
+                    <li>Netzwerk-Discovery (neue Hosts und offene Ports)</li>
+                    <li>Heartbeat-Status und Verbindungsinformationen</li>
+                    <li>Fehler bei der Kommunikation mit dem Backend</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-[#1E40AF] mb-1">Filteroptionen</h4>
+                  <ul className="text-xs space-y-1 list-disc list-inside text-[#1E3A5F]">
+                    <li>Nach Agent filtern, um Logs eines bestimmten Connectors zu sehen</li>
+                    <li>Nach Log-Level filtern, um nur Fehler oder Warnungen anzuzeigen</li>
+                    <li>Auto-Scroll aktivieren, um automatisch zu neuen Einträgen zu springen</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-[#1E40AF] mb-1">Hinweise</h4>
+                  <ul className="text-xs space-y-1 list-disc list-inside text-[#1E3A5F]">
+                    <li>Es werden maximal die letzten 200 Einträge angezeigt</li>
+                    <li>Strukturierte JSON-Metadaten werden bei Bedarf ausgeklappt</li>
+                    <li>Logs sind durch Row Level Security mandantenisoliert</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </PageInfoBox>
+
           {/* Filter */}
           <div className="bg-white rounded-xl border border-[#E2E8F0] p-4 mb-6">
           <div className="flex items-center gap-4 flex-wrap">

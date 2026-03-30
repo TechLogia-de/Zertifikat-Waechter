@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useTenantId } from '../hooks/useTenantId'
 import LoadingState from '../components/ui/LoadingState'
 import { useAuditLog, AuditEventTypes } from '../hooks/useAuditLog'
+import PageInfoBox from '../components/ui/PageInfoBox'
 
 interface SSLCheck {
   id: string
@@ -246,6 +247,55 @@ export default function SSLHealth() {
       {/* Main Content - SCROLLBAR */}
       <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <div className="max-w-7xl mx-auto">
+
+        <PageInfoBox title="SSL/TLS Health - Sicherheitsbewertung" variant="info" collapsible defaultOpen={false}>
+          <div className="space-y-3">
+            <p className="text-[#1E3A5F]">
+              Der SSL/TLS Health Check analysiert die Verschlüsselungskonfiguration Ihrer Assets und bewertet sie
+              nach aktuellen Sicherheitsstandards. Führen Sie regelmäßige Prüfungen durch, um Schwachstellen
+              frühzeitig zu erkennen.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+              <div>
+                <h4 className="font-semibold text-[#1E40AF] mb-1">Score-Bewertung (0-100)</h4>
+                <ul className="text-xs space-y-1 list-disc list-inside text-[#1E3A5F]">
+                  <li><strong>A+ (90-100):</strong> Exzellent - modernste Konfiguration</li>
+                  <li><strong>A (80-89):</strong> Sehr gut - sichere Standardkonfiguration</li>
+                  <li><strong>B (70-79):</strong> Gut - kleinere Verbesserungen empfohlen</li>
+                  <li><strong>C (60-69):</strong> Ausreichend - Handlungsbedarf vorhanden</li>
+                  <li><strong>D/F (unter 60):</strong> Mangelhaft - dringender Handlungsbedarf</li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-semibold text-[#1E40AF] mb-1">Einflussfaktoren auf den Score</h4>
+                <ul className="text-xs space-y-1 list-disc list-inside text-[#1E3A5F]">
+                  <li><strong>Protokoll-Score:</strong> TLS 1.3 bevorzugt, TLS 1.0/1.1 abgestraft</li>
+                  <li><strong>Cipher-Score:</strong> Stärke der verwendeten Verschlüsselungsalgorithmen</li>
+                  <li><strong>Forward Secrecy:</strong> Schutz vergangener Sitzungen bei Key-Kompromittierung</li>
+                  <li><strong>Schwachstellen:</strong> Bekannte Sicherheitslücken (BEAST, POODLE, etc.)</li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-semibold text-[#1E40AF] mb-1">Score verbessern</h4>
+                <ul className="text-xs space-y-1 list-disc list-inside text-[#1E3A5F]">
+                  <li>TLS 1.2 als Minimum konfigurieren, TLS 1.3 aktivieren</li>
+                  <li>Schwache Cipher-Suites (RC4, DES, 3DES) deaktivieren</li>
+                  <li>Forward Secrecy mit ECDHE-Cipher-Suites sicherstellen</li>
+                  <li>Veraltete Protokolle (SSLv3, TLS 1.0, TLS 1.1) deaktivieren</li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-semibold text-[#1E40AF] mb-1">Empfohlene Prüfzyklen</h4>
+                <ul className="text-xs space-y-1 list-disc list-inside text-[#1E3A5F]">
+                  <li>Reguläre Prüfung alle 7 Tage empfohlen</li>
+                  <li>Nach Konfigurationsänderungen sofort prüfen</li>
+                  <li>Bulk-Check: Alle Assets gleichzeitig prüfen (oben rechts)</li>
+                  <li>Ergebnisse werden im Audit Log protokolliert</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </PageInfoBox>
 
         {/* Summary Cards */}
         {summary && (

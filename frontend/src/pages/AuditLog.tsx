@@ -3,6 +3,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useTenantId } from '../hooks/useTenantId'
 import { supabase } from '../lib/supabase'
 import LoadingState from '../components/ui/LoadingState'
+import PageInfoBox from '../components/ui/PageInfoBox'
 
 interface Event {
   id: string
@@ -188,6 +189,55 @@ export default function AuditLog() {
 
       {/* Main Content - SCROLLBAR */}
       <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 bg-[#F8FAFC]">
+        <PageInfoBox title="Audit Log - Revisionssichere Protokollierung" variant="info" collapsible defaultOpen={false}>
+          <div className="space-y-3">
+            <p className="text-[#1E3A5F]">
+              Das Audit Log dokumentiert alle sicherheitsrelevanten Aktionen in Ihrem Tenant. Jeder Eintrag ist
+              durch eine SHA-256 Hash-Kette kryptografisch gesichert und manipulationsgeschützt.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+              <div>
+                <h4 className="font-semibold text-[#1E40AF] mb-1">Erfasste Aktionen</h4>
+                <ul className="text-xs space-y-1 list-disc list-inside text-[#1E3A5F]">
+                  <li>Zertifikats-Operationen (Erstellen, Aktualisieren, Löschen)</li>
+                  <li>Agent-Verbindungen und Scan-Ergebnisse</li>
+                  <li>Alert-Erstellung, Quittierung und Benachrichtigungen</li>
+                  <li>ACME-Bestellungen und automatische Erneuerungen</li>
+                  <li>API-Key-Verwaltung und Benutzeraktionen</li>
+                  <li>Integrations- und Webhook-Konfigurationsänderungen</li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-semibold text-[#1E40AF] mb-1">Compliance & Sicherheit</h4>
+                <ul className="text-xs space-y-1 list-disc list-inside text-[#1E3A5F]">
+                  <li>SHA-256 Hash-Kette: Jeder Eintrag referenziert den Hash des Vorgängers</li>
+                  <li>Manipulationsschutz: Gebrochene Hash-Ketten werden sofort erkannt</li>
+                  <li>Relevant für ISO 27001, SOC 2 und interne Audits</li>
+                  <li>JSON-Export für externe Audit-Tools und Archivierung</li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-semibold text-[#1E40AF] mb-1">Hash-Ketten-Validierung</h4>
+                <ul className="text-xs space-y-1 list-disc list-inside text-[#1E3A5F]">
+                  <li>Die Hash-Kette wird beim Laden automatisch überprüft</li>
+                  <li>Grüner Status: Alle Einträge sind integer und unverändert</li>
+                  <li>Roter Status: Potenzielle Manipulation oder Datenbank-Inkonsistenz</li>
+                  <li>Betroffene Events können gezielt gefiltert werden</li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-semibold text-[#1E40AF] mb-1">Datenaufbewahrung</h4>
+                <ul className="text-xs space-y-1 list-disc list-inside text-[#1E3A5F]">
+                  <li>Audit-Einträge werden dauerhaft gespeichert</li>
+                  <li>Die letzten 100 Events werden standardmäßig geladen</li>
+                  <li>Filterung nach Event-Typ und Freitextsuche möglich</li>
+                  <li>Vollständiger Export als JSON jederzeit verfügbar</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </PageInfoBox>
+
         {/* Filters */}
         <div className="bg-white rounded-xl border border-[#E2E8F0] p-4 sm:p-6 mb-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

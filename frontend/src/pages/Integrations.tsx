@@ -4,6 +4,7 @@ import { useTenantId } from '../hooks/useTenantId'
 import { useUserRole } from '../hooks/useUserRole'
 import { useAutoDismiss } from '../hooks/useAutoDismiss'
 import { supabase } from '../lib/supabase'
+import PageInfoBox from '../components/ui/PageInfoBox'
 import {
   StatusAlert,
   IntegrationTabs,
@@ -295,6 +296,36 @@ export default function Integrations() {
 
       <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 bg-[#F8FAFC]">
         <div className="max-w-6xl mx-auto">
+          <div className="mb-6">
+            <PageInfoBox title="Integrationen und Benachrichtigungskanaele konfigurieren" variant="info" collapsible defaultOpen={false}>
+              <div className="space-y-3">
+                <p className="text-[#1E3A5F]">
+                  Verbinden Sie Zertifikat-Waechter mit Ihren bestehenden Kommunikationskanaelen. Bei Zertifikat-Ablauf oder Sicherheitsproblemen werden automatisch Benachrichtigungen ueber die konfigurierten Kanaele versendet.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                  <div>
+                    <h4 className="font-semibold text-[#1E40AF] mb-1">Unterstuetzte Kanaele</h4>
+                    <ul className="text-xs space-y-1 list-disc list-inside">
+                      <li>SMTP E-Mail: Eigener oder System-SMTP-Server fuer E-Mail-Alerts</li>
+                      <li>Slack: Webhook-basierte Nachrichten an beliebige Slack-Channels</li>
+                      <li>Microsoft Teams: Incoming-Webhook-Integration (in Kuerze)</li>
+                      <li>Custom Webhooks: HMAC-signierte HTTP-POST-Requests an beliebige Endpunkte</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-[#1E40AF] mb-1">Einrichtung und Test</h4>
+                    <ul className="text-xs space-y-1 list-disc list-inside">
+                      <li>Jede Integration kann individuell konfiguriert und getestet werden</li>
+                      <li>Test-Nachrichten pruefen die Verbindung vor dem Speichern</li>
+                      <li>Webhook-Signaturen sichern die Authentizitaet der Nachrichten</li>
+                      <li>Nur Administratoren und Besitzer koennen Integrationen aendern</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </PageInfoBox>
+          </div>
+
           {/* Permission warning for non-admin users */}
           {!roleLoading && !isAdminOrOwner && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">

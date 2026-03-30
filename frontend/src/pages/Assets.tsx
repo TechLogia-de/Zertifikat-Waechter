@@ -6,6 +6,7 @@ import LoadingState from '../components/ui/LoadingState'
 import SSLHealthButton from '../components/features/SSLHealthButton'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
+import PageInfoBox from '../components/ui/PageInfoBox'
 // import type { Database } from '../types/database.types'
 
 interface Asset {
@@ -328,6 +329,30 @@ export default function Assets() {
             </button>
           </div>
         </div>
+
+        <PageInfoBox title="Was sind Assets und wie funktionieren SSL-Checks?" variant="info" collapsible defaultOpen={false}>
+          <div className="space-y-3">
+            <p><strong>Assets</strong> sind alle Server, Domains und IP-Adressen, deren SSL/TLS-Zertifikate überwacht werden. Jedes Asset wird mit Host, Port und aktuellem Zertifikatsstatus angezeigt.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+              <div>
+                <h4 className="font-semibold text-[#1E40AF] mb-1">SSL Health Score</h4>
+                <ul className="text-xs space-y-1 list-disc list-inside">
+                  <li>Bewertet die TLS-Konfiguration von A+ (exzellent) bis F (kritisch)</li>
+                  <li>Prüft TLS-Version, Cipher-Suites, Zertifikatskette und HSTS-Header</li>
+                  <li>Klicke auf das Schild-Symbol, um eine detaillierte Analyse zu starten</li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-semibold text-[#1E40AF] mb-1">Verwaltung</h4>
+                <ul className="text-xs space-y-1 list-disc list-inside">
+                  <li><strong>Domains hinzufügen:</strong> Eine oder mehrere Domains eingeben (z.B. example.com:443)</li>
+                  <li><strong>Auto-Discovery:</strong> Agents erkennen Assets automatisch im Netzwerk</li>
+                  <li><strong>Bulk-Aktionen:</strong> Mehrere Assets per Checkbox auswählen und gemeinsam löschen</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </PageInfoBox>
 
         {/* Assets List */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">

@@ -3,6 +3,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useTenantId } from '../hooks/useTenantId'
 import { supabase } from '../lib/supabase'
 import { useScanDomain } from '../hooks/useScanDomain'
+import PageInfoBox from '../components/ui/PageInfoBox'
 import AddDomainModal from '../components/features/AddDomainModal'
 import CertificateDetailsModal from '../components/features/CertificateDetailsModal'
 import DeleteConfirmModal from '../components/ui/DeleteConfirmModal'
@@ -198,7 +199,7 @@ export default function Certificates() {
               <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white">Domains & Zertifikate</h1>
             </div>
             <p className="text-xs sm:text-sm text-slate-400 mt-0.5 ml-0.5">
-              SSL/TLS-Monitoring • Auto-Scans • x509-Metadaten
+              SSL/TLS-Monitoring • Auto-Scans • x509-Metadaten • Fingerprints • SAN-Analyse
             </p>
 
             {/* Tabs */}
@@ -285,6 +286,22 @@ export default function Certificates() {
 
       {/* Main Content - SCROLLBAR */}
       <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        <div className="mb-4">
+          <PageInfoBox title="Zertifikate & Domains verwalten" variant="info">
+            <div className="space-y-2 mt-1">
+              <p>Hier siehst du alle SSL/TLS-Zertifikate, die für deine überwachten Domains gefunden wurden. Jedes Zertifikat wird automatisch gescannt und mit folgenden Metadaten gespeichert:</p>
+              <ul className="list-disc list-inside space-y-1 ml-2">
+                <li><strong>Subject CN & SAN:</strong> Der Common Name und alle Subject Alternative Names (Wildcard, Multi-Domain).</li>
+                <li><strong>Fingerprint:</strong> Eindeutiger SHA-256-Hash zur Identifikation des Zertifikats.</li>
+                <li><strong>Aussteller (Issuer):</strong> Die Zertifizierungsstelle (z.B. Let's Encrypt, DigiCert, Sectigo).</li>
+                <li><strong>Gültigkeit:</strong> Nicht-Vor / Nicht-Nach Zeitraum. Farblich markiert nach Dringlichkeit (grün/gelb/rot).</li>
+                <li><strong>Schlüssel-Algorithmus:</strong> RSA, ECDSA oder Ed25519 mit Schlüsselgröße in Bits.</li>
+              </ul>
+              <p className="mt-2"><strong>Export:</strong> Du kannst alle Zertifikate als CSV, JSON oder HTML-Tabelle exportieren (Button oben rechts).</p>
+              <p><strong>Domain hinzufügen:</strong> Gib eine Domain mit Port ein (z.B. <code className="bg-blue-100 px-1 rounded">example.com:443</code>). Das Zertifikat wird sofort gescannt.</p>
+            </div>
+          </PageInfoBox>
+        </div>
         {activeTab === 'assets' ? (
           <Assets />
         ) : loading ? (

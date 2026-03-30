@@ -4,6 +4,7 @@ import { useTenantId } from '../hooks/useTenantId'
 import { useAutoDismiss } from '../hooks/useAutoDismiss'
 import { supabase } from '../lib/supabase'
 import LoadingState from '../components/ui/LoadingState'
+import PageInfoBox from '../components/ui/PageInfoBox'
 
 interface UserProfile {
   full_name: string
@@ -273,7 +274,35 @@ export default function Profile() {
       {/* Content */}
       <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 bg-[#F8FAFC]">
         <div className="max-w-4xl mx-auto space-y-6">
-          
+
+          <PageInfoBox title="Benutzerprofil und Kontoverwaltung" variant="info" collapsible defaultOpen={false}>
+            <div className="space-y-3">
+              <p className="text-[#1E3A5F]">
+                Verwalten Sie hier Ihre persoenlichen Daten, Ihre Organisation, E-Mail-Adresse und Ihr Passwort. Ihre Rolle bestimmt, welche Aktionen Sie im System ausfuehren koennen.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                <div>
+                  <h4 className="font-semibold text-[#1E40AF] mb-1">Rollenbasierte Berechtigungen</h4>
+                  <ul className="text-xs space-y-1 list-disc list-inside">
+                    <li>Owner: Vollzugriff inkl. Loeschen der Organisation</li>
+                    <li>Admin: Verwaltung von Integrationen, API Keys und Mitgliedern</li>
+                    <li>Member: Zertifikate und Scans einsehen und verwalten</li>
+                    <li>Viewer: Nur-Lese-Zugriff auf alle Daten</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-[#1E40AF] mb-1">Sicherheitseinstellungen</h4>
+                  <ul className="text-xs space-y-1 list-disc list-inside">
+                    <li>E-Mail-Aenderung erfordert Bestaetigung per Link</li>
+                    <li>Passwort muss mindestens 8 Zeichen lang sein</li>
+                    <li>MFA/TOTP kann unter Einstellungen aktiviert werden</li>
+                    <li>Account-Loeschung entfernt alle Daten permanent</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </PageInfoBox>
+
           {/* Success/Error Messages */}
           {success && (
             <div className="bg-[#D1FAE5] border-2 border-[#10B981] text-[#065F46] px-6 py-4 rounded-xl shadow-lg">

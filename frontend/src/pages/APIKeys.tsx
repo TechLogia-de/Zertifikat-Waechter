@@ -6,6 +6,7 @@ import { useUserRole } from '../hooks/useUserRole'
 import LoadingState from '../components/ui/LoadingState'
 import Modal from '../components/ui/Modal'
 import APIDocumentation from '../components/features/APIDocumentation'
+import PageInfoBox from '../components/ui/PageInfoBox'
 import { logAuditEvent } from '../utils/auditLogger'
 // import type { Database } from '../types/database.types'
 
@@ -263,6 +264,36 @@ export default function APIKeys() {
       {/* Main Content - SCROLLBAR */}
       <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <div className="max-w-7xl mx-auto">
+
+        <div className="mb-6">
+          <PageInfoBox title="API-Schluessel verwalten und Sicherheitshinweise" variant="info" collapsible defaultOpen={false}>
+            <div className="space-y-3">
+              <p className="text-[#1E3A5F]">
+                API Keys ermoeglichen den programmatischen Zugriff auf Ihre Zertifikatsdaten ueber die REST-API. Jeder Schluessel wird mit HMAC-SHA256 gehasht gespeichert und kann mit individuellen Berechtigungen und Ablaufdaten versehen werden.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                <div>
+                  <h4 className="font-semibold text-[#1E40AF] mb-1">Sicherheit</h4>
+                  <ul className="text-xs space-y-1 list-disc list-inside">
+                    <li>Keys werden nur einmal bei Erstellung angezeigt und sicher gehasht gespeichert</li>
+                    <li>Verwenden Sie unterschiedliche Keys fuer verschiedene Systeme</li>
+                    <li>Setzen Sie immer ein Ablaufdatum (empfohlen: 90 Tage)</li>
+                    <li>Kompromittierte Keys sofort widerrufen</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-[#1E40AF] mb-1">Best Practices</h4>
+                  <ul className="text-xs space-y-1 list-disc list-inside">
+                    <li>Vergeben Sie nur die minimal noetige Berechtigung (read/write/delete)</li>
+                    <li>Rotieren Sie Keys regelmaessig alle 90 Tage</li>
+                    <li>Speichern Sie Keys niemals im Quellcode oder Git-Repositories</li>
+                    <li>Nutzen Sie Umgebungsvariablen oder Secret-Manager fuer die Speicherung</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </PageInfoBox>
+        </div>
 
         {/* Tab Content */}
         {activeTab === 'docs' ? (

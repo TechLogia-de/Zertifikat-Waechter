@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { useTenantId } from '../hooks/useTenantId'
+import PageInfoBox from '../components/ui/PageInfoBox'
 import {
   ConnectorCard,
   CreateConnectorModal,
@@ -483,6 +484,36 @@ export default function Connectors() {
       {/* Content - SCROLLBAR */}
       <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 bg-[#F8FAFC]">
         <div className="max-w-7xl mx-auto">
+        <div className="mb-6">
+          <PageInfoBox title="Was sind Connectors und wie funktionieren sie?" variant="info" collapsible defaultOpen={false}>
+            <div className="space-y-3">
+              <p className="text-[#1E3A5F]">
+                Connectors sind leichtgewichtige Scan-Agents, die in Ihrem Intranet oder Netzwerk laufen. Sie erkennen automatisch Hosts, offene Ports und TLS/SSL-Zertifikate und melden die Ergebnisse in Echtzeit an Ihr Dashboard.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                <div>
+                  <h4 className="font-semibold text-[#1E40AF] mb-1">Funktionsweise</h4>
+                  <ul className="text-xs space-y-1 list-disc list-inside">
+                    <li>Jeder Agent authentifiziert sich mit einem eindeutigen Token (Bearer-Token)</li>
+                    <li>Heartbeat-Signal alle 30 Sekunden zeigt den Online-Status</li>
+                    <li>Auto-Discovery scannt Netzwerke nach aktiven Hosts und Services</li>
+                    <li>TLS-Zertifikate werden automatisch extrahiert und analysiert</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-[#1E40AF] mb-1">Deployment-Optionen</h4>
+                  <ul className="text-xs space-y-1 list-disc list-inside">
+                    <li>Docker-Container (empfohlen): Einfachste Installation</li>
+                    <li>Docker Compose: Fuer Multi-Agent-Setups</li>
+                    <li>Windows-Service: Nativer Betrieb auf Windows-Servern</li>
+                    <li>Scan-Targets und Ports koennen pro Agent konfiguriert werden</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </PageInfoBox>
+        </div>
+
         {/* Connector Liste */}
         {connectors.length === 0 ? (
         <div className="bg-white rounded-xl border border-[#E2E8F0] p-12 text-center">

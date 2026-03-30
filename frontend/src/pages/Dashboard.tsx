@@ -5,6 +5,7 @@ import { useTenantId } from '../hooks/useTenantId'
 import { supabase } from '../lib/supabase'
 import AddDomainModal from '../components/features/AddDomainModal'
 import ActivityTimeline from '../components/features/ActivityTimeline'
+import PageInfoBox from '../components/ui/PageInfoBox'
 
 interface Stats {
   totalCertificates: number
@@ -330,9 +331,14 @@ export default function Dashboard() {
                 Willkommen zurück, {user?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0]}!
               </h2>
               <p className="text-sm sm:text-base text-[#1E3A8A] mt-1">
-                Zentrale Übersicht aller SSL/TLS-Zertifikate, Agents und ACME Auto-Renewals. 
+                Zentrale Übersicht aller SSL/TLS-Zertifikate, Agents und ACME Auto-Renewals.
                 Alle Daten werden in Echtzeit aktualisiert.
               </p>
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-[#1E3A8A]">
+                <div className="flex items-start gap-1.5"><span className="font-bold text-[#3B82F6]">Zertifikate:</span> Zeigt alle erkannten SSL/TLS-Zertifikate mit Ablaufdatum und Status.</div>
+                <div className="flex items-start gap-1.5"><span className="font-bold text-[#3B82F6]">Agents:</span> Scan-Agenten, die dein Netzwerk automatisch nach Zertifikaten durchsuchen.</div>
+                <div className="flex items-start gap-1.5"><span className="font-bold text-[#3B82F6]">Alerts:</span> Warnungen bei ablaufenden oder unsicheren Zertifikaten per E-Mail, Slack oder Teams.</div>
+              </div>
             </div>
           </div>
         </div>
@@ -443,6 +449,16 @@ export default function Dashboard() {
             <p className="text-xs text-[#64748B]">Benachrichtigungen</p>
           </Link>
         </div>
+
+        <PageInfoBox title="Was bedeuten die Zahlen?" variant="tip">
+          <ul className="space-y-1.5 mt-1">
+            <li><strong>Agents:</strong> Scan-Software, die in deinem Netzwerk läuft und automatisch Hosts, Services und Zertifikate erkennt. Aktive Agents senden alle 30 Sekunden einen Heartbeat.</li>
+            <li><strong>Zertifikate:</strong> Alle erkannten SSL/TLS-Zertifikate. Jedes Zertifikat wird mit Fingerprint, Aussteller, Gültigkeit und Schlüssel-Algorithmus gespeichert.</li>
+            <li><strong>Bald ablaufend:</strong> Zertifikate, die innerhalb der nächsten 30 Tage ablaufen. Erneuere diese rechtzeitig, um Ausfälle zu vermeiden.</li>
+            <li><strong>Überfällig:</strong> Bereits abgelaufene Zertifikate. Diese verursachen Browser-Warnungen und sollten sofort erneuert werden.</li>
+            <li><strong>Aktive Alerts:</strong> Unquittierte Benachrichtigungen über ablaufende oder problematische Zertifikate.</li>
+          </ul>
+        </PageInfoBox>
 
         {/* ACME Auto-Renewal Section */}
         {stats.acmeAccounts > 0 && (

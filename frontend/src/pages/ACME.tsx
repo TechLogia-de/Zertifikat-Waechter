@@ -5,6 +5,7 @@ import { useAutoDismiss } from '../hooks/useAutoDismiss'
 import { supabase } from '../lib/supabase'
 import LoadingState from '../components/ui/LoadingState'
 import DeleteConfirmModal from '../components/ui/DeleteConfirmModal'
+import PageInfoBox from '../components/ui/PageInfoBox'
 import ACMEWizard from './ACMEWizard'
 import {
   ACMEPageHeader,
@@ -374,6 +375,34 @@ export default function ACME() {
       {/* Content */}
       <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 bg-[#F8FAFC]">
         <div className="max-w-7xl mx-auto space-y-6">
+
+          <PageInfoBox title="ACME-Protokoll und automatische Zertifikatserneuerung" variant="info" collapsible defaultOpen={false}>
+            <div className="space-y-3">
+              <p className="text-[#1E3A5F]">
+                Das ACME-Protokoll (Automatic Certificate Management Environment) ermoeglicht die vollautomatische Ausstellung und Erneuerung von TLS/SSL-Zertifikaten. Unterstuetzt werden Let's Encrypt, ZeroSSL und Buypass als Zertifizierungsstellen.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                <div>
+                  <h4 className="font-semibold text-[#1E40AF] mb-1">Challenge-Typen</h4>
+                  <ul className="text-xs space-y-1 list-disc list-inside">
+                    <li>DNS-01: Verifizierung ueber DNS-TXT-Record (benoetigt Cloudflare-Integration)</li>
+                    <li>HTTP-01: Verifizierung ueber HTTP-Datei auf dem Webserver</li>
+                    <li>DNS-01 ist erforderlich fuer Wildcard-Zertifikate (*.domain.de)</li>
+                    <li>HTTP-01 eignet sich fuer einzelne Domains ohne DNS-Zugriff</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-[#1E40AF] mb-1">Cloudflare-Integration</h4>
+                  <ul className="text-xs space-y-1 list-disc list-inside">
+                    <li>API-Token mit "Zone:DNS:Edit"-Berechtigung erforderlich</li>
+                    <li>Automatisches Setzen und Aufraumen von DNS-TXT-Records</li>
+                    <li>Zone-ID optional: automatische Erkennung moeglich</li>
+                    <li>Verbindungstest prueft Token-Gueltigkeit vor der Nutzung</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </PageInfoBox>
 
           <AlertMessages success={success} error={error} />
 
