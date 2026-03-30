@@ -22,6 +22,21 @@ serve(async (req) => {
 
     let { host, port = 443 } = await req.json()
 
+    // Validate port
+    port = Number(port)
+    if (isNaN(port) || port < 1 || port > 65535) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid port number (must be 1-65535)' }),
+        {
+          status: 400,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': ALLOWED_ORIGIN
+          },
+        }
+      )
+    }
+
     if (!host) {
       return new Response(
         JSON.stringify({ error: 'Host parameter is required' }),

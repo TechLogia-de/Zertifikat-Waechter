@@ -88,39 +88,38 @@ export default function Reports() {
         }
       }
 
-      // Load Stats
-      const { count: totalCount } = await supabase
-        .from('certificates')
-        .select('*', { count: 'exact', head: true })
-        .eq('tenant_id', tenantId!)
-
-      const { count: expiredCount } = await supabase
-        .from('certificates')
-        .select('*', { count: 'exact', head: true })
-        .eq('tenant_id', tenantId!)
-        .lt('not_after', new Date().toISOString())
-
       const thirtyDaysFromNow = new Date()
       thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30)
 
-      const { count: expiringCount } = await supabase
-        .from('certificates')
-        .select('*', { count: 'exact', head: true })
-        .eq('tenant_id', tenantId!)
-        .lte('not_after', thirtyDaysFromNow.toISOString())
-        .gte('not_after', new Date().toISOString())
-
-      const { count: eventsCount } = await supabase
-        .from('events')
-        .select('*', { count: 'exact', head: true })
-        .eq('tenant_id', tenantId!)
+      // Load all stats in parallel
+      const [totalResult, expiredResult, expiringResult, eventsResult] = await Promise.all([
+        supabase
+          .from('certificates')
+          .select('*', { count: 'exact', head: true })
+          .eq('tenant_id', tenantId!),
+        supabase
+          .from('certificates')
+          .select('*', { count: 'exact', head: true })
+          .eq('tenant_id', tenantId!)
+          .lt('not_after', new Date().toISOString()),
+        supabase
+          .from('certificates')
+          .select('*', { count: 'exact', head: true })
+          .eq('tenant_id', tenantId!)
+          .lte('not_after', thirtyDaysFromNow.toISOString())
+          .gte('not_after', new Date().toISOString()),
+        supabase
+          .from('events')
+          .select('*', { count: 'exact', head: true })
+          .eq('tenant_id', tenantId!),
+      ])
 
       setStats({
-        totalCerts: totalCount || 0,
-        expired: expiredCount || 0,
-        expiring: expiringCount || 0,
-        valid: (totalCount || 0) - (expiredCount || 0) - (expiringCount || 0),
-        events: eventsCount || 0
+        totalCerts: totalResult.count || 0,
+        expired: expiredResult.count || 0,
+        expiring: expiringResult.count || 0,
+        valid: (totalResult.count || 0) - (expiredResult.count || 0) - (expiringResult.count || 0),
+        events: eventsResult.count || 0
       })
     } catch (err) {
       console.error('Failed to load data:', err)
@@ -268,7 +267,7 @@ export default function Reports() {
 
       if (functionError) {
         console.warn('Edge Function nicht verfügbar, nutze Client-Generierung:', functionError)
-        throw new Error('Edge Function nicht deployed')
+        throw new Error(functionError.message || 'Edge Function nicht verfügbar')
       }
 
       if (data && data.html_report) {

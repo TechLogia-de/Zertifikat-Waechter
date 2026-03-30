@@ -14,7 +14,40 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  lint-and-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Run ESLint
+        working-directory: ./frontend
+        run: npm run lint
+
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+          format: 'table'
+
   build-agent:
+    needs: lint-and-scan
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -75,6 +108,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   build-mcp-server:
+    needs: lint-and-scan
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -141,6 +175,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   build-worker:
+    needs: lint-and-scan
     runs-on: ubuntu-latest
     permissions:
       contents: read

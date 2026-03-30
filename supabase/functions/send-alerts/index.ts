@@ -201,7 +201,11 @@ serve(async (req) => {
             // SMTP-Integration: Sende E-Mail-Benachrichtigungen
             const config = integration.config as any
             const smtpHost = config.host || Deno.env.get('SMTP_HOST')
-            const smtpPort = parseInt(config.port || Deno.env.get('SMTP_PORT') || '587')
+            const smtpPort = parseInt(config.port || Deno.env.get('SMTP_PORT') || '587', 10)
+            if (isNaN(smtpPort) || smtpPort < 1 || smtpPort > 65535) {
+              console.log(`Invalid SMTP port ${smtpPort} for tenant ${tenantId}, skipping`)
+              continue
+            }
             const smtpUser = config.user || Deno.env.get('SMTP_USER')
             const smtpPassword = config.password || Deno.env.get('SMTP_PASSWORD')
             const smtpFrom = config.from || Deno.env.get('SMTP_FROM')
@@ -246,12 +250,14 @@ serve(async (req) => {
               </div>
             </body></html>`
 
+            let smtpConn: Deno.Conn | null = null
             try {
               // Use Deno's native TCP for SMTP
-              const conn = smtpPort === 465
+              smtpConn = smtpPort === 465
                 ? await Deno.connectTls({ hostname: smtpHost, port: smtpPort })
                 : await Deno.connect({ hostname: smtpHost, port: smtpPort })
 
+              const conn = smtpConn
               const encoder = new TextEncoder()
               const decoder = new TextDecoder()
 
@@ -272,7 +278,7 @@ serve(async (req) => {
               if (smtpPort !== 465) {
                 await sendCommand('STARTTLS')
                 const tlsConn = await Deno.startTls(conn as Deno.TcpConn, { hostname: smtpHost })
-                Object.assign(conn, tlsConn)
+                smtpConn = tlsConn
                 await sendCommand(`EHLO zertifikat-waechter`)
               }
 
@@ -299,13 +305,13 @@ serve(async (req) => {
               await sendCommand(emailData)
               await sendCommand('QUIT')
 
-              try { conn.close() } catch { /* ignore */ }
-
               console.log(`✅ SMTP email sent for tenant ${tenantId}`)
               totalSent += recentAlerts.length
             } catch (smtpErr) {
               console.error(`❌ SMTP failed for tenant ${tenantId}:`, smtpErr)
               totalFailed += recentAlerts.length
+            } finally {
+              try { smtpConn?.close() } catch { /* ignore */ }
             }
           } else if (integration.type === 'teams') {
             // Microsoft Teams Webhook Integration

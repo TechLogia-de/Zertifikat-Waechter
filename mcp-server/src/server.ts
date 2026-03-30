@@ -17,7 +17,7 @@ app.use(cors({
   origin: config.cors.origin,
   credentials: true,
 }));
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '100kb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Request Logging

@@ -99,15 +99,16 @@ serve(async (req) => {
       } catch (error) {
         console.error(`[ACME Processor] Error for ${order.domain}:`, error)
         
+        const errorMsg = error?.message || String(error)
         await supabase
           .from('acme_orders')
-          .update({ 
+          .update({
             status: 'invalid',
-            last_error: error.message 
+            last_error: errorMsg
           })
           .eq('id', order.id)
 
-        results.push({ domain: order.domain, status: 'error', error: error.message })
+        results.push({ domain: order.domain, status: 'error', error: errorMsg })
       }
     }
 
@@ -119,11 +120,11 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('[ACME Processor] Error:', error)
     return new Response(JSON.stringify({
       success: false,
-      error: error.message
+      error: error?.message || String(error)
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

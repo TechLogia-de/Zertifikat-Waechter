@@ -93,10 +93,16 @@ func (ns *NetworkScanner) DiscoverLocalNetwork(ctx context.Context, progressCall
 
 		for idx, ip := range netInfo.ScanIPs {
 			wg.Add(1)
-			go func(targetIP string, index int) {
+			go func(ctx context.Context, targetIP string, index int) {
 				defer wg.Done()
-				sem <- struct{}{}
-				defer func() { 
+
+				// Check context before acquiring semaphore
+				select {
+				case <-ctx.Done():
+					return
+				case sem <- struct{}{}:
+				}
+				defer func() {
 					<-sem
 					mu.Lock()
 					scanned++
@@ -124,7 +130,7 @@ func (ns *NetworkScanner) DiscoverLocalNetwork(ctx context.Context, progressCall
 						"services":   result.Services,
 					}).Info("✓ Host discovered")
 				}
-			}(ip, idx)
+			}(ctx, ip, idx)
 		}
 
 		wg.Wait()

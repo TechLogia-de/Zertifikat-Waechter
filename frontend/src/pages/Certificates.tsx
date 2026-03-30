@@ -157,7 +157,7 @@ export default function Certificates() {
         .eq('asset_id', assetToDelete.id)
       
       if (certsError) {
-        console.error('Error deleting certificates:', certsError)
+        throw new Error(`Fehler beim Löschen der Zertifikate: ${certsError.message}`)
       }
 
       // Asset löschen
