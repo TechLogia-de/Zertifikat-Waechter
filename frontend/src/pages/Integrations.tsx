@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
+import { useUserRole } from '../hooks/useUserRole'
 import { supabase } from '../lib/supabase'
 import {
   StatusAlert,
@@ -12,6 +13,7 @@ import {
   generateWebhookSignature,
   formatWebhookError,
 } from '../components/features/integrations'
+import { logAuditEvent } from '../utils/auditLogger'
 import type { IntegrationTab } from '../components/features/integrations'
 
 interface SMTPConfig {
@@ -45,6 +47,7 @@ interface WebhookConfig {
 
 export default function Integrations() {
   const { user } = useAuth()
+  const { isAdminOrOwner, loading: roleLoading } = useUserRole()
   const [tenantId, setTenantId] = useState<string>('')
   const [activeTab, setActiveTab] = useState<IntegrationTab>('smtp')
 
@@ -132,6 +135,16 @@ export default function Integrations() {
     try {
       await upsertIntegration('smtp', 'SMTP Server', smtpConfig, { use_system_smtp: smtpConfig.use_system_smtp || false })
       const mode = smtpConfig.use_system_smtp ? 'System-SMTP' : 'Eigener SMTP'
+      // Audit log for SMTP config change
+      if (tenantId && user) {
+        await logAuditEvent(tenantId, user.id, 'integration.smtp.updated', {
+          mode,
+          host: smtpConfig.host,
+          port: smtpConfig.port,
+          from: smtpConfig.from,
+          use_system_smtp: smtpConfig.use_system_smtp || false,
+        })
+      }
       setSuccess(`✅ SMTP-Einstellungen erfolgreich gespeichert (${mode})!`)
       setTimeout(() => setSuccess(null), 3000)
     } catch (err: any) {
@@ -143,6 +156,13 @@ export default function Integrations() {
     setSaving(true); setError(null); setSuccess(null)
     try {
       await upsertIntegration('slack', 'Slack Workspace', slackConfig)
+      // Audit log for Slack config change
+      if (tenantId && user) {
+        await logAuditEvent(tenantId, user.id, 'integration.slack.updated', {
+          channel: slackConfig.channel,
+          webhook_url_set: !!slackConfig.webhook_url,
+        })
+      }
       setSuccess('✅ Slack-Einstellungen erfolgreich gespeichert!')
       setTimeout(() => setSuccess(null), 3000)
     } catch (err: any) {
@@ -154,6 +174,16 @@ export default function Integrations() {
     setSaving(true); setError(null); setSuccess(null)
     try {
       await upsertIntegration('webhook', 'Custom Webhook', webhookConfig)
+      // Audit log for Webhook config change
+      if (tenantId && user) {
+        await logAuditEvent(tenantId, user.id, 'integration.webhook.updated', {
+          url: webhookConfig.url,
+          has_secret: !!webhookConfig.secret,
+          timeout_seconds: webhookConfig.timeout_seconds,
+          retry_count: webhookConfig.retry_count,
+          validate_ssl: webhookConfig.validate_ssl,
+        })
+      }
       setSuccess('✅ Webhook-Einstellungen erfolgreich gespeichert!')
       setTimeout(() => setSuccess(null), 3000)
     } catch (err: any) {
@@ -287,6 +317,21 @@ export default function Integrations() {
 
       <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 bg-[#F8FAFC]">
         <div className="max-w-6xl mx-auto">
+          {/* Permission warning for non-admin users */}
+          {!roleLoading && !isAdminOrOwner && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+              <div className="flex items-start gap-3">
+                <span className="text-yellow-600 text-xl">⚠</span>
+                <div>
+                  <h3 className="font-semibold text-yellow-900 mb-1">Nur Lesezugriff</h3>
+                  <p className="text-sm text-yellow-800">
+                    Nur Administratoren und Besitzer können Integrationseinstellungen speichern oder testen.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <StatusAlert success={success} error={error} />
           <IntegrationTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
@@ -294,7 +339,7 @@ export default function Integrations() {
             <SmtpConfigForm
               smtpConfig={smtpConfig} onSmtpConfigChange={setSmtpConfig}
               testEmail={testEmail} onTestEmailChange={setTestEmail}
-              userEmail={user?.email} saving={saving}
+              userEmail={user?.email} saving={saving || !isAdminOrOwner}
               onSave={saveSMTP} onTest={testSMTPConnection}
             />
           )}
@@ -302,14 +347,14 @@ export default function Integrations() {
           {activeTab === 'slack' && (
             <SlackConfigForm
               slackConfig={slackConfig} onSlackConfigChange={setSlackConfig}
-              saving={saving} onSave={saveSlack} onTest={testSlackConnection}
+              saving={saving || !isAdminOrOwner} onSave={saveSlack} onTest={testSlackConnection}
             />
           )}
 
           {activeTab === 'webhook' && (
             <WebhookConfigForm
               webhookConfig={webhookConfig} onWebhookConfigChange={setWebhookConfig}
-              saving={saving} onSave={saveWebhook} onTest={testWebhookConnection}
+              saving={saving || !isAdminOrOwner} onSave={saveWebhook} onTest={testWebhookConnection}
             />
           )}
         </div>

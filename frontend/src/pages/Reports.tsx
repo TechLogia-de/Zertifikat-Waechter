@@ -130,6 +130,18 @@ export default function Reports() {
       return
     }
 
+    // Validate that there are certificates matching the selected filters
+    const matchingCerts =
+      (config.includeExpired ? stats.expired : 0) +
+      (config.includeExpiring ? stats.expiring : 0) +
+      (config.includeValid ? stats.valid : 0)
+
+    if (matchingCerts === 0) {
+      setError('Keine Zertifikate gefunden, die den gewählten Filterkriterien entsprechen. Bitte passen Sie die Filteroptionen an.')
+      setTimeout(() => setError(null), 8000)
+      return
+    }
+
     setGenerating(true)
     setError(null)
     setSuccess(null)

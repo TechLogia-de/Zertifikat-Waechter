@@ -170,26 +170,34 @@ export default function SSLHealth() {
       let successCount = 0
       let errorCount = 0
 
-      for (const asset of assetsNeedingCheck) {
-        try {
-          const { error } = await supabase.functions.invoke('ssl-health-check', {
-            body: { 
-              asset_id: asset.asset_id, 
-              host: asset.host, 
-              port: asset.port 
-            }
+      // Process checks with a concurrency limit of 5
+      const CONCURRENCY_LIMIT = 5
+      for (let i = 0; i < assetsNeedingCheck.length; i += CONCURRENCY_LIMIT) {
+        const batch = assetsNeedingCheck.slice(i, i + CONCURRENCY_LIMIT)
+        const results = await Promise.allSettled(
+          batch.map(async (asset: any) => {
+            const { error } = await supabase.functions.invoke('ssl-health-check', {
+              body: {
+                asset_id: asset.asset_id,
+                host: asset.host,
+                port: asset.port
+              }
+            })
+            if (error) throw error
           })
+        )
 
-          if (error) {
-            errorCount++
-          } else {
+        for (const result of results) {
+          if (result.status === 'fulfilled') {
             successCount++
+          } else {
+            errorCount++
           }
+        }
 
-          // Kurze Pause zwischen Checks
-          await new Promise(resolve => setTimeout(resolve, 1000))
-        } catch {
-          errorCount++
+        // Short pause between batches to avoid overload
+        if (i + CONCURRENCY_LIMIT < assetsNeedingCheck.length) {
+          await new Promise(resolve => setTimeout(resolve, 500))
         }
       }
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import LoadingState from '../components/ui/LoadingState'
@@ -40,6 +40,70 @@ export default function Assets() {
   useEffect(() => {
     if (currentTenantId) {
       fetchAssets()
+    }
+  }, [currentTenantId])
+
+  // Subscribe to realtime changes on assets table to refresh after mutations
+  useEffect(() => {
+    if (!currentTenantId) return
+
+    const channel = supabase
+      .channel('assets-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'assets',
+          filter: `tenant_id=eq.${currentTenantId}`
+        },
+        () => {
+          // Refetch assets when any change occurs (insert, update, delete)
+          refreshAssets()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [currentTenantId])
+
+  // Refresh without showing loading spinner (for background updates)
+  const refreshAssets = useCallback(async () => {
+    if (!currentTenantId) return
+
+    try {
+      const { data, error } = await supabase
+        .from('assets')
+        .select(`
+          *,
+          certificates (
+            id,
+            subject_cn,
+            not_after
+          )
+        `)
+        .eq('tenant_id', currentTenantId)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+
+      const assetsWithChecks = await Promise.all(
+        ((data as any) || []).map(async (asset: any) => {
+          const { data: checkData } = await supabase
+            .rpc('get_latest_ssl_check', { p_asset_id: asset.id } as any)
+
+          return {
+            ...asset,
+            latest_ssl_check: checkData && (checkData as any).length > 0 ? (checkData as any)[0] : null
+          }
+        })
+      )
+
+      setAssets(assetsWithChecks as any)
+    } catch (error) {
+      console.error('Fehler beim Aktualisieren:', error)
     }
   }, [currentTenantId])
 
@@ -219,7 +283,7 @@ export default function Assets() {
                             assetId={asset.id}
                             host={asset.host}
                             port={asset.port}
-                            onSuccess={fetchAssets}
+                            onSuccess={refreshAssets}
                           />
                         </td>
                       </tr>

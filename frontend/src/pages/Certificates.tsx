@@ -366,7 +366,8 @@ export default function Certificates() {
                       const now = new Date()
                       const expiryDate = new Date(cert.not_after)
                       const daysUntilExpiry = Math.floor((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-                      const totalDays = 90 // Annahme: 90 Tage Gültigkeit
+                      // Calculate actual validity period from certificate dates
+                      const totalDays = Math.max(1, Math.ceil((new Date(cert.not_after).getTime() - new Date(cert.not_before).getTime()) / (1000 * 60 * 60 * 24)))
                       const percentRemaining = Math.max(0, Math.min(100, (daysUntilExpiry / totalDays) * 100))
                       
                       let statusColor = '#10B981' // Grün

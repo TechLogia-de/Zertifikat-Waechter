@@ -5,6 +5,7 @@ import { getStatusBadge, formatLastSeen } from './utils'
 interface ConnectorCardProps {
   connector: Connector
   deleting: string | null
+  scanningId?: string | null
   onShowSetup: (connector: Connector) => void
   onTriggerScan: (connectorId: string) => void
   onEditConnector: (connector: Connector) => void
@@ -14,6 +15,7 @@ interface ConnectorCardProps {
 function ConnectorCard({
   connector,
   deleting,
+  scanningId,
   onShowSetup,
   onTriggerScan,
   onEditConnector,
@@ -151,11 +153,11 @@ function ConnectorCard({
           </button>
           <button
             onClick={() => onTriggerScan(connector.id)}
-            disabled={connector.status !== 'active'}
+            disabled={connector.status !== 'active' || scanningId === connector.id}
             className="px-3 py-2 text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-green-200"
-            title={connector.status === 'active' ? 'Scan jetzt ausführen' : 'Agent muss online sein'}
+            title={scanningId === connector.id ? 'Scan wird ausgefuehrt...' : connector.status === 'active' ? 'Scan jetzt ausführen' : 'Agent muss online sein'}
           >
-            🔄
+            {scanningId === connector.id ? '⏳' : '🔄'}
           </button>
           <button
             onClick={() => onEditConnector(connector)}

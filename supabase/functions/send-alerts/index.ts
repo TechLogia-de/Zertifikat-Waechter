@@ -90,12 +90,21 @@ serve(async (req) => {
         continue
       }
 
-      // Prüfe ob Alert in letzten 24h bereits gesendet wurde (Rate Limiting)
+      // Read tenant-specific alert interval from policies table, default to 24 hours
+      const { data: policy } = await supabase
+        .from('policies')
+        .select('alert_interval_hours')
+        .eq('tenant_id', tenantId)
+        .maybeSingle()
+
+      const alertIntervalHours = policy?.alert_interval_hours ?? 24
+
+      // Rate limit alerts based on tenant-configured interval
       const recentAlerts = tenantAlerts.filter(alert => {
         if (!alert.last_notified_at) return true
         const lastSent = new Date(alert.last_notified_at)
         const hoursSinceLastSent = (Date.now() - lastSent.getTime()) / (1000 * 60 * 60)
-        return hoursSinceLastSent >= 24 // Nur alle 24h senden
+        return hoursSinceLastSent >= alertIntervalHours
       })
 
       if (recentAlerts.length === 0) {

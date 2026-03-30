@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { useUserRole } from '../hooks/useUserRole'
 import LoadingState from '../components/ui/LoadingState'
 import Modal from '../components/ui/Modal'
 import APIDocumentation from '../components/features/APIDocumentation'
+import { logAuditEvent } from '../utils/auditLogger'
 // import type { Database } from '../types/database.types'
 
 interface APIKey {
@@ -22,6 +24,7 @@ interface APIKey {
 
 export default function APIKeys() {
   const { user } = useAuth()
+  const { isAdminOrOwner, loading: roleLoading } = useUserRole()
   const [loading, setLoading] = useState(true)
   const [apiKeys, setApiKeys] = useState<APIKey[]>([])
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -29,6 +32,8 @@ export default function APIKeys() {
   const [newGeneratedKey, setNewGeneratedKey] = useState('')
   const [currentTenantId, setCurrentTenantId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'keys' | 'docs'>('keys')
+  const [creating, setCreating] = useState(false)
+  const [revoking, setRevoking] = useState<string | null>(null)
 
   const [formData, setFormData] = useState({
     name: '',
@@ -85,6 +90,7 @@ export default function APIKeys() {
   }
 
   async function createAPIKey() {
+    setCreating(true)
     try {
       const randomKey = generateAPIKey()
       const keyHash = await hashKey(randomKey)
@@ -110,6 +116,17 @@ export default function APIKeys() {
 
       if (error) throw error
 
+      // Audit log for API key creation
+      if (currentTenantId && user) {
+        await logAuditEvent(currentTenantId, user.id, 'apikey.created', {
+          name: formData.name,
+          key_prefix: keyPrefix,
+          permissions: formData.permissions,
+          scopes: formData.scopes,
+          expires_at: expiresAt,
+        })
+      }
+
       setNewGeneratedKey(randomKey)
       setShowCreateModal(false)
       setShowKeyModal(true)
@@ -126,22 +143,39 @@ export default function APIKeys() {
     } catch (error: any) {
       console.error('Fehler beim Erstellen:', error)
       alert(`Fehler: ${error.message}`)
+    } finally {
+      setCreating(false)
     }
   }
 
   async function revokeAPIKey(id: string) {
     if (!confirm('API Key wirklich widerrufen?')) return
 
+    setRevoking(id)
     try {
+      const revokedKey = apiKeys.find(k => k.id === id)
+
       const { error } = await (supabase as any)
         .from('api_keys')
         .update({ is_active: false })
         .eq('id', id)
 
       if (error) throw error
+
+      // Audit log for API key revocation
+      if (currentTenantId && user) {
+        await logAuditEvent(currentTenantId, user.id, 'apikey.revoked', {
+          key_id: id,
+          name: revokedKey?.name || 'unknown',
+          key_prefix: revokedKey?.key_prefix || 'unknown',
+        })
+      }
+
       fetchAPIKeys()
     } catch (error) {
       console.error('Fehler:', error)
+    } finally {
+      setRevoking(null)
     }
   }
 
@@ -239,7 +273,7 @@ export default function APIKeys() {
               </button>
             </div>
           </div>
-          {activeTab === 'keys' && (
+          {activeTab === 'keys' && isAdminOrOwner && (
             <button
               onClick={() => {
                 setShowCreateModal(true)
@@ -261,6 +295,21 @@ export default function APIKeys() {
           <APIDocumentation />
         ) : (
           <>
+            {/* Permission warning for non-admin users */}
+            {!roleLoading && !isAdminOrOwner && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                <div className="flex items-start gap-3">
+                  <span className="text-yellow-600 text-xl">⚠</span>
+                  <div>
+                    <h3 className="font-semibold text-yellow-900 mb-1">Nur Lesezugriff</h3>
+                    <p className="text-sm text-yellow-800">
+                      Nur Administratoren und Besitzer können API Keys erstellen oder widerrufen.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Info Box */}
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
               <div className="flex items-start gap-3">
@@ -277,7 +326,34 @@ export default function APIKeys() {
               </div>
             </div>
 
-            {/* API Keys Table */}
+            {/* Empty state when no API keys exist */}
+            {apiKeys.length === 0 ? (
+              <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+                <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-10 h-10 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Noch keine API Keys vorhanden</h3>
+                <p className="text-gray-500 mb-2 max-w-md mx-auto">
+                  Mit API Keys kannst du programmatischen Zugriff auf deine Zertifikatsdaten erhalten.
+                  Erstelle deinen ersten Key, um die REST API zu nutzen.
+                </p>
+                <p className="text-sm text-gray-400 mb-6">
+                  Tipp: Verwende unterschiedliche Keys mit eingeschränkten Berechtigungen für verschiedene Systeme.
+                </p>
+                {isAdminOrOwner && (
+                  <button
+                    onClick={() => setShowCreateModal(true)}
+                    className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg shadow-blue-500/20"
+                  >
+                    + Ersten API Key erstellen
+                  </button>
+                )}
+              </div>
+            ) : (
+
+            /* API Keys Table */
             <div className="bg-white rounded-xl border border-gray-200">
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -293,13 +369,7 @@ export default function APIKeys() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {apiKeys.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
-                          Noch keine API Keys erstellt
-                        </td>
-                      </tr>
-                    ) : (
+                    {
                       apiKeys.map((key) => (
                         <tr key={key.id} className={!key.is_active ? 'opacity-50' : ''}>
                           <td className="px-6 py-4">
@@ -358,30 +428,36 @@ export default function APIKeys() {
                             )}
                           </td>
                           <td className="px-6 py-4">
-                            <div className="flex gap-2">
-                              {key.is_active && (
+                            {isAdminOrOwner ? (
+                              <div className="flex gap-2">
+                                {key.is_active && (
+                                  <button
+                                    onClick={() => revokeAPIKey(key.id)}
+                                    disabled={revoking === key.id}
+                                    className="text-sm text-orange-600 hover:text-orange-700 disabled:opacity-50"
+                                  >
+                                    {revoking === key.id ? 'Widerrufe...' : 'Widerrufen'}
+                                  </button>
+                                )}
                                 <button
-                                  onClick={() => revokeAPIKey(key.id)}
-                                  className="text-sm text-orange-600 hover:text-orange-700"
+                                  onClick={() => deleteAPIKey(key.id)}
+                                  className="text-sm text-red-600 hover:text-red-700"
                                 >
-                                  Widerrufen
+                                  Löschen
                                 </button>
-                              )}
-                              <button
-                                onClick={() => deleteAPIKey(key.id)}
-                                className="text-sm text-red-600 hover:text-red-700"
-                              >
-                                Löschen
-                              </button>
-                            </div>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-gray-400">--</span>
+                            )}
                           </td>
                         </tr>
                       ))
-                    )}
+                    }
                   </tbody>
                 </table>
               </div>
             </div>
+            )}
           </>
         )}
         </div>
@@ -464,10 +540,10 @@ export default function APIKeys() {
             </button>
             <button
               onClick={createAPIKey}
-              disabled={!formData.name}
+              disabled={!formData.name || creating}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
             >
-              API Key erstellen
+              {creating ? 'Erstellen...' : 'API Key erstellen'}
             </button>
           </div>
         </div>

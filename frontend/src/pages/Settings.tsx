@@ -12,7 +12,7 @@ import {
 } from '../components/features/settings'
 
 interface Policy {
-  id: string
+  id?: string
   tenant_id: string
   warn_days: number[]
   channels: {
@@ -23,10 +23,21 @@ interface Policy {
   }
 }
 
+// Default policy for first-time creation
+const DEFAULT_CHANNELS = {
+  email: true,
+  webhook: false,
+  slack: false,
+  teams: false,
+}
+
+const DEFAULT_WARN_DAYS = [30, 14, 7]
+
 export default function Settings() {
   const { user } = useAuth()
   const [tenantId, setTenantId] = useState<string>('')
   const [policy, setPolicy] = useState<Policy | null>(null)
+  const [isNewPolicy, setIsNewPolicy] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -60,6 +71,15 @@ export default function Settings() {
 
         if (policyData) {
           setPolicy(policyData as Policy)
+          setIsNewPolicy(false)
+        } else {
+          // Initialize default policy when none exists yet
+          setPolicy({
+            tenant_id: membership.tenant_id,
+            warn_days: DEFAULT_WARN_DAYS,
+            channels: { ...DEFAULT_CHANNELS },
+          })
+          setIsNewPolicy(true)
         }
       }
     } catch (error) {
@@ -76,16 +96,29 @@ export default function Settings() {
     setSuccess(false)
 
     try {
-      const { error } = await supabase
+      // Build payload; include id only when updating an existing policy
+      const payload: Record<string, unknown> = {
+        tenant_id: tenantId,
+        warn_days: policy.warn_days,
+        channels: policy.channels,
+      }
+      if (policy.id) {
+        payload.id = policy.id
+      }
+
+      const { data, error } = await supabase
         .from('policies')
-        .upsert({
-          id: policy.id,
-          tenant_id: tenantId,
-          warn_days: policy.warn_days,
-          channels: policy.channels
-        })
+        .upsert(payload)
+        .select()
+        .single()
 
       if (error) throw error
+
+      // After first creation, store the returned row so subsequent saves use update path
+      if (data) {
+        setPolicy(data as Policy)
+        setIsNewPolicy(false)
+      }
 
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
@@ -128,6 +161,14 @@ export default function Settings() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
                 <span className="font-medium">Einstellungen erfolgreich gespeichert!</span>
+              </div>
+            )}
+
+            {/* Hint for first-time policy creation */}
+            {isNewPolicy && (
+              <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg flex items-center">
+                <span className="mr-2 text-lg">💡</span>
+                <span className="font-medium">Erstelle deine erste Benachrichtigungsrichtlinie</span>
               </div>
             )}
 

@@ -24,7 +24,21 @@ export default function NotificationRules() {
   const [loading, setLoading] = useState(true)
   const [rules, setRules] = useState<NotificationRule[]>([])
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null)
   const [currentTenantId, setCurrentTenantId] = useState<string | null>(null)
+
+  const defaultFormData = {
+    name: '',
+    description: '',
+    is_active: true,
+    priority: 0,
+    condition_field: 'days_until_expiry',
+    condition_operator: '<=',
+    condition_value: '30',
+    action_type: 'email',
+    action_recipients: '',
+    throttle_minutes: 60,
+  }
 
   const [formData, setFormData] = useState({
     name: '',
@@ -81,7 +95,8 @@ export default function NotificationRules() {
     }
   }
 
-  async function createRule() {
+  // Save a rule: insert if new, update if editing an existing one
+  async function saveRule() {
     try {
       const conditions = {
         and: [
@@ -100,40 +115,75 @@ export default function NotificationRules() {
         }
       ]
 
-      const { error } = await supabase
-        .from('notification_rules')
-        .insert({
-          tenant_id: currentTenantId,
-          name: formData.name,
-          description: formData.description,
-          is_active: formData.is_active,
-          priority: formData.priority,
-          conditions,
-          actions,
-          throttle_minutes: formData.throttle_minutes,
-          created_by: user?.id,
-        })
+      if (editingRuleId) {
+        // Update existing rule
+        const { error } = await supabase
+          .from('notification_rules')
+          .update({
+            name: formData.name,
+            description: formData.description,
+            is_active: formData.is_active,
+            priority: formData.priority,
+            conditions,
+            actions,
+            throttle_minutes: formData.throttle_minutes,
+          })
+          .eq('id', editingRuleId)
 
-      if (error) throw error
+        if (error) throw error
+      } else {
+        // Insert new rule
+        const { error } = await supabase
+          .from('notification_rules')
+          .insert({
+            tenant_id: currentTenantId,
+            name: formData.name,
+            description: formData.description,
+            is_active: formData.is_active,
+            priority: formData.priority,
+            conditions,
+            actions,
+            throttle_minutes: formData.throttle_minutes,
+            created_by: user?.id,
+          })
 
-      setShowCreateModal(false)
-      setFormData({
-        name: '',
-        description: '',
-        is_active: true,
-        priority: 0,
-        condition_field: 'days_until_expiry',
-        condition_operator: '<=',
-        condition_value: '30',
-        action_type: 'email',
-        action_recipients: '',
-        throttle_minutes: 60,
-      })
+        if (error) throw error
+      }
+
+      closeModal()
       fetchRules()
     } catch (error) {
-      console.error('Fehler beim Erstellen:', error)
-      alert('Fehler beim Erstellen der Regel')
+      console.error('Fehler beim Speichern:', error)
+      alert('Fehler beim Speichern der Regel')
     }
+  }
+
+  // Open the modal pre-filled with rule data for editing
+  function editRule(rule: NotificationRule) {
+    const condition = rule.conditions?.and?.[0] || {}
+    const action = rule.actions?.[0] || {}
+
+    setEditingRuleId(rule.id)
+    setFormData({
+      name: rule.name,
+      description: rule.description || '',
+      is_active: rule.is_active,
+      priority: rule.priority,
+      condition_field: condition.field || 'days_until_expiry',
+      condition_operator: condition.operator || '<=',
+      condition_value: condition.value || '30',
+      action_type: action.type || 'email',
+      action_recipients: (action.recipients || []).join(', '),
+      throttle_minutes: rule.throttle_minutes,
+    })
+    setShowCreateModal(true)
+  }
+
+  // Reset modal state
+  function closeModal() {
+    setShowCreateModal(false)
+    setEditingRuleId(null)
+    setFormData({ ...defaultFormData })
   }
 
   async function toggleRule(id: string, currentState: boolean) {
@@ -202,8 +252,26 @@ export default function NotificationRules() {
         {/* Rules List */}
         <div className="space-y-4">
           {rules.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-500">
-              Noch keine Benachrichtigungsregeln erstellt
+            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+              <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-10 h-10 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Noch keine Benachrichtigungsregeln</h3>
+              <p className="text-gray-500 mb-2 max-w-md mx-auto">
+                Erstelle Regeln, um automatisch benachrichtigt zu werden, wenn Zertifikate ablaufen oder Sicherheitsprobleme erkannt werden.
+              </p>
+              <p className="text-sm text-gray-400 mb-6 max-w-md mx-auto">
+                Du kannst Bedingungen wie "Tage bis Ablauf", Schlüsselgröße oder Vertrauensstatus verwenden
+                und Benachrichtigungen per E-Mail, Slack, Teams oder Webhook senden.
+              </p>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+              >
+                + Erste Regel erstellen
+              </button>
             </div>
           ) : (
             rules.map((rule) => (
@@ -277,10 +345,18 @@ export default function NotificationRules() {
                       {rule.is_active ? 'Deaktivieren' : 'Aktivieren'}
                     </button>
                     <button
+                      onClick={() => editRule(rule)}
+                      aria-label={`Regel "${rule.name}" bearbeiten`}
+                      className="px-3 py-1 text-gray-600 hover:bg-gray-100 rounded text-sm"
+                    >
+                      ⚙️ Bearbeiten
+                    </button>
+                    <button
                       onClick={() => deleteRule(rule.id)}
+                      aria-label={`Regel "${rule.name}" löschen`}
                       className="px-3 py-1 text-red-600 hover:bg-red-50 rounded text-sm"
                     >
-                      Löschen
+                      🗑️ Löschen
                     </button>
                   </div>
                 </div>
@@ -291,9 +367,11 @@ export default function NotificationRules() {
 
         {/* Create Modal */}
         {showCreateModal && (
-          <Modal onClose={() => setShowCreateModal(false)}>
+          <Modal onClose={closeModal}>
             <div className="p-6">
-              <h2 className="text-2xl font-bold mb-6">Neue Benachrichtigungsregel</h2>
+              <h2 className="text-2xl font-bold mb-6">
+                {editingRuleId ? 'Benachrichtigungsregel bearbeiten' : 'Neue Benachrichtigungsregel'}
+              </h2>
 
               <div className="space-y-4">
                 <div>
@@ -439,17 +517,17 @@ export default function NotificationRules() {
 
               <div className="mt-6 flex justify-end gap-3">
                 <button
-                  onClick={() => setShowCreateModal(false)}
+                  onClick={closeModal}
                   className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
                 >
                   Abbrechen
                 </button>
                 <button
-                  onClick={createRule}
+                  onClick={saveRule}
                   disabled={!formData.name || !formData.action_recipients}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Regel erstellen
+                  {editingRuleId ? 'Regel speichern' : 'Regel erstellen'}
                 </button>
               </div>
             </div>

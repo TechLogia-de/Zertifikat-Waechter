@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import {
@@ -27,6 +27,9 @@ export default function Connectors() {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
   const [selectedTab, setSelectedTab] = useState<'docker' | 'compose' | 'windows'>('docker')
   const [initialLoad, setInitialLoad] = useState(true)
+  // Track which connector is currently scanning + cooldown
+  const [scanningId, setScanningId] = useState<string | null>(null)
+  const scanCooldownRef = useRef<Record<string, number>>({})
 
   // Assets und Certificates für ausgewählten Connector
   const [connectorAssets, setConnectorAssets] = useState<any[]>([])
@@ -419,8 +422,14 @@ export default function Connectors() {
   }
 
   async function triggerScan(connectorId: string) {
+    // Prevent concurrent scans and enforce 5-second cooldown
+    if (scanningId === connectorId) return
+    const lastScanTime = scanCooldownRef.current[connectorId] || 0
+    if (Date.now() - lastScanTime < 5000) return
+
+    setScanningId(connectorId)
     try {
-      // Update Config um Agent zu triggern
+      // Update Config to trigger the agent
       const connector = connectors.find(c => c.id === connectorId)
       if (!connector) return
 
@@ -435,13 +444,19 @@ export default function Connectors() {
 
       if (error) throw error
 
+      scanCooldownRef.current[connectorId] = Date.now()
       alert('✅ Scan-Request gesendet! Der Agent scannt in den nächsten 30 Sekunden.')
 
-      // Refresh Connectors nach 2 Sekunden
+      // Refresh Connectors after 2 seconds
       setTimeout(() => fetchConnectors(), 2000)
     } catch (error: any) {
       console.error('Error triggering scan:', error)
       alert(`Fehler: ${error.message}`)
+    } finally {
+      // Keep the button disabled for the full 5-second cooldown
+      setTimeout(() => {
+        setScanningId((prev) => (prev === connectorId ? null : prev))
+      }, 5000)
     }
   }
 
@@ -546,6 +561,7 @@ export default function Connectors() {
                 key={connector.id}
                 connector={connector}
                 deleting={deleting}
+                scanningId={scanningId}
                 onShowSetup={showSetup}
                 onTriggerScan={triggerScan}
                 onEditConnector={editConnector}

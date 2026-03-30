@@ -45,9 +45,20 @@ function AddDomainModal({ isOpen, onClose, tenantId, onSuccess }: AddDomainModal
       }
 
       const finalPort = useCustomPort ? parseInt(customPort) : port
-      
+
       if (isNaN(finalPort) || finalPort < 1 || finalPort > 65535) {
         throw new Error('Ungültiger Port (1-65535)')
+      }
+
+      // Check for duplicate host+port within the tenant
+      const { data: existing } = await supabase
+        .from('assets')
+        .select('id')
+        .eq('host', host.trim())
+        .eq('port', finalPort)
+        .maybeSingle()
+      if (existing) {
+        throw new Error('Diese Domain/Port-Kombination ist bereits registriert')
       }
 
       // Asset erstellen
