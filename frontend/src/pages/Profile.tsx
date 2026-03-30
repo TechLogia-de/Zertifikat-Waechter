@@ -117,13 +117,13 @@ export default function Profile() {
 
   async function saveTenantName() {
     if (!tenantId || !tenantName) {
-      setError('Bitte Organisation eingeben')
+      showError('Bitte Organisation eingeben')
       return
     }
 
     setSavingTenant(true)
-    setError(null)
-    setSuccess(null)
+    clearError()
+    clearSuccess()
 
     try {
       const { error: updateError } = await (supabase as any)
@@ -133,11 +133,9 @@ export default function Profile() {
 
       if (updateError) throw updateError
 
-      setSuccess(`✅ Organisation aktualisiert: ${tenantName}`)
-      setTimeout(() => setSuccess(null), 5000)
+      showSuccess(`✅ Organisation aktualisiert: ${tenantName}`, 5000)
     } catch (err: any) {
-      setError(err.message || 'Fehler beim Speichern der Organisation')
-      setTimeout(() => setError(null), 5000)
+      showError(err.message || 'Fehler beim Speichern der Organisation', 5000)
     } finally {
       setSavingTenant(false)
     }
@@ -145,24 +143,24 @@ export default function Profile() {
 
   async function changeEmail() {
     if (!newEmail) {
-      setError('Bitte E-Mail-Adresse eingeben')
+      showError('Bitte E-Mail-Adresse eingeben')
       return
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(newEmail)) {
-      setError('❌ Ungültige E-Mail-Adresse!')
+      showError('❌ Ungültige E-Mail-Adresse!')
       return
     }
 
     if (newEmail === user?.email) {
-      setError('Das ist bereits deine aktuelle E-Mail-Adresse')
+      showError('Das ist bereits deine aktuelle E-Mail-Adresse')
       return
     }
 
     setEmailChanging(true)
-    setError(null)
-    setSuccess(null)
+    clearError()
+    clearSuccess()
 
     try {
       const { error: updateError } = await supabase.auth.updateUser({
@@ -171,11 +169,9 @@ export default function Profile() {
 
       if (updateError) throw updateError
 
-      setSuccess(`✅ Bestätigungs-E-Mail gesendet an ${newEmail}!\n\nBitte prüfe dein Postfach und bestätige die neue E-Mail-Adresse.`)
-      setTimeout(() => setSuccess(null), 10000)
+      showSuccess(`✅ Bestätigungs-E-Mail gesendet an ${newEmail}!\n\nBitte prüfe dein Postfach und bestätige die neue E-Mail-Adresse.`, 10000)
     } catch (err: any) {
-      setError(err.message || 'Fehler beim Ändern der E-Mail')
-      setTimeout(() => setError(null), 5000)
+      showError(err.message || 'Fehler beim Ändern der E-Mail', 5000)
     } finally {
       setEmailChanging(false)
     }
@@ -183,23 +179,23 @@ export default function Profile() {
 
   async function changePassword() {
     if (!passwordData.newPassword || !passwordData.confirmPassword) {
-      setError('Bitte alle Passwort-Felder ausfüllen')
+      showError('Bitte alle Passwort-Felder ausfüllen')
       return
     }
 
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      setError('❌ Passwörter stimmen nicht überein!')
+      showError('❌ Passwörter stimmen nicht überein!')
       return
     }
 
     if (passwordData.newPassword.length < 8) {
-      setError('❌ Passwort muss mindestens 8 Zeichen lang sein!')
+      showError('❌ Passwort muss mindestens 8 Zeichen lang sein!')
       return
     }
 
     setPasswordChanging(true)
-    setError(null)
-    setSuccess(null)
+    clearError()
+    clearSuccess()
 
     try {
       // Prüfe ob User über OAuth eingeloggt ist
@@ -207,10 +203,10 @@ export default function Profile() {
       const currentProvider = session?.user?.app_metadata?.provider
       const providers = session?.user?.app_metadata?.providers || []
       const hasPassword = providers.includes('email')
-      
+
       // Wenn OAuth-User ohne Passwort: Spezielle Behandlung
       if (currentProvider === 'google' && !hasPassword) {
-        setError(
+        showError(
           '⚠️ Passwort-Erstellung für Google-User:\n\n' +
           'Du bist über Google angemeldet. Um ein Passwort zu setzen:\n\n' +
           '1️⃣ Melde dich ab\n' +
@@ -242,19 +238,18 @@ export default function Profile() {
         throw updateError
       }
 
-      setSuccess(
+      showSuccess(
         '✅ Passwort erfolgreich geändert!\n\n' +
         '➡️ Jetzt kannst du MFA aktivieren:\n' +
         '   1. Melde dich ab\n' +
         '   2. Logge dich mit E-Mail + Passwort ein\n' +
-        '   3. Gehe zu Einstellungen → MFA aktivieren'
+        '   3. Gehe zu Einstellungen → MFA aktivieren',
+        10000
       )
       setShowPasswordChange(false)
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
-      setTimeout(() => setSuccess(null), 10000)
     } catch (err: any) {
-      setError(err.message || 'Fehler beim Ändern des Passworts')
-      setTimeout(() => setError(null), 8000)
+      showError(err.message || 'Fehler beim Ändern des Passworts', 8000)
     } finally {
       setPasswordChanging(false)
     }
