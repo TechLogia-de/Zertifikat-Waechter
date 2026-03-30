@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { useTenantId } from '../hooks/useTenantId'
 import { useUserRole } from '../hooks/useUserRole'
 import LoadingState from '../components/ui/LoadingState'
 import Modal from '../components/ui/Modal'
@@ -24,13 +25,13 @@ interface APIKey {
 
 export default function APIKeys() {
   const { user } = useAuth()
+  const { tenantId: currentTenantId } = useTenantId()
   const { isAdminOrOwner, loading: roleLoading } = useUserRole()
   const [loading, setLoading] = useState(true)
   const [apiKeys, setApiKeys] = useState<APIKey[]>([])
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showKeyModal, setShowKeyModal] = useState(false)
   const [newGeneratedKey, setNewGeneratedKey] = useState('')
-  const [currentTenantId, setCurrentTenantId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'keys' | 'docs'>('keys')
   const [creating, setCreating] = useState(false)
   const [revoking, setRevoking] = useState<string | null>(null)
@@ -44,31 +45,10 @@ export default function APIKeys() {
   })
 
   useEffect(() => {
-    if (user) {
-      fetchCurrentTenant()
-    }
-  }, [user])
-
-  useEffect(() => {
     if (currentTenantId) {
       fetchAPIKeys()
     }
   }, [currentTenantId])
-
-  async function fetchCurrentTenant() {
-    if (!user?.id) return
-
-    const { data } = await supabase
-      .from('memberships')
-      .select('tenant_id')
-      .eq('user_id', user.id)
-      .limit(1)
-      .single() as any
-
-    if (data) {
-      setCurrentTenantId(data.tenant_id)
-    }
-  }
 
   async function fetchAPIKeys() {
     if (!currentTenantId) return
@@ -116,16 +96,13 @@ export default function APIKeys() {
 
       if (error) throw error
 
-      // Audit log for API key creation
-      if (currentTenantId && user) {
-        await logAuditEvent(currentTenantId, user.id, 'apikey.created', {
-          name: formData.name,
-          key_prefix: keyPrefix,
-          permissions: formData.permissions,
-          scopes: formData.scopes,
-          expires_at: expiresAt,
-        })
-      }
+      await logAuditEvent(currentTenantId, user?.id, 'apikey.created', {
+        name: formData.name,
+        key_prefix: keyPrefix,
+        permissions: formData.permissions,
+        scopes: formData.scopes,
+        expires_at: expiresAt,
+      })
 
       setNewGeneratedKey(randomKey)
       setShowCreateModal(false)
@@ -162,14 +139,11 @@ export default function APIKeys() {
 
       if (error) throw error
 
-      // Audit log for API key revocation
-      if (currentTenantId && user) {
-        await logAuditEvent(currentTenantId, user.id, 'apikey.revoked', {
-          key_id: id,
-          name: revokedKey?.name || 'unknown',
-          key_prefix: revokedKey?.key_prefix || 'unknown',
-        })
-      }
+      await logAuditEvent(currentTenantId, user?.id, 'apikey.revoked', {
+        key_id: id,
+        name: revokedKey?.name || 'unknown',
+        key_prefix: revokedKey?.key_prefix || 'unknown',
+      })
 
       fetchAPIKeys()
     } catch (error) {

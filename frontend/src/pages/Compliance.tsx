@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { useTenantId } from '../hooks/useTenantId'
 import LoadingState from '../components/ui/LoadingState'
 import Badge from '../components/ui/Badge'
 import { useAuditLog, AuditEventTypes } from '../hooks/useAuditLog'
@@ -38,13 +39,13 @@ interface ComplianceSummary {
 
 export default function Compliance() {
   const { user } = useAuth()
+  const { tenantId: currentTenantId } = useTenantId()
   const { logAction } = useAuditLog()
   const [loading, setLoading] = useState(true)
   const [standards, setStandards] = useState<ComplianceStandard[]>([])
   const [checks, setChecks] = useState<ComplianceCheck[]>([])
   const [summary, setSummary] = useState<ComplianceSummary[]>([])
   const [selectedStandard, setSelectedStandard] = useState<string>('all')
-  const [currentTenantId, setCurrentTenantId] = useState<string | null>(null)
   const [riskScore, setRiskScore] = useState<any>(null)
   const [remediationActions, setRemediationActions] = useState<any[]>([])
   const [running, setRunning] = useState(false)
@@ -52,12 +53,6 @@ export default function Compliance() {
   const [showAutoFixModal, setShowAutoFixModal] = useState(false)
   const [selectedViolationType, setSelectedViolationType] = useState<string | null>(null)
   const [fixing, setFixing] = useState(false)
-
-  useEffect(() => {
-    if (user) {
-      fetchCurrentTenant()
-    }
-  }, [user])
 
   useEffect(() => {
     if (currentTenantId) {
@@ -227,18 +222,6 @@ export default function Compliance() {
     }
   }, [checks, selectedStandard])
 
-  async function fetchCurrentTenant() {
-    const { data } = await supabase
-      .from('memberships')
-      .select('tenant_id')
-      .eq('user_id', user?.id)
-      .limit(1)
-      .single()
-
-    if (data) {
-      setCurrentTenantId(data.tenant_id)
-    }
-  }
 
   async function fetchStandards() {
     try {

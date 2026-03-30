@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
+import { useTenantId } from '../hooks/useTenantId'
 import { supabase } from '../lib/supabase'
 import LoadingState from '../components/ui/LoadingState'
 import NotificationRules from './NotificationRules'
@@ -23,42 +24,37 @@ interface Alert {
 
 export default function Alerts() {
   const { user } = useAuth()
+  const { tenantId } = useTenantId()
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'alerts' | 'rules'>('alerts')
 
   useEffect(() => {
-    loadAlerts()
-  }, [user])
+    if (tenantId) {
+      loadAlerts()
+    }
+  }, [tenantId])
 
   async function loadAlerts() {
-    if (!user) return
+    if (!tenantId) return
 
     try {
-      const { data: membership } = await supabase
-        .from('memberships')
-        .select('tenant_id')
-        .eq('user_id', user.id)
-        .maybeSingle()
+      const { data: alertsData, error } = await supabase
+        .from('alerts')
+        .select(`
+          *,
+          certificates(
+            subject_cn,
+            not_after,
+            assets(host, port)
+          )
+        `)
+        .eq('tenant_id', tenantId)
+        .order('first_triggered_at', { ascending: false })
 
-      if (membership) {
-        const { data: alertsData, error } = await supabase
-          .from('alerts')
-          .select(`
-            *,
-            certificates(
-              subject_cn,
-              not_after,
-              assets(host, port)
-            )
-          `)
-          .eq('tenant_id', membership.tenant_id)
-          .order('first_triggered_at', { ascending: false })
+      if (error) throw error
 
-        if (error) throw error
-
-        setAlerts(alertsData as any[] || [])
-      }
+      setAlerts(alertsData as any[] || [])
     } catch (error) {
       console.error('Failed to load alerts:', error)
     } finally {

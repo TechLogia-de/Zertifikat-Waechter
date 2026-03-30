@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
+import { useTenantId } from '../hooks/useTenantId'
 import { useUserRole } from '../hooks/useUserRole'
 import { supabase } from '../lib/supabase'
 import {
@@ -47,8 +48,8 @@ interface WebhookConfig {
 
 export default function Integrations() {
   const { user } = useAuth()
+  const { tenantId } = useTenantId()
   const { isAdminOrOwner, loading: roleLoading } = useUserRole()
-  const [tenantId, setTenantId] = useState<string>('')
   const [activeTab, setActiveTab] = useState<IntegrationTab>('smtp')
 
   const [smtpConfig, setSmtpConfig] = useState<SMTPConfig>({
@@ -72,55 +73,50 @@ export default function Integrations() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    loadIntegrations()
     if (user?.email) {
       setTestEmail(prev => ({ ...prev, recipient: user.email || '' }))
     }
   }, [user])
 
+  useEffect(() => {
+    if (tenantId) {
+      loadIntegrations()
+    }
+  }, [tenantId])
+
   async function loadIntegrations() {
-    if (!user) return
+    if (!tenantId) return
     try {
-      const { data: membership } = await supabase
-        .from('memberships')
-        .select('tenant_id')
-        .eq('user_id', user.id)
-        .maybeSingle()
+      const { data: integrations } = await (supabase as any)
+        .from('integrations')
+        .select('*')
+        .eq('tenant_id', tenantId)
 
-      if (membership) {
-        setTenantId((membership as any).tenant_id)
-        const { data: integrations } = await (supabase as any)
-          .from('integrations')
-          .select('*')
-          .eq('tenant_id', (membership as any).tenant_id)
-
-        if (integrations) {
-          integrations.forEach((integration: any) => {
-            if (integration.type === 'smtp' && integration.config) {
-              setSmtpConfig({
-                ...integration.config as SMTPConfig,
-                use_system_smtp: integration.use_system_smtp || false
-              })
-            } else if (integration.type === 'slack' && integration.config) {
-              setSlackConfig(integration.config as SlackConfig)
-            } else if (integration.type === 'webhook' && integration.config) {
-              const config = integration.config as any
-              setWebhookConfig({
-                url: config.url || '', secret: config.secret || '',
-                timeout_seconds: config.timeout_seconds || 5,
-                retry_count: config.retry_count || 3,
-                validate_ssl: config.validate_ssl !== undefined ? config.validate_ssl : true
-              })
-            }
-          })
-        }
+      if (integrations) {
+        integrations.forEach((integration: any) => {
+          if (integration.type === 'smtp' && integration.config) {
+            setSmtpConfig({
+              ...integration.config as SMTPConfig,
+              use_system_smtp: integration.use_system_smtp || false
+            })
+          } else if (integration.type === 'slack' && integration.config) {
+            setSlackConfig(integration.config as SlackConfig)
+          } else if (integration.type === 'webhook' && integration.config) {
+            const config = integration.config as any
+            setWebhookConfig({
+              url: config.url || '', secret: config.secret || '',
+              timeout_seconds: config.timeout_seconds || 5,
+              retry_count: config.retry_count || 3,
+              validate_ssl: config.validate_ssl !== undefined ? config.validate_ssl : true
+            })
+          }
+        })
       }
     } catch (err) {
       console.error('Failed to load integrations:', err)
     }
   }
 
-  // Helper to upsert an integration record
   async function upsertIntegration(type: string, name: string, config: any, extra?: Record<string, any>) {
     const { error: upsertError } = await (supabase as any)
       .from('integrations')
@@ -130,65 +126,53 @@ export default function Integrations() {
     if (upsertError) throw upsertError
   }
 
-  async function saveSMTP() {
+  async function saveIntegration(
+    type: string,
+    name: string,
+    config: Record<string, any>,
+    auditEventType: Parameters<typeof logAuditEvent>[2],
+    auditPayload: Record<string, any>,
+    successMessage: string,
+    extra?: Record<string, any>,
+  ) {
     setSaving(true); setError(null); setSuccess(null)
     try {
-      await upsertIntegration('smtp', 'SMTP Server', smtpConfig, { use_system_smtp: smtpConfig.use_system_smtp || false })
-      const mode = smtpConfig.use_system_smtp ? 'System-SMTP' : 'Eigener SMTP'
-      // Audit log for SMTP config change
-      if (tenantId && user) {
-        await logAuditEvent(tenantId, user.id, 'integration.smtp.updated', {
-          mode,
-          host: smtpConfig.host,
-          port: smtpConfig.port,
-          from: smtpConfig.from,
-          use_system_smtp: smtpConfig.use_system_smtp || false,
-        })
-      }
-      setSuccess(`✅ SMTP-Einstellungen erfolgreich gespeichert (${mode})!`)
+      await upsertIntegration(type, name, config, extra)
+      await logAuditEvent(tenantId, user?.id ?? '', auditEventType, auditPayload)
+      setSuccess(successMessage)
       setTimeout(() => setSuccess(null), 3000)
     } catch (err: any) {
       setError(err.message || 'Fehler beim Speichern')
     } finally { setSaving(false) }
   }
 
-  async function saveSlack() {
-    setSaving(true); setError(null); setSuccess(null)
-    try {
-      await upsertIntegration('slack', 'Slack Workspace', slackConfig)
-      // Audit log for Slack config change
-      if (tenantId && user) {
-        await logAuditEvent(tenantId, user.id, 'integration.slack.updated', {
-          channel: slackConfig.channel,
-          webhook_url_set: !!slackConfig.webhook_url,
-        })
-      }
-      setSuccess('✅ Slack-Einstellungen erfolgreich gespeichert!')
-      setTimeout(() => setSuccess(null), 3000)
-    } catch (err: any) {
-      setError(err.message || 'Fehler beim Speichern')
-    } finally { setSaving(false) }
+  function saveSMTP() {
+    const mode = smtpConfig.use_system_smtp ? 'System-SMTP' : 'Eigener SMTP'
+    return saveIntegration(
+      'smtp', 'SMTP Server', smtpConfig,
+      'integration.smtp.updated',
+      { mode, host: smtpConfig.host, port: smtpConfig.port, from: smtpConfig.from, use_system_smtp: smtpConfig.use_system_smtp || false },
+      `✅ SMTP-Einstellungen erfolgreich gespeichert (${mode})!`,
+      { use_system_smtp: smtpConfig.use_system_smtp || false },
+    )
   }
 
-  async function saveWebhook() {
-    setSaving(true); setError(null); setSuccess(null)
-    try {
-      await upsertIntegration('webhook', 'Custom Webhook', webhookConfig)
-      // Audit log for Webhook config change
-      if (tenantId && user) {
-        await logAuditEvent(tenantId, user.id, 'integration.webhook.updated', {
-          url: webhookConfig.url,
-          has_secret: !!webhookConfig.secret,
-          timeout_seconds: webhookConfig.timeout_seconds,
-          retry_count: webhookConfig.retry_count,
-          validate_ssl: webhookConfig.validate_ssl,
-        })
-      }
-      setSuccess('✅ Webhook-Einstellungen erfolgreich gespeichert!')
-      setTimeout(() => setSuccess(null), 3000)
-    } catch (err: any) {
-      setError(err.message || 'Fehler beim Speichern')
-    } finally { setSaving(false) }
+  function saveSlack() {
+    return saveIntegration(
+      'slack', 'Slack Workspace', slackConfig,
+      'integration.slack.updated',
+      { channel: slackConfig.channel, webhook_url_set: !!slackConfig.webhook_url },
+      '✅ Slack-Einstellungen erfolgreich gespeichert!',
+    )
+  }
+
+  function saveWebhook() {
+    return saveIntegration(
+      'webhook', 'Custom Webhook', webhookConfig,
+      'integration.webhook.updated',
+      { url: webhookConfig.url, has_secret: !!webhookConfig.secret, timeout_seconds: webhookConfig.timeout_seconds, retry_count: webhookConfig.retry_count, validate_ssl: webhookConfig.validate_ssl },
+      '✅ Webhook-Einstellungen erfolgreich gespeichert!',
+    )
   }
 
   async function testSMTPConnection() {

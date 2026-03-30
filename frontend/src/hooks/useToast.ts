@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import type { ToastMessage } from '../components/ui/Toast'
 
 let nextId = 0
+const MAX_TOASTS = 5
 
 // Simple toast notification hook.
 // Usage:
@@ -16,15 +17,17 @@ export function useToast() {
     setToasts((prev) => prev.filter((t) => t.id !== id))
   }, [])
 
-  const showSuccess = useCallback((message: string) => {
+  const addToast = useCallback((type: ToastMessage['type'], message: string) => {
     const id = `toast-${++nextId}`
-    setToasts((prev) => [...prev, { id, type: 'success', message }])
+    setToasts((prev) => {
+      const next = [...prev, { id, type, message }]
+      // Drop oldest toasts when exceeding the cap
+      return next.length > MAX_TOASTS ? next.slice(next.length - MAX_TOASTS) : next
+    })
   }, [])
 
-  const showError = useCallback((message: string) => {
-    const id = `toast-${++nextId}`
-    setToasts((prev) => [...prev, { id, type: 'error', message }])
-  }, [])
+  const showSuccess = useCallback((message: string) => addToast('success', message), [addToast])
+  const showError = useCallback((message: string) => addToast('error', message), [addToast])
 
   return { toasts, showSuccess, showError, dismissToast }
 }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { useTenantId } from '../hooks/useTenantId'
 import LoadingState from '../components/ui/LoadingState'
 import Modal from '../components/ui/Modal'
 
@@ -21,11 +22,11 @@ interface NotificationRule {
 
 export default function NotificationRules() {
   const { user } = useAuth()
+  const { tenantId: currentTenantId } = useTenantId()
   const [loading, setLoading] = useState(true)
   const [rules, setRules] = useState<NotificationRule[]>([])
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null)
-  const [currentTenantId, setCurrentTenantId] = useState<string | null>(null)
 
   const defaultFormData = {
     name: '',
@@ -54,29 +55,10 @@ export default function NotificationRules() {
   })
 
   useEffect(() => {
-    if (user) {
-      fetchCurrentTenant()
-    }
-  }, [user])
-
-  useEffect(() => {
     if (currentTenantId) {
       fetchRules()
     }
   }, [currentTenantId])
-
-  async function fetchCurrentTenant() {
-    const { data } = await supabase
-      .from('memberships')
-      .select('tenant_id')
-      .eq('user_id', user?.id)
-      .limit(1)
-      .single()
-
-    if (data) {
-      setCurrentTenantId(data.tenant_id)
-    }
-  }
 
   async function fetchRules() {
     try {

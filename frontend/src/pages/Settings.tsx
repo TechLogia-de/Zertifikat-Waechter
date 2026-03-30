@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
+import { useTenantId } from '../hooks/useTenantId'
 import { supabase } from '../lib/supabase'
 import LoadingState from '../components/ui/LoadingState'
 import {
@@ -35,7 +36,7 @@ const DEFAULT_WARN_DAYS = [30, 14, 7]
 
 export default function Settings() {
   const { user } = useAuth()
-  const [tenantId, setTenantId] = useState<string>('')
+  const { tenantId } = useTenantId()
   const [policy, setPolicy] = useState<Policy | null>(null)
   const [isNewPolicy, setIsNewPolicy] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -46,41 +47,36 @@ export default function Settings() {
   const mfa = useMfa(user)
 
   useEffect(() => {
-    loadSettings()
     mfa.loadMfaStatus()
   }, [user])
 
+  useEffect(() => {
+    if (tenantId) {
+      loadSettings()
+    }
+  }, [tenantId])
+
   async function loadSettings() {
-    if (!user) return
+    if (!tenantId) return
 
     try {
-      const { data: membership } = await supabase
-        .from('memberships')
-        .select('tenant_id')
-        .eq('user_id', user.id)
+      const { data: policyData } = await supabase
+        .from('policies')
+        .select('*')
+        .eq('tenant_id', tenantId)
         .maybeSingle()
 
-      if (membership) {
-        setTenantId(membership.tenant_id)
-
-        const { data: policyData } = await supabase
-          .from('policies')
-          .select('*')
-          .eq('tenant_id', membership.tenant_id)
-          .maybeSingle()
-
-        if (policyData) {
-          setPolicy(policyData as Policy)
-          setIsNewPolicy(false)
-        } else {
-          // Initialize default policy when none exists yet
-          setPolicy({
-            tenant_id: membership.tenant_id,
-            warn_days: DEFAULT_WARN_DAYS,
-            channels: { ...DEFAULT_CHANNELS },
-          })
-          setIsNewPolicy(true)
-        }
+      if (policyData) {
+        setPolicy(policyData as Policy)
+        setIsNewPolicy(false)
+      } else {
+        // Initialize default policy when none exists yet
+        setPolicy({
+          tenant_id: tenantId,
+          warn_days: DEFAULT_WARN_DAYS,
+          channels: { ...DEFAULT_CHANNELS },
+        })
+        setIsNewPolicy(true)
       }
     } catch (error) {
       console.error('Failed to load settings:', error)

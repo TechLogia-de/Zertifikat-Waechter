@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
+import { useTenantId } from '../hooks/useTenantId'
 import { supabase } from '../lib/supabase'
 import { useScanDomain } from '../hooks/useScanDomain'
 import AddDomainModal from '../components/features/AddDomainModal'
@@ -20,8 +21,8 @@ interface Asset {
 
 export default function Certificates() {
   const { user } = useAuth()
+  const { tenantId } = useTenantId()
   const [assets, setAssets] = useState<Asset[]>([])
-  const [tenantId, setTenantId] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
   const { scanDomain, scanning } = useScanDomain()
@@ -35,55 +36,41 @@ export default function Certificates() {
   const [activeTab, setActiveTab] = useState<'certificates' | 'assets'>('certificates')
 
   useEffect(() => {
-    loadAssets()
-  }, [user])
+    if (tenantId) {
+      loadAssets()
+    }
+  }, [tenantId])
 
   async function loadAssets() {
-    if (!user) return
+    if (!tenantId) return
 
     try {
-      // Get user's tenant
-      const { data: membership, error: membershipError } = await supabase
-        .from('memberships')
-        .select('tenant_id')
-        .eq('user_id', user.id)
-        .maybeSingle()
-      
-      if (membershipError) {
-        console.error('Failed to load membership:', membershipError)
-        throw membershipError
-      }
+      // Get assets with certificates
+      const { data: assetsData, error } = await supabase
+        .from('assets')
+        .select(`
+          *,
+          certificates(
+            id,
+            subject_cn,
+            not_after,
+            not_before,
+            fingerprint,
+            issuer,
+            san,
+            key_alg,
+            key_size,
+            serial,
+            is_trusted,
+            is_self_signed
+          )
+        `)
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false })
 
-      if (membership) {
-        setTenantId(membership.tenant_id)
+      if (error) throw error
 
-        // Get assets with certificates
-        const { data: assetsData, error } = await supabase
-          .from('assets')
-          .select(`
-            *,
-            certificates(
-              id, 
-              subject_cn, 
-              not_after, 
-              not_before,
-              fingerprint, 
-              issuer, 
-              san, 
-              key_alg, 
-              key_size, 
-              serial,
-              is_trusted,
-              is_self_signed
-            )
-          `)
-          .eq('tenant_id', membership.tenant_id)
-          .order('created_at', { ascending: false })
-
-        if (error) throw error
-
-        setAssets(assetsData || [])
-      }
+      setAssets(assetsData || [])
     } catch (error) {
       console.error('Failed to load assets:', error)
     } finally {

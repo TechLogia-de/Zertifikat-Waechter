@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
+import { useTenantId } from '../hooks/useTenantId'
 import { supabase } from '../lib/supabase'
 import AddDomainModal from '../components/features/AddDomainModal'
 import ActivityTimeline from '../components/features/ActivityTimeline'
@@ -33,6 +34,7 @@ interface RecentCertificate {
 
 export default function Dashboard() {
   const { user, signOut } = useAuth()
+  const { tenantId } = useTenantId()
   const navigate = useNavigate()
   const [stats, setStats] = useState<Stats>({
     totalCertificates: 0,
@@ -49,7 +51,6 @@ export default function Dashboard() {
     acmePending: 0
   })
   const [tenantName, setTenantName] = useState<string>('')
-  const [tenantId, setTenantId] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [showAddDomainModal, setShowAddDomainModal] = useState(false)
   const [recentCertificates, setRecentCertificates] = useState<RecentCertificate[]>([])
@@ -57,8 +58,10 @@ export default function Dashboard() {
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    loadDashboardData()
-  }, [user])
+    if (tenantId) {
+      loadDashboardData()
+    }
+  }, [tenantId])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -82,124 +85,88 @@ export default function Dashboard() {
   }
 
   async function loadDashboardData() {
-    if (!user) return
+    if (!tenantId || !user) return
 
     try {
-      // Get user's tenant
-      const { data: membership, error: membershipError } = await supabase
+      // Fetch tenant name
+      const { data: membership } = await supabase
         .from('memberships')
-        .select('tenant_id, tenants(name)')
+        .select('tenants(name)')
         .eq('user_id', user.id)
         .maybeSingle()
-      
-      if (membershipError) {
-        console.error('Failed to load membership:', membershipError)
-        throw membershipError
-      }
 
       if (membership) {
-        // Type assertion für joined data
         const membershipData = membership as any
-        
         if (membershipData.tenants) {
           setTenantName(membershipData.tenants.name)
         }
-        
-        setTenantId(membershipData.tenant_id)
-        
-        const tenantId = membershipData.tenant_id
+      }
 
-        // Get certificates count
-        const { count: totalCount } = await supabase
+      const thirtyDaysFromNow = new Date()
+      thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30)
+      const now = new Date().toISOString()
+
+      // Fire all independent queries in parallel
+      const [
+        { count: totalCount },
+        { count: expiringCount },
+        { count: expiredCount },
+        { count: alertsCount },
+        { data: connectors },
+        { data: discoveryResults },
+        { count: acmeAccountsCount },
+        { count: acmeOrdersCount },
+        { count: acmeActiveCount },
+        { count: acmePendingCount },
+        { data: recentCerts },
+      ] = await Promise.all([
+        supabase
           .from('certificates')
           .select('*', { count: 'exact', head: true })
-          .eq('tenant_id', tenantId)
-
-        // Get expiring soon (next 30 days)
-        const thirtyDaysFromNow = new Date()
-        thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30)
-        
-        const { count: expiringCount } = await supabase
+          .eq('tenant_id', tenantId),
+        supabase
           .from('certificates')
           .select('*', { count: 'exact', head: true })
           .eq('tenant_id', tenantId)
           .lte('not_after', thirtyDaysFromNow.toISOString())
-          .gte('not_after', new Date().toISOString())
-
-        // Get expired
-        const { count: expiredCount } = await supabase
+          .gte('not_after', now),
+        supabase
           .from('certificates')
           .select('*', { count: 'exact', head: true })
           .eq('tenant_id', tenantId)
-          .lt('not_after', new Date().toISOString())
-
-        // Get active alerts
-        const { count: alertsCount } = await supabase
+          .lt('not_after', now),
+        supabase
           .from('alerts')
           .select('*', { count: 'exact', head: true })
           .eq('tenant_id', tenantId)
-          .is('acknowledged_at', null)
-
-        // Get Agents stats
-        const { data: connectors } = await supabase
+          .is('acknowledged_at', null),
+        supabase
           .from('connectors')
           .select('*')
-          .eq('tenant_id', tenantId)
-
-        const activeAgents = (connectors as any)?.filter((c: any) => c.status === 'active').length || 0
-        const totalAgents = connectors?.length || 0
-
-        // Get Discovery Results
-        const { data: discoveryResults } = await supabase
+          .eq('tenant_id', tenantId),
+        supabase
           .from('discovery_results')
           .select('*')
-          .eq('tenant_id', tenantId)
-
-        const hostsDiscovered = discoveryResults?.length || 0
-        const servicesFound = (discoveryResults as any)?.reduce((sum: number, result: any) => {
-          return sum + (result.services?.length || 0)
-        }, 0) || 0
-
-        // Get ACME stats
-        const { count: acmeAccountsCount } = await supabase
+          .eq('tenant_id', tenantId),
+        supabase
           .from('acme_accounts')
           .select('*', { count: 'exact', head: true })
-          .eq('tenant_id', tenantId)
-
-        const { count: acmeOrdersCount } = await supabase
+          .eq('tenant_id', tenantId),
+        supabase
+          .from('acme_orders')
+          .select('*', { count: 'exact', head: true })
+          .eq('tenant_id', tenantId),
+        supabase
           .from('acme_orders')
           .select('*', { count: 'exact', head: true })
           .eq('tenant_id', tenantId)
-
-        const { count: acmeActiveCount } = await supabase
+          .in('status', ['valid', 'processing']),
+        supabase
           .from('acme_orders')
           .select('*', { count: 'exact', head: true })
           .eq('tenant_id', tenantId)
-          .in('status', ['valid', 'processing'])
-
-        const { count: acmePendingCount } = await supabase
-          .from('acme_orders')
-          .select('*', { count: 'exact', head: true })
-          .eq('tenant_id', tenantId)
-          .eq('status', 'pending')
-
-        setStats({
-          totalCertificates: totalCount || 0,
-          expiringSoon: expiringCount || 0,
-          expired: expiredCount || 0,
-          activeAlerts: alertsCount || 0,
-          activeAgents,
-          totalAgents,
-          hostsDiscovered,
-          servicesFound,
-          acmeAccounts: acmeAccountsCount || 0,
-          acmeOrders: acmeOrdersCount || 0,
-          acmeActive: acmeActiveCount || 0,
-          acmePending: acmePendingCount || 0
-        })
-
-        // Get recent certificates
-        const { data: recentCerts } = await supabase
+          .eq('status', 'pending'),
+        supabase
           .from('certificates')
           .select(`
             id,
@@ -210,10 +177,32 @@ export default function Dashboard() {
           `)
           .eq('tenant_id', tenantId)
           .order('created_at', { ascending: false })
-          .limit(5)
+          .limit(5),
+      ])
 
-        setRecentCertificates(recentCerts as any[] || [])
-      }
+      const activeAgents = (connectors as any)?.filter((c: any) => c.status === 'active').length || 0
+      const totalAgents = connectors?.length || 0
+      const hostsDiscovered = discoveryResults?.length || 0
+      const servicesFound = (discoveryResults as any)?.reduce((sum: number, result: any) => {
+        return sum + (result.services?.length || 0)
+      }, 0) || 0
+
+      setStats({
+        totalCertificates: totalCount || 0,
+        expiringSoon: expiringCount || 0,
+        expired: expiredCount || 0,
+        activeAlerts: alertsCount || 0,
+        activeAgents,
+        totalAgents,
+        hostsDiscovered,
+        servicesFound,
+        acmeAccounts: acmeAccountsCount || 0,
+        acmeOrders: acmeOrdersCount || 0,
+        acmeActive: acmeActiveCount || 0,
+        acmePending: acmePendingCount || 0
+      })
+
+      setRecentCertificates(recentCerts as any[] || [])
     } catch (error) {
       console.error('Failed to load dashboard data:', error)
     } finally {

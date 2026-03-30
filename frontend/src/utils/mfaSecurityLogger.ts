@@ -1,27 +1,5 @@
 import { supabase } from '../lib/supabase'
-
-/**
- * Generiert einen einfachen Hash für Events (Browser-kompatibel)
- */
-async function generateSimpleHash(data: string): Promise<string> {
-  try {
-    const encoder = new TextEncoder()
-    const dataBuffer = encoder.encode(data)
-    const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer)
-    const hashArray = Array.from(new Uint8Array(hashBuffer))
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
-    return hashHex
-  } catch (error) {
-    // Fallback: Einfacher String-Hash
-    let hash = 0
-    for (let i = 0; i < data.length; i++) {
-      const char = data.charCodeAt(i)
-      hash = ((hash << 5) - hash) + char
-      hash = hash & hash // Convert to 32bit integer
-    }
-    return Math.abs(hash).toString(16)
-  }
-}
+import { generateSimpleHash } from './hashUtils'
 
 interface MFASecurityEvent {
   event_type: 'mfa.enrollment.started' | 'mfa.enrollment.completed' | 'mfa.enrollment.failed' |

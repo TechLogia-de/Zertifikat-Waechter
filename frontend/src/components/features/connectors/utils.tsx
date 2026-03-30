@@ -1,5 +1,6 @@
 import Badge from '../../ui/Badge'
 import { Connector, ConnectorWithToken } from './types'
+import { formatRelativeTime } from '../../../utils/dateUtils'
 
 // Read Supabase config from env vars only; use placeholders if missing
 function getSupabaseConfig(): { supabaseUrl: string; anonKey: string } {
@@ -114,26 +115,5 @@ export function getStatusBadge(status: string) {
   }
 }
 
-export function formatLastSeen(lastSeen: string | null) {
-  if (!lastSeen) return 'Noch nie'
-  const date = new Date(lastSeen)
-  const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffSec = Math.floor(diffMs / 1000)
-  const diffMin = Math.floor(diffSec / 60)
-  const diffHour = Math.floor(diffMin / 60)
-  const diffDay = Math.floor(diffHour / 24)
-
-  if (diffSec < 30) return 'Gerade eben'
-  if (diffSec < 60) return `vor ${diffSec} Sek`
-  if (diffMin < 60) return `vor ${diffMin} Min`
-  if (diffHour < 24) return `vor ${diffHour} Std`
-  if (diffDay < 7) return `vor ${diffDay} Tag${diffDay !== 1 ? 'en' : ''}`
-
-  // Älter als 7 Tage → zeige Datum (lokale Zeit, deutsche Formatierung)
-  return date.toLocaleDateString('de-DE', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric'
-  })
-}
+// Re-export formatRelativeTime as formatLastSeen for backward compatibility
+export const formatLastSeen = formatRelativeTime

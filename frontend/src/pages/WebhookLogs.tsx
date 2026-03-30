@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
+import { useTenantId } from '../hooks/useTenantId'
 import { supabase } from '../lib/supabase'
 
 interface WebhookDelivery {
@@ -28,40 +29,33 @@ interface WebhookStats {
 
 export default function WebhookLogs() {
   const { user } = useAuth()
-  const [tenantId, setTenantId] = useState<string>('')
+  const { tenantId } = useTenantId()
   const [deliveries, setDeliveries] = useState<WebhookDelivery[]>([])
   const [stats, setStats] = useState<WebhookStats[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'success' | 'failed' | 'pending' | 'retrying'>('all')
 
   useEffect(() => {
-    loadData()
-    
+    if (tenantId) {
+      loadData()
+    }
+
     // Auto-refresh alle 30 Sekunden
-    const interval = setInterval(loadData, 30000)
+    const interval = setInterval(() => {
+      if (tenantId) loadData()
+    }, 30000)
     return () => clearInterval(interval)
-  }, [user, filter])
+  }, [tenantId, filter])
 
   async function loadData() {
-    if (!user) return
+    if (!tenantId) return
 
     try {
-      // Hole Tenant ID
-      const { data: membership } = await supabase
-        .from('memberships')
-        .select('tenant_id')
-        .eq('user_id', user.id)
-        .maybeSingle()
-
-      if (!membership) return
-      const tid = (membership as any).tenant_id
-      setTenantId(tid)
-
       // Hole Webhook Deliveries
       let query = (supabase as any)
         .from('webhook_deliveries')
         .select('*')
-        .eq('tenant_id', tid)
+        .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false })
         .limit(100)
 
@@ -76,7 +70,7 @@ export default function WebhookLogs() {
       const { data: statsData } = await (supabase as any)
         .from('webhook_delivery_stats')
         .select('*')
-        .eq('tenant_id', tid)
+        .eq('tenant_id', tenantId)
         .order('date', { ascending: false })
         .limit(7)
 

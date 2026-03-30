@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
+import { useTenantId } from '../hooks/useTenantId'
 import { supabase } from '../lib/supabase'
 import LoadingState from '../components/ui/LoadingState'
 import { generateHTMLReport } from '../utils/reportHtmlGenerator'
@@ -30,7 +31,7 @@ export interface ReportStats {
 
 export default function Reports() {
   const { user } = useAuth()
-  const [tenantId, setTenantId] = useState<string>('')
+  const { tenantId } = useTenantId()
   const [tenantName, setTenantName] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
@@ -62,61 +63,65 @@ export default function Reports() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    loadData()
-  }, [user])
+    if (tenantId) {
+      loadData()
+    }
+  }, [tenantId])
 
   async function loadData() {
-    if (!user) return
+    if (!tenantId) return
 
     try {
-      const { data: membership } = await supabase
-        .from('memberships')
-        .select('tenant_id, tenants(name)')
-        .eq('user_id', user.id)
-        .maybeSingle()
+      // Fetch tenant name via memberships join
+      if (user) {
+        const { data: membership } = await supabase
+          .from('memberships')
+          .select('tenants(name)')
+          .eq('user_id', user.id)
+          .maybeSingle()
 
-      if (membership) {
-        const membershipData = membership as any
-        setTenantId(membershipData.tenant_id)
-        if (membershipData.tenants) {
-          setTenantName(membershipData.tenants.name || '')
+        if (membership) {
+          const membershipData = membership as any
+          if (membershipData.tenants) {
+            setTenantName(membershipData.tenants.name || '')
+          }
         }
-
-        // Load Stats
-        const { count: totalCount } = await supabase
-          .from('certificates')
-          .select('*', { count: 'exact', head: true })
-          .eq('tenant_id', membershipData.tenant_id)
-
-        const { count: expiredCount } = await supabase
-          .from('certificates')
-          .select('*', { count: 'exact', head: true })
-          .eq('tenant_id', membershipData.tenant_id)
-          .lt('not_after', new Date().toISOString())
-
-        const thirtyDaysFromNow = new Date()
-        thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30)
-
-        const { count: expiringCount } = await supabase
-          .from('certificates')
-          .select('*', { count: 'exact', head: true })
-          .eq('tenant_id', membershipData.tenant_id)
-          .lte('not_after', thirtyDaysFromNow.toISOString())
-          .gte('not_after', new Date().toISOString())
-
-        const { count: eventsCount } = await supabase
-          .from('events')
-          .select('*', { count: 'exact', head: true })
-          .eq('tenant_id', membershipData.tenant_id)
-
-        setStats({
-          totalCerts: totalCount || 0,
-          expired: expiredCount || 0,
-          expiring: expiringCount || 0,
-          valid: (totalCount || 0) - (expiredCount || 0) - (expiringCount || 0),
-          events: eventsCount || 0
-        })
       }
+
+      // Load Stats
+      const { count: totalCount } = await supabase
+        .from('certificates')
+        .select('*', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId!)
+
+      const { count: expiredCount } = await supabase
+        .from('certificates')
+        .select('*', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId!)
+        .lt('not_after', new Date().toISOString())
+
+      const thirtyDaysFromNow = new Date()
+      thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30)
+
+      const { count: expiringCount } = await supabase
+        .from('certificates')
+        .select('*', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId!)
+        .lte('not_after', thirtyDaysFromNow.toISOString())
+        .gte('not_after', new Date().toISOString())
+
+      const { count: eventsCount } = await supabase
+        .from('events')
+        .select('*', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId!)
+
+      setStats({
+        totalCerts: totalCount || 0,
+        expired: expiredCount || 0,
+        expiring: expiringCount || 0,
+        valid: (totalCount || 0) - (expiredCount || 0) - (expiringCount || 0),
+        events: eventsCount || 0
+      })
     } catch (err) {
       console.error('Failed to load data:', err)
     } finally {
@@ -165,7 +170,7 @@ export default function Reports() {
     const { data: certificates } = await supabase
       .from('certificates')
       .select('subject_cn, issuer, not_before, not_after, key_alg, key_size, fingerprint, assets(host, port)')
-      .eq('tenant_id', tenantId)
+      .eq('tenant_id', tenantId!)
       .order('not_after', { ascending: true })
 
     if (!certificates || certificates.length === 0) {
@@ -229,7 +234,7 @@ export default function Reports() {
     const { data: certificates, error: certError } = await supabase
       .from('certificates')
       .select('*, assets(host, port)')
-      .eq('tenant_id', tenantId)
+      .eq('tenant_id', tenantId!)
       .order('not_after', { ascending: true })
 
     if (certError) {
@@ -239,7 +244,7 @@ export default function Reports() {
     const { data: events } = config.includeAuditLog ? await supabase
       .from('events')
       .select('*')
-      .eq('tenant_id', tenantId)
+      .eq('tenant_id', tenantId!)
       .order('ts', { ascending: false })
       .limit(50)
       : { data: null }

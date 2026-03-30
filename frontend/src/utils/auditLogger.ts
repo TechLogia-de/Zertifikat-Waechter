@@ -1,36 +1,24 @@
 import { supabase } from '../lib/supabase'
+import { generateSimpleHash } from './hashUtils'
 
-/**
- * Generate a simple SHA-256 hash (browser-compatible)
- */
-async function generateSimpleHash(data: string): Promise<string> {
-  try {
-    const encoder = new TextEncoder()
-    const dataBuffer = encoder.encode(data)
-    const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer)
-    const hashArray = Array.from(new Uint8Array(hashBuffer))
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
-  } catch {
-    let hash = 0
-    for (let i = 0; i < data.length; i++) {
-      const char = data.charCodeAt(i)
-      hash = ((hash << 5) - hash) + char
-      hash = hash & hash
-    }
-    return Math.abs(hash).toString(16)
-  }
-}
+export type AuditEventType =
+  | 'integration.smtp.updated'
+  | 'integration.slack.updated'
+  | 'integration.webhook.updated'
+  | 'apikey.created'
+  | 'apikey.revoked'
 
 /**
  * Log an audit event to the events table with hash chaining.
- * Follows the same pattern as mfaSecurityLogger.ts.
+ * Accepts nullable tenantId/userId and bails early if either is missing.
  */
 export async function logAuditEvent(
-  tenantId: string,
-  userId: string,
-  type: string,
+  tenantId: string | null | undefined,
+  userId: string | null | undefined,
+  type: AuditEventType,
   payload: Record<string, any>
 ): Promise<void> {
+  if (!tenantId || !userId) return
   try {
     // Fetch the most recent event hash for chain integrity
     const { data: lastEvent } = await supabase

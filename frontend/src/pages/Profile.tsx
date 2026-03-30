@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
+import { useTenantId } from '../hooks/useTenantId'
 import { supabase } from '../lib/supabase'
 import LoadingState from '../components/ui/LoadingState'
 
@@ -12,11 +13,11 @@ interface UserProfile {
 
 export default function Profile() {
   const { user } = useAuth()
+  const { tenantId } = useTenantId()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  
+
   // Tenant Data
-  const [tenantId, setTenantId] = useState<string>('')
   const [tenantName, setTenantName] = useState<string>('')
   const [savingTenant, setSavingTenant] = useState(false)
 
@@ -45,25 +46,28 @@ export default function Profile() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    loadProfile()
-  }, [user])
+    if (user) {
+      loadProfile()
+    }
+  }, [user, tenantId])
 
   async function loadProfile() {
     if (!user) return
 
     try {
-      // Load Tenant info
-      const { data: membership } = await supabase
-        .from('memberships')
-        .select('tenant_id, tenants(name)')
-        .eq('user_id', user.id)
-        .maybeSingle()
+      // Load Tenant name
+      if (tenantId) {
+        const { data: membership } = await supabase
+          .from('memberships')
+          .select('tenants(name)')
+          .eq('user_id', user.id)
+          .maybeSingle()
 
-      if (membership) {
-        const membershipData = membership as any
-        setTenantId(membershipData.tenant_id)
-        if (membershipData.tenants) {
-          setTenantName(membershipData.tenants.name || '')
+        if (membership) {
+          const membershipData = membership as any
+          if (membershipData.tenants) {
+            setTenantName(membershipData.tenants.name || '')
+          }
         }
       }
 
@@ -698,15 +702,8 @@ export default function Profile() {
 
                         try {
                           // Delete all tenant data via cascade (memberships -> tenant data)
-                          const { data: membership } = await supabase
-                            .from('memberships')
-                            .select('tenant_id')
-                            .eq('user_id', user!.id)
-                            .maybeSingle()
-
-                          if (membership?.tenant_id) {
+                          if (tenantId) {
                             // Delete tenant data in order (respecting foreign keys)
-                            const tenantId = (membership as any).tenant_id
                             await supabase.from('alerts').delete().eq('tenant_id', tenantId)
                             await supabase.from('certificates').delete().eq('tenant_id', tenantId)
                             await supabase.from('assets').delete().eq('tenant_id', tenantId)

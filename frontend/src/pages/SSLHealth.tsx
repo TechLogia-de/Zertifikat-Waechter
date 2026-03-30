@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { useTenantId } from '../hooks/useTenantId'
 import LoadingState from '../components/ui/LoadingState'
 import { useAuditLog, AuditEventTypes } from '../hooks/useAuditLog'
 
@@ -35,18 +36,12 @@ interface HealthSummary {
 
 export default function SSLHealth() {
   const { user } = useAuth()
+  const { tenantId: currentTenantId } = useTenantId()
   const { logAction } = useAuditLog()
   const [loading, setLoading] = useState(true)
   const [checks, setChecks] = useState<SSLCheck[]>([])
   const [summary, setSummary] = useState<HealthSummary | null>(null)
   const [selectedCheck, setSelectedCheck] = useState<SSLCheck | null>(null)
-  const [currentTenantId, setCurrentTenantId] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (user) {
-      fetchCurrentTenant()
-    }
-  }, [user])
 
   useEffect(() => {
     if (currentTenantId) {
@@ -54,19 +49,6 @@ export default function SSLHealth() {
       fetchSummary()
     }
   }, [currentTenantId])
-
-  async function fetchCurrentTenant() {
-    const { data } = await supabase
-      .from('memberships')
-      .select('tenant_id')
-      .eq('user_id', user?.id)
-      .limit(1)
-      .single()
-
-    if (data) {
-      setCurrentTenantId(data.tenant_id)
-    }
-  }
 
   async function fetchSSLChecks() {
     try {

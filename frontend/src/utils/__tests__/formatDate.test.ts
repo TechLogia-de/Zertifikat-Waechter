@@ -1,11 +1,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { formatDateTime, formatDate, formatRelativeTime } from '../formatDate'
+import { formatDateTime, formatDate, formatRelativeTime } from '../dateUtils'
 
 describe('formatDateTime', () => {
-  it('formats a Date object to German datetime string', () => {
-    // Use a fixed date: March 1, 2026, 14:30 UTC
-    const date = new Date(Date.UTC(2026, 2, 1, 14, 30, 0))
-    const result = formatDateTime(date)
+  it('formats an ISO date string to German datetime string', () => {
+    // March 1, 2026, 14:30 UTC
+    const result = formatDateTime('2026-03-01T14:30:00Z')
 
     // Should contain the date parts in German format (dd.mm.yyyy)
     expect(result).toContain('01.03.2026')
@@ -13,25 +12,27 @@ describe('formatDateTime', () => {
     expect(result).toMatch(/\d{2}:\d{2}/)
   })
 
-  it('accepts an ISO date string', () => {
-    const result = formatDateTime('2026-06-15T10:00:00Z')
-    // Should contain date in German format
-    expect(result).toContain('15.06.2026')
+  it('returns "Nie" for null input', () => {
+    const result = formatDateTime(null)
+    expect(result).toBe('Nie')
   })
 })
 
 describe('formatDate', () => {
-  it('formats a Date object to German date string', () => {
-    const date = new Date(2026, 0, 5) // January 5, 2026
-    const result = formatDate(date)
-
+  it('formats an ISO string to German date string', () => {
+    // Use a midday time to avoid timezone date-shift issues
+    const result = formatDate('2026-01-05T12:00:00Z')
     expect(result).toBe('05.01.2026')
   })
 
-  it('formats an ISO string to German date string', () => {
-    // Use a midday time to avoid timezone date-shift issues
+  it('formats another ISO string to German date string', () => {
     const result = formatDate('2026-12-25T12:00:00Z')
     expect(result).toBe('25.12.2026')
+  })
+
+  it('returns "Nie" for null input', () => {
+    const result = formatDate(null)
+    expect(result).toBe('Nie')
   })
 })
 

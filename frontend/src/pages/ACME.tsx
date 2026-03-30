@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
+import { useTenantId } from '../hooks/useTenantId'
 import { supabase } from '../lib/supabase'
 import LoadingState from '../components/ui/LoadingState'
 import DeleteConfirmModal from '../components/ui/DeleteConfirmModal'
@@ -21,7 +22,7 @@ import { getProviderInfo } from '../components/features/acme/types'
 
 export default function ACME() {
   const { user } = useAuth()
-  const [tenantId, setTenantId] = useState<string>('')
+  const { tenantId } = useTenantId()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
@@ -57,34 +58,39 @@ export default function ACME() {
   const [showWizard, setShowWizard] = useState(false)
 
   useEffect(() => {
-    loadData()
-  }, [user])
+    if (tenantId) {
+      loadData()
+    }
+  }, [tenantId])
 
   async function loadData() {
-    if (!user) return
+    if (!tenantId) return
 
     try {
-      const { data: membership } = await supabase
-        .from('memberships')
-        .select('tenant_id')
-        .eq('user_id', user.id)
-        .maybeSingle()
-
-      if (!membership) {
-        setError('❌ Kein Tenant gefunden!')
-        setLoading(false)
-        return
-      }
-
-      const membershipData = membership as any
-      setTenantId(membershipData.tenant_id)
-
-      // Load ACME Accounts
-      const { data: accountsData, error: accountsError } = await supabase
-        .from('acme_accounts')
-        .select('*')
-        .eq('tenant_id', membershipData.tenant_id)
-        .order('created_at', { ascending: false })
+      // Fire all independent queries in parallel
+      const [
+        { data: accountsData, error: accountsError },
+        { data: ordersData, error: ordersError },
+        { data: integration },
+      ] = await Promise.all([
+        supabase
+          .from('acme_accounts')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('acme_orders')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .order('created_at', { ascending: false })
+          .limit(50),
+        supabase
+          .from('integrations')
+          .select('config')
+          .eq('tenant_id', tenantId)
+          .eq('type', 'cloudflare')
+          .maybeSingle(),
+      ])
 
       if (accountsError) {
         console.error('Failed to load accounts:', accountsError)
@@ -92,27 +98,11 @@ export default function ACME() {
         setAccounts((accountsData as ACMEAccount[]) || [])
       }
 
-      // Load ACME Orders
-      const { data: ordersData, error: ordersError } = await supabase
-        .from('acme_orders')
-        .select('*')
-        .eq('tenant_id', membershipData.tenant_id)
-        .order('created_at', { ascending: false })
-        .limit(50)
-
       if (ordersError) {
         console.error('Failed to load orders:', ordersError)
       } else {
         setOrders((ordersData as ACMEOrder[]) || [])
       }
-
-      // Load Cloudflare Config
-      const { data: integration } = await supabase
-        .from('integrations')
-        .select('config')
-        .eq('tenant_id', membershipData.tenant_id)
-        .eq('type', 'cloudflare')
-        .maybeSingle()
 
       const integrationData = integration as any
       if (integrationData?.config) {
@@ -196,7 +186,7 @@ export default function ACME() {
         .from('acme_accounts')
         .delete()
         .eq('id', accountId)
-        .eq('tenant_id', tenantId)
+        .eq('tenant_id', tenantId!)
 
       if (deleteError) throw deleteError
 
@@ -281,7 +271,7 @@ export default function ACME() {
         .from('acme_orders')
         .delete()
         .eq('id', orderId)
-        .eq('tenant_id', tenantId)
+        .eq('tenant_id', tenantId!)
 
       if (deleteError) throw deleteError
 
@@ -419,7 +409,7 @@ export default function ACME() {
 
               <ACMEAccountList
                 accounts={accounts}
-                tenantId={tenantId}
+                tenantId={tenantId || ''}
                 onCreateAccount={() => {
                   setNewAccount({ provider: 'letsencrypt', email: user?.email || '' })
                   setShowAccountModal(true)
@@ -488,7 +478,7 @@ export default function ACME() {
 
       {showWizard && (
         <ACMEWizard
-          tenantId={tenantId}
+          tenantId={tenantId || ''}
           existingAccounts={accounts}
           onComplete={() => {
             setShowWizard(false)

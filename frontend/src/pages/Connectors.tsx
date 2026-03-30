@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { useTenantId } from '../hooks/useTenantId'
 import {
   ConnectorCard,
   CreateConnectorModal,
@@ -13,6 +14,7 @@ import type { Connector, ConnectorWithToken } from '../components/features/conne
 
 export default function Connectors() {
   const { user } = useAuth()
+  const { tenantId: cachedTenantId } = useTenantId()
   const [connectors, setConnectors] = useState<Connector[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -30,6 +32,8 @@ export default function Connectors() {
   // Track which connector is currently scanning + cooldown
   const [scanningId, setScanningId] = useState<string | null>(null)
   const scanCooldownRef = useRef<Record<string, number>>({})
+  const setupCleanupRef = useRef<(() => void) | null>(null)
+  const connectorsRef = useRef<Connector[]>([])
 
   // Assets und Certificates für ausgewählten Connector
   const [connectorAssets, setConnectorAssets] = useState<any[]>([])
@@ -48,90 +52,55 @@ export default function Connectors() {
 
   // Load Connectors
   useEffect(() => {
+    if (!cachedTenantId) return
+
     fetchConnectors()
 
-    // Realtime Updates NUR für eigenen Tenant (wird nach fetchConnectors gesetzt)
-    let channel: any = null
-
-    if (user?.id) {
-      // Hole Tenant-ID für Filter
-      supabase
-        .from('memberships')
-        .select('tenant_id')
-        .eq('user_id', user.id)
-        .maybeSingle()
-        .then(({ data }) => {
-          if (data) {
-            const tenantId = (data as any).tenant_id
-
-            // Realtime Updates NUR für eigenen Tenant!
-            channel = supabase
-              .channel('connectors-changes')
-              .on(
-                'postgres_changes',
-                {
-                  event: '*',
-                  schema: 'public',
-                  table: 'connectors',
-                  filter: `tenant_id=eq.${tenantId}` // ✅ NUR EIGENER TENANT!
-                },
-                (payload) => {
-                  setInitialLoad(false)
-                  fetchConnectors()
-                }
-              )
-              .subscribe()
-          }
-        })
-    }
-
-    // Auto-Refresh im Hintergrund (alle 30 Sekunden, OHNE Loading-Spinner!)
-    const interval = setInterval(() => {
-      setInitialLoad(false)
-      fetchConnectors()
-    }, 30000)
+    // Realtime Updates for own tenant only
+    const channel = supabase
+      .channel('connectors-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'connectors',
+          filter: `tenant_id=eq.${cachedTenantId}`
+        },
+        () => {
+          setInitialLoad(false)
+          fetchConnectors()
+        }
+      )
+      .subscribe()
 
     return () => {
-      if (channel) channel.unsubscribe()
-      clearInterval(interval)
+      channel.unsubscribe()
     }
-  }, [user])
+  }, [cachedTenantId])
 
   async function fetchConnectors() {
     try {
-      // Nur beim ersten Load Loading-State zeigen
+      // Only show loading state on first load
       if (initialLoad) {
         setLoading(true)
       }
 
-      // WICHTIG: Erst Tenant-ID holen!
-      if (!user?.id) return
+      if (!cachedTenantId) return
 
-      const { data: membership } = await supabase
-        .from('memberships')
-        .select('tenant_id')
-        .eq('user_id', user.id)
-        .maybeSingle()
-
-      if (!membership) {
-        console.error('Kein Tenant gefunden!')
-        return
-      }
-
-      const tenantId = (membership as any).tenant_id
-
-      // NUR Connectors des eigenen Tenants laden! (Multi-Tenant Security!)
+      // Only load connectors for own tenant (multi-tenant security)
       const { data, error } = await supabase
         .from('connectors')
         .select('*')
-        .eq('tenant_id', tenantId) // ✅ TENANT-FILTER!
+        .eq('tenant_id', cachedTenantId)
         .order('created_at', { ascending: false })
 
       if (error) throw error
 
-      // Nur updaten wenn sich Daten geändert haben (verhindert unnötiges Re-Rendering)
+      // Only update if data actually changed (prevents unnecessary re-renders)
       const newData = data || []
-      if (JSON.stringify(newData) !== JSON.stringify(connectors)) {
+      if (JSON.stringify(newData) !== JSON.stringify(connectorsRef.current)) {
+        connectorsRef.current = newData
         setConnectors(newData)
       }
     } catch (error) {
@@ -235,25 +204,13 @@ export default function Connectors() {
         .map(p => parseInt(p.trim()))
         .filter(p => !isNaN(p))
 
-      // Get current tenant (für MVP: erste membership)
-      if (!user?.id) {
-        throw new Error('Nicht eingeloggt')
-      }
-
-      const { data: membership, error: membershipError } = await supabase
-        .from('memberships')
-        .select('tenant_id')
-        .eq('user_id', user.id)
-        .limit(1)
-        .single()
-
-      if (membershipError || !membership) {
+      if (!cachedTenantId) {
         throw new Error('Kein Tenant gefunden')
       }
 
       // Call RPC to create connector with token
       const result = await supabase.rpc('create_connector_with_token', {
-        p_tenant_id: (membership as any).tenant_id,
+        p_tenant_id: cachedTenantId,
         p_name: formData.name,
         p_scan_targets: scanTargets,
         p_scan_ports: scanPorts
@@ -363,13 +320,19 @@ export default function Connectors() {
   }
 
   function showSetup(connector: Connector) {
+    // Clean up any previous subscription before opening a new one
+    if (setupCleanupRef.current) {
+      setupCleanupRef.current()
+      setupCleanupRef.current = null
+    }
+
     setSelectedConnector(connector)
     setShowSetupModal(true)
     setShowFullToken(null)
     setActivityLog([])
     fetchConnectorDetails(connector.id)
 
-    // Realtime Updates für Discovery Results
+    // Realtime updates for discovery results
     const discoveryChannel = supabase
       .channel(`discovery-${connector.id}`)
       .on(
@@ -408,12 +371,9 @@ export default function Connectors() {
       )
       .subscribe()
 
-    // Cleanup beim Modal-Schließen
-    const cleanup = () => {
+    setupCleanupRef.current = () => {
       discoveryChannel.unsubscribe()
     }
-
-    return cleanup
   }
 
   function editConnector(connector: Connector) {
@@ -610,7 +570,13 @@ export default function Connectors() {
         {showSetupModal && selectedConnector && (
           <ConnectorDetailsModal
             isOpen={showSetupModal}
-            onClose={() => setShowSetupModal(false)}
+            onClose={() => {
+              setShowSetupModal(false)
+              if (setupCleanupRef.current) {
+                setupCleanupRef.current()
+                setupCleanupRef.current = null
+              }
+            }}
             connector={selectedConnector}
             activityLog={activityLog}
             discoveryResults={discoveryResults}

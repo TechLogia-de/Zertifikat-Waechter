@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { useTenantId } from '../hooks/useTenantId'
 import Badge from '../components/ui/Badge'
 
 interface LogEntry {
@@ -15,78 +16,66 @@ interface LogEntry {
 
 export default function AgentLogs() {
   const { user } = useAuth()
+  const { tenantId } = useTenantId()
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [connectors, setConnectors] = useState<any[]>([])
-  const [tenantId, setTenantId] = useState<string>('')
   const [selectedConnector, setSelectedConnector] = useState<string>('all')
   const [selectedLevel, setSelectedLevel] = useState<string>('all')
   const [autoScroll, setAutoScroll] = useState(true)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    loadTenantAndData()
-  }, [user])
+    if (!tenantId) return
 
-  async function loadTenantAndData() {
-    if (!user) return
+    loadTenantData()
 
-    try {
-      // Hole Tenant-ID
-      const { data: membership } = await supabase
-        .from('memberships')
-        .select('tenant_id')
-        .eq('user_id', user.id)
-        .maybeSingle()
+    // Realtime Log-Updates
+    const channel = supabase
+      .channel('agent-logs')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'agent_logs',
+        },
+        (payload) => {
+          const newLog = payload.new as LogEntry
+          // Only add if it belongs to our tenant's connectors
+          if (connectors.some(c => c.id === newLog.connector_id)) {
+            setLogs(prev => [newLog, ...prev].slice(0, 200))
 
-      if (!membership) return
-
-      const tenant = (membership as any).tenant_id
-      setTenantId(tenant)
-
-      // Jetzt Daten laden
-      await fetchConnectors(tenant)
-      await fetchLogs()
-
-      // Realtime Log-Updates NUR für eigenen Tenant!
-      const channel = supabase
-        .channel('agent-logs')
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'agent_logs',
-          },
-          (payload) => {
-            const newLog = payload.new as LogEntry
-            // Nur hinzufügen wenn es zu unserem Tenant gehört
-            if (connectors.some(c => c.id === newLog.connector_id)) {
-              setLogs(prev => [newLog, ...prev].slice(0, 200))
-              
-              if (autoScroll) {
-                scrollToTop()
-              }
+            if (autoScroll) {
+              scrollToTop()
             }
           }
-        )
-        .subscribe()
+        }
+      )
+      .subscribe()
 
-      return () => {
-        channel.unsubscribe()
-      }
+    return () => {
+      channel.unsubscribe()
+    }
+  }, [tenantId])
+
+  async function loadTenantData() {
+    if (!tenantId) return
+
+    try {
+      await fetchConnectors(tenantId)
+      await fetchLogs()
     } catch (err) {
       console.error('Failed to load tenant data:', err)
     }
   }
 
   async function fetchConnectors(tenant: string) {
-    // NUR Connectors des eigenen Tenants! (Multi-Tenant Security!)
     const { data } = await supabase
       .from('connectors')
       .select('id, name')
-      .eq('tenant_id', tenant) // ✅ TENANT-FILTER!
+      .eq('tenant_id', tenant)
       .order('name')
-    
+
     setConnectors(data || [])
   }
 

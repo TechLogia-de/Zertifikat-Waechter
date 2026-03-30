@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { useTenantId } from '../hooks/useTenantId'
 import LoadingState from '../components/ui/LoadingState'
 import SSLHealthButton from '../components/features/SSLHealthButton'
 import Badge from '../components/ui/Badge'
@@ -27,15 +28,9 @@ interface Asset {
 
 export default function Assets() {
   const { user } = useAuth()
+  const { tenantId: currentTenantId } = useTenantId()
   const [loading, setLoading] = useState(true)
   const [assets, setAssets] = useState<Asset[]>([])
-  const [currentTenantId, setCurrentTenantId] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (user) {
-      fetchCurrentTenant()
-    }
-  }, [user])
 
   useEffect(() => {
     if (currentTenantId) {
@@ -106,21 +101,6 @@ export default function Assets() {
       console.error('Fehler beim Aktualisieren:', error)
     }
   }, [currentTenantId])
-
-  async function fetchCurrentTenant() {
-    if (!user?.id) return
-
-    const { data } = await supabase
-      .from('memberships')
-      .select('tenant_id')
-      .eq('user_id', user.id)
-      .limit(1)
-      .single() as any
-
-    if (data) {
-      setCurrentTenantId(data.tenant_id)
-    }
-  }
 
   async function fetchAssets() {
     if (!currentTenantId) return

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
+import { useTenantId } from '../hooks/useTenantId'
 import { supabase } from '../lib/supabase'
 import LoadingState from '../components/ui/LoadingState'
 
@@ -17,17 +18,19 @@ interface Event {
 
 export default function AuditLog() {
   const { user } = useAuth()
+  const { tenantId } = useTenantId()
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
-  const [tenantId, setTenantId] = useState<string>('')
   const [filter, setFilter] = useState<string>('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [showOnlyBroken, setShowOnlyBroken] = useState(false)
   const [brokenEvents, setBrokenEvents] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    loadEvents()
-  }, [user, filter])
+    if (tenantId) {
+      loadEvents()
+    }
+  }, [tenantId, filter])
 
   useEffect(() => {
     if (events.length > 0) {
@@ -36,33 +39,23 @@ export default function AuditLog() {
   }, [events])
 
   async function loadEvents() {
-    if (!user) return
+    if (!tenantId) return
 
     try {
-      const { data: membership } = await supabase
-        .from('memberships')
-        .select('tenant_id')
-        .eq('user_id', user.id)
-        .maybeSingle()
+      let query = supabase
+        .from('events')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('ts', { ascending: false })
+        .limit(100)
 
-      if (membership) {
-        setTenantId(membership.tenant_id)
-
-        let query = supabase
-          .from('events')
-          .select('*')
-          .eq('tenant_id', membership.tenant_id)
-          .order('ts', { ascending: false })
-          .limit(100)
-
-        if (filter !== 'all') {
-          query = query.ilike('type', `${filter}%`)
-        }
-
-        const { data: eventsData } = await query
-
-        setEvents((eventsData as Event[]) || [])
+      if (filter !== 'all') {
+        query = query.ilike('type', `${filter}%`)
       }
+
+      const { data: eventsData } = await query
+
+      setEvents((eventsData as Event[]) || [])
     } catch (error) {
       console.error('Failed to load events:', error)
     } finally {
