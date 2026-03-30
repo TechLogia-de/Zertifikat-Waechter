@@ -218,28 +218,28 @@ export default function NotificationRules() {
           </button>
         </div>
 
-        <PageInfoBox title="Benachrichtigungsregeln konfigurieren" variant="info" collapsible defaultOpen={false}>
+        <PageInfoBox title="Benachrichtigungsregeln: Bedingungen, Kanaele und Eskalation" variant="info" collapsible defaultOpen={false}>
           <div className="space-y-3">
             <p className="text-[#1E3A5F]">
-              Erstellen Sie individuelle Regeln, die automatisch Benachrichtigungen auslösen, wenn bestimmte Bedingungen erfüllt sind. Regeln werden in der Reihenfolge ihrer Priorität ausgewertet.
+              Erstellen Sie individuelle Benachrichtigungsregeln, die auf Zertifikat-Eigenschaften basieren. Regeln werden automatisch ausgewertet und loesen Benachrichtigungen ueber die konfigurierten Kanaele aus.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
               <div>
-                <h4 className="font-semibold text-[#1E40AF] mb-1">Bedingungen</h4>
+                <h4 className="font-semibold text-[#1E40AF] mb-1">Bedingungen und Aktionen</h4>
                 <ul className="text-xs space-y-1 list-disc list-inside">
-                  <li><strong>Ablauf-Tage:</strong> Benachrichtigung bei X Tagen bis zum Ablauf</li>
-                  <li><strong>SSL Health Score:</strong> Warnung bei Score unter einem Schwellenwert</li>
-                  <li><strong>Zertifikats-Typ:</strong> Regeln für bestimmte Issuer oder Key-Typen</li>
-                  <li><strong>Tags/Labels:</strong> Filterung nach Asset-Kategorien</li>
+                  <li>Tage bis Ablauf: Warnung bei X Tagen vor Zertifikatsablauf</li>
+                  <li>Schluesselgroesse: Alert bei zu kleinen Schluesseln</li>
+                  <li>Vertrauensstatus: Benachrichtigung bei nicht vertrauenswuerdigen Zertifikaten</li>
+                  <li>Unterstuetzte Kanaele: E-Mail, Slack, Microsoft Teams, Webhooks</li>
                 </ul>
               </div>
               <div>
-                <h4 className="font-semibold text-[#1E40AF] mb-1">Aktionen & Kanäle</h4>
+                <h4 className="font-semibold text-[#1E40AF] mb-1">Steuerung und Eskalation</h4>
                 <ul className="text-xs space-y-1 list-disc list-inside">
-                  <li><strong>E-Mail:</strong> An einzelne Empfänger oder Verteilerlisten</li>
-                  <li><strong>Slack/Teams:</strong> Nachrichten in konfigurierte Channels</li>
-                  <li><strong>Webhooks:</strong> HTTP-Callbacks an externe Systeme</li>
-                  <li><strong>Throttling:</strong> Verhindert Benachrichtigungs-Überflutung (einstellbar in Minuten)</li>
+                  <li>Prioritaeten steuern die Reihenfolge der Regelauswertung</li>
+                  <li>Throttle verhindert wiederholte Benachrichtigungen (z.B. max. 1x/Stunde)</li>
+                  <li>Regeln koennen jederzeit aktiviert/deaktiviert werden</li>
+                  <li>Ausfuehrungsstatistik zeigt Trigger-Anzahl und letzten Zeitpunkt</li>
                 </ul>
               </div>
             </div>
