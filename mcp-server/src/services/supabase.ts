@@ -204,6 +204,72 @@ export class SupabaseService {
       });
   }
   
+  async getCertificateStats(
+    tenantId: string
+  ): Promise<{ total: number; valid: number; expiring: number; expired: number }> {
+    const { data, error } = await supabase
+      .from('certificates')
+      .select(`
+        id,
+        not_after,
+        asset:assets!inner (
+          tenant_id
+        )
+      `)
+      .eq('asset.tenant_id', tenantId);
+
+    if (error) {
+      throw new Error(`Certificate stats could not be loaded: ${error.message}`);
+    }
+
+    const now = Date.now();
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+    let valid = 0;
+    let expiring = 0;
+    let expired = 0;
+
+    for (const cert of data || []) {
+      const expiresAt = new Date(cert.not_after).getTime();
+      if (expiresAt < now) {
+        expired++;
+      } else if (expiresAt < now + thirtyDaysMs) {
+        expiring++;
+      } else {
+        valid++;
+      }
+    }
+
+    return {
+      total: (data || []).length,
+      valid,
+      expiring,
+      expired,
+    };
+  }
+
+  async getAlertStats(
+    tenantId: string
+  ): Promise<{ total: number; critical: number; high: number; medium: number; low: number; acknowledged: number }> {
+    const { data, error } = await supabase
+      .from('alerts')
+      .select('id, level, acknowledged_by')
+      .eq('tenant_id', tenantId);
+
+    if (error) {
+      throw new Error(`Alert stats could not be loaded: ${error.message}`);
+    }
+
+    const alerts = data || [];
+    return {
+      total: alerts.length,
+      critical: alerts.filter((a: any) => a.level === 'critical').length,
+      high: alerts.filter((a: any) => a.level === 'high').length,
+      medium: alerts.filter((a: any) => a.level === 'medium').length,
+      low: alerts.filter((a: any) => a.level === 'low').length,
+      acknowledged: alerts.filter((a: any) => !!a.acknowledged_by).length,
+    };
+  }
+
   async getRecentAlerts(
     tenantId: string,
     limit: number = 50

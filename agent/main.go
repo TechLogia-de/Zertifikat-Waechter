@@ -146,6 +146,14 @@ func main() {
 			cfgMu.RUnlock()
 			if connectorID != "" {
 				log.Info("Marking connector as offline...")
+				// Use a fresh context since the parent may already be cancelled
+				shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer shutdownCancel()
+				if err := supabaseClient.UpdateConnectorStatus(shutdownCtx, connectorID, "inactive"); err != nil {
+					log.WithError(err).Warn("Failed to mark connector as offline")
+				} else {
+					log.Info("Connector marked as offline")
+				}
 			}
 			return
 		case <-ctx.Done():
@@ -208,8 +216,10 @@ func startConfigPolling(ctx context.Context, client *supabase.Client, cfg *confi
 				if triggerScan, ok := newConfig["trigger_scan"].(float64); ok {
 					if triggerScan > 0 {
 						log.Info("Triggered scan from backend - running scan now...")
-						// Lösche Trigger
-						client.ClearScanTrigger(ctx, connectorID)
+						// Clear the trigger flag (non-blocking; log on failure)
+						if err := client.ClearScanTrigger(ctx, connectorID); err != nil {
+							log.WithError(err).Warn("Failed to clear scan trigger")
+						}
 					}
 				}
 			}

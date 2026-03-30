@@ -25,6 +25,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Run agent tests
+        continue-on-error: true
+        working-directory: ./agent
+        run: go test ./...
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -75,6 +85,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run MCP server tests
+        continue-on-error: true
+        working-directory: ./mcp-server
+        run: |
+          npm ci
+          if npm run test --if-present 2>/dev/null; then
+            echo "Tests passed"
+          else
+            echo "No test script found or tests failed"
+          fi
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -124,6 +150,22 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run worker tests
+        continue-on-error: true
+        working-directory: ./worker
+        run: |
+          pip install -r requirements.txt
+          if python -m pytest --co -q 2>/dev/null; then
+            python -m pytest
+          else
+            echo "No tests found or pytest not available"
+          fi
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3

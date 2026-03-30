@@ -242,6 +242,43 @@ func (c *Client) UpdateConnectorHeartbeat(ctx context.Context) error {
 	return nil
 }
 
+// UpdateConnectorStatus sets the connector's status (e.g. "active", "inactive").
+func (c *Client) UpdateConnectorStatus(ctx context.Context, connectorID, status string) error {
+	url := fmt.Sprintf("%s/rest/v1/connectors?id=eq.%s", c.BaseURL, connectorID)
+
+	payload := map[string]interface{}{
+		"status":    status,
+		"last_seen": time.Now().UTC().Format(time.RFC3339),
+	}
+
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal failed: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "PATCH", url, bytes.NewBuffer(data))
+	if err != nil {
+		return fmt.Errorf("create request failed: %w", err)
+	}
+
+	req.Header.Set("apikey", c.APIKey)
+	req.Header.Set("Authorization", "Bearer "+c.APIKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("supabase error: %d - %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
 // GetConnectorConfig holt aktuelle Config vom Backend
 func (c *Client) GetConnectorConfig(ctx context.Context, connectorID string) (map[string]interface{}, error) {
 	url := fmt.Sprintf("%s/rest/v1/connectors?id=eq.%s&select=config", c.BaseURL, connectorID)
@@ -341,7 +378,11 @@ func (c *Client) UpsertDiscoveryResult(ctx context.Context, result *scanner.Disc
 	defer checkResp.Body.Close()
 	
 	var existingRecords []map[string]interface{}
-	json.NewDecoder(checkResp.Body).Decode(&existingRecords)
+	if err := json.NewDecoder(checkResp.Body).Decode(&existingRecords); err != nil {
+		// Log the error but treat as no existing record (fall through to INSERT)
+		fmt.Printf("[WARN] Failed to decode discovery check response: %v\n", err)
+		existingRecords = nil
+	}
 	
 	payload := map[string]interface{}{
 		"tenant_id":      c.TenantID,

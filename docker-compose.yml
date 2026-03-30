@@ -1,4 +1,22 @@
 services:
+  # Frontend React SPA
+  frontend:
+    build: ./frontend
+    container_name: certwatcher-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    environment:
+      VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-${SUPABASE_URL}}
+      VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-${SUPABASE_ANON_KEY}}
+    networks:
+      - certwatcher
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
   # Agent für Intranet-Scans
   agent:
     build: ./agent

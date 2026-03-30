@@ -28,6 +28,7 @@ const certExpirySchema = z.object({
 
 const anomalyScanSchema = z.object({
   host: z.string().min(1),
+  port: z.number().int().min(1).max(65535).optional().default(443),
 });
 
 const domainRegisterSchema = z.object({
@@ -221,7 +222,7 @@ router.post('/security.anomalyScan', async (req: MCPRequest, res: Response) => {
   try {
     const params = anomalyScanSchema.parse(req.body);
     
-    const result = await scanner.checkAnomaly(params.host);
+    const result = await scanner.checkAnomaly(params.host, params.port);
     
     // Event loggen falls kritische Anomalien gefunden
     if (req.tenantId && result.anomalies.some(a => a.severity === 'critical' || a.severity === 'high')) {
@@ -332,16 +333,44 @@ router.post('/compliance.report', async (req: MCPRequest, res: Response) => {
     }
     
     const { format = 'json' } = req.body;
-    
-    const domains = await supabase.listDomains(req.tenantId, 'all', 1000);
-    
+
+    // Fetch domains, certificate stats, and alert stats in parallel
+    const [domains, certStats, alertStats] = await Promise.all([
+      supabase.listDomains(req.tenantId, 'all', 1000),
+      supabase.getCertificateStats(req.tenantId),
+      supabase.getAlertStats(req.tenantId),
+    ]);
+
+    // Calculate compliance score based on certificate health
+    // Start at 100, deduct for issues
+    let complianceScore = 100;
+    if (certStats.total > 0) {
+      const expiredPenalty = (certStats.expired / certStats.total) * 50;
+      const expiringPenalty = (certStats.expiring / certStats.total) * 20;
+      complianceScore = Math.max(0, Math.round(complianceScore - expiredPenalty - expiringPenalty));
+    }
+
+    // Determine compliance grade
+    let complianceGrade: 'A' | 'B' | 'C' | 'D' | 'F';
+    if (complianceScore >= 90) complianceGrade = 'A';
+    else if (complianceScore >= 75) complianceGrade = 'B';
+    else if (complianceScore >= 60) complianceGrade = 'C';
+    else if (complianceScore >= 40) complianceGrade = 'D';
+    else complianceGrade = 'F';
+
     const report = {
       generatedAt: new Date().toISOString(),
       tenantId: req.tenantId,
+      complianceScore,
+      complianceGrade,
       summary: {
-        total: domains.length,
-        active: domains.filter(d => d.status === 'active').length,
-        errors: domains.filter(d => d.status === 'error').length,
+        domains: {
+          total: domains.length,
+          active: domains.filter(d => d.status === 'active').length,
+          errors: domains.filter(d => d.status === 'error').length,
+        },
+        certificates: certStats,
+        alerts: alertStats,
       },
       domains: domains.map(d => ({
         name: d.name,
@@ -351,21 +380,26 @@ router.post('/compliance.report', async (req: MCPRequest, res: Response) => {
         tags: d.tags,
       })),
     };
-    
+
     if (format === 'csv') {
-      // CSV-Format
+      // CSV format with summary header
       const csv = [
+        `# Compliance Report - Score: ${complianceScore}/100 (${complianceGrade})`,
+        `# Generated: ${report.generatedAt}`,
+        `# Certificates - Total: ${certStats.total}, Valid: ${certStats.valid}, Expiring: ${certStats.expiring}, Expired: ${certStats.expired}`,
+        `# Alerts - Total: ${alertStats.total}, Critical: ${alertStats.critical}, High: ${alertStats.high}`,
+        '',
         'Name,Port,Status,Last Scanned,Tags',
-        ...report.domains.map(d => 
+        ...report.domains.map(d =>
           `${d.name},${d.port},${d.status},${d.lastScanned || 'N/A'},"${d.tags.join(';')}"`
         ),
       ].join('\n');
-      
+
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', 'attachment; filename=compliance-report.csv');
       return res.send(csv);
     }
-    
+
     res.json({
       tool: 'compliance.report',
       success: true,

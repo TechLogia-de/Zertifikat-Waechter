@@ -23,6 +23,7 @@ import Compliance from './pages/Compliance'
 import APIKeys from './pages/APIKeys'
 import WebhookLogs from './pages/WebhookLogs'
 import DevSecurity from './pages/DevSecurity'
+import NotFound from './pages/NotFound'
 import LoadingBar from './components/ui/LoadingBar'
 import LoadingState from './components/ui/LoadingState'
 import ErrorBoundary from './components/ui/ErrorBoundary'
@@ -268,7 +269,7 @@ function AppContent() {
           }
         />
         {/* Catch-all route */}
-        <Route path="*" element={<Navigate to={user ? "/dashboard" : "/"} />} />
+        <Route path="*" element={user ? <Layout><NotFound /></Layout> : <Navigate to="/" />} />
       </Routes>
     </>
   )
