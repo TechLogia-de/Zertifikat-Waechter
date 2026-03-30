@@ -691,8 +691,8 @@ export default function Profile() {
                       Diese Aktion kann nicht rückgängig gemacht werden!
                     </p>
                     <button
-                      onClick={() => {
-                        const confirmed = confirm(
+                      onClick={async () => {
+                        const input = prompt(
                           '⚠️ WARNUNG!\n\nMöchtest du deinen Account wirklich löschen?\n\n' +
                           '• Alle Zertifikate werden gelöscht\n' +
                           '• Alle Alerts werden gelöscht\n' +
@@ -700,8 +700,34 @@ export default function Profile() {
                           '• Diese Aktion kann NICHT rückgängig gemacht werden!\n\n' +
                           'Tippe "LÖSCHEN" um zu bestätigen.'
                         )
-                        if (confirmed) {
-                          alert('Account-Löschung ist noch nicht implementiert. Kontaktiere den Support.')
+                        if (input !== 'LÖSCHEN') return
+
+                        try {
+                          // Delete all tenant data via cascade (memberships -> tenant data)
+                          const { data: membership } = await supabase
+                            .from('memberships')
+                            .select('tenant_id')
+                            .eq('user_id', user!.id)
+                            .maybeSingle()
+
+                          if (membership?.tenant_id) {
+                            // Delete tenant data in order (respecting foreign keys)
+                            const tenantId = (membership as any).tenant_id
+                            await supabase.from('alerts').delete().eq('tenant_id', tenantId)
+                            await supabase.from('certificates').delete().eq('tenant_id', tenantId)
+                            await supabase.from('assets').delete().eq('tenant_id', tenantId)
+                            await supabase.from('connectors').delete().eq('tenant_id', tenantId)
+                            await supabase.from('integrations').delete().eq('tenant_id', tenantId)
+                            await supabase.from('events').delete().eq('tenant_id', tenantId)
+                            await supabase.from('memberships').delete().eq('tenant_id', tenantId)
+                            await supabase.from('tenants').delete().eq('id', tenantId)
+                          }
+
+                          // Sign out and let Supabase handle auth user cleanup
+                          await supabase.auth.signOut()
+                          window.location.href = '/'
+                        } catch (error: any) {
+                          alert(`Fehler beim Löschen: ${error.message}`)
                         }
                       }}
                       className="w-full px-4 py-3 bg-[#EF4444] text-white rounded-lg font-semibold hover:bg-[#DC2626] transition-all shadow-md"

@@ -85,11 +85,24 @@ export async function logMFASecurityEvent(event: MFASecurityEvent) {
 
     // Log to events table
     if (tenantId && user) {
-      // Generiere Hash für Event-Integrität (vereinfachte Version)
+      // Fetch the most recent event hash to build the hash chain
+      const { data: lastEvent } = await supabase
+        .from('events')
+        .select('hash')
+        .eq('tenant_id', tenantId)
+        .order('ts', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      const prevHash = lastEvent?.hash || '0'.repeat(64)
+
+      // Generate integrity hash including the previous hash for chaining
+      const ts = new Date().toISOString()
       const eventString = JSON.stringify({
         tenant_id: tenantId,
         type: event.event_type,
-        ts: new Date().toISOString()
+        prev_hash: prevHash,
+        ts
       })
       const hash = await generateSimpleHash(eventString)
 
@@ -98,9 +111,9 @@ export async function logMFASecurityEvent(event: MFASecurityEvent) {
         user_id: user.id,
         type: event.event_type,
         payload: payload,
-        ts: new Date().toISOString(),
+        ts,
         hash: hash,
-        prev_hash: '0000000000000000000000000000000000000000000000000000000000000000' // Dummy für vereinfachte Version
+        prev_hash: prevHash
       })
 
       if (insertError) {

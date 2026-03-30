@@ -78,9 +78,6 @@ export default function DevSecurity() {
     if (!user) return
 
     try {
-      // In einer echten Implementierung würdest du hier deine Security-Tabellen abfragen
-      // Für Demo-Zwecke verwenden wir Mock-Daten und Events
-
       // Load audit events as security events
       const { data: eventsData } = await supabase
         .from('events')
