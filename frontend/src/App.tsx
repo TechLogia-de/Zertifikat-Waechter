@@ -56,15 +56,19 @@ function AppContent() {
     // Check if we're returning from OAuth (has code or access_token in URL)
     const params = new URLSearchParams(location.search)
     const hasOAuthCode = params.has('code') || params.has('access_token') || params.has('refresh_token')
-    
+
     if (hasOAuthCode && !user) {
       setIsOAuthCallback(true)
+
+      // Security: clean sensitive tokens from URL to prevent leaking via Referrer/History
+      const cleanUrl = location.pathname
+      window.history.replaceState({}, '', cleanUrl)
 
       // Clear flag after 10 seconds to prevent infinite loading
       const timeoutId = setTimeout(() => {
         setIsOAuthCallback(false)
       }, 10000)
-      
+
       return () => clearTimeout(timeoutId)
     } else if (user) {
       setIsOAuthCallback(false)

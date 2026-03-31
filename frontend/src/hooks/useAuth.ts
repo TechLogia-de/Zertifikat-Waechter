@@ -278,13 +278,32 @@ export function useAuth() {
   const signOut = async () => {
     const userEmail = user?.email
     await supabase.auth.signOut()
-    
+
     // Reset global cache
     cachedUser = null
     initialLoadComplete = false
     isLoadingSession = false
     setUser(null)
-    
+
+    // Clear all sensitive data from storage
+    try {
+      // Remove Supabase auth token explicitly
+      window.localStorage.removeItem('supabase.auth.token')
+      // Remove any session-related items
+      const keysToRemove: string[] = []
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const key = window.localStorage.key(i)
+        if (key && (key.startsWith('supabase.') || key.startsWith('sb-'))) {
+          keysToRemove.push(key)
+        }
+      }
+      keysToRemove.forEach(key => window.localStorage.removeItem(key))
+      // Clear session storage completely
+      window.sessionStorage.clear()
+    } catch (e) {
+      // Storage access may fail in some contexts
+    }
+
     securityLog.logout(userEmail)
   }
 

@@ -1,5 +1,6 @@
-import { ReactNode, useState } from 'react'
+import { ReactNode, useState, useCallback } from 'react'
 import Sidebar from './Sidebar'
+import { useSessionTimeout } from '../../hooks/useSessionTimeout'
 
 interface LayoutProps {
   children: ReactNode
@@ -7,6 +8,20 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sessionWarning, setSessionWarning] = useState<string | null>(null)
+
+  // Auto-logout after 30 min inactivity
+  const handleWarning = useCallback((remainingMs: number) => {
+    const mins = Math.ceil(remainingMs / 60000)
+    setSessionWarning(`Sitzung läuft in ${mins} Minute(n) ab. Bewege die Maus um aktiv zu bleiben.`)
+    // Auto-dismiss after 10 seconds
+    setTimeout(() => setSessionWarning(null), 10000)
+  }, [])
+
+  useSessionTimeout({
+    enabled: true,
+    onWarning: handleWarning,
+  })
 
   return (
     <div className="flex h-screen overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/30 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900">
@@ -39,6 +54,16 @@ export default function Layout({ children }: LayoutProps) {
           </div>
           <div className="w-10" /> {/* Spacer */}
         </div>
+
+        {/* Session timeout warning banner */}
+        {sessionWarning && (
+          <div className="flex-shrink-0 bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center justify-between">
+            <span className="text-sm text-amber-800">{sessionWarning}</span>
+            <button onClick={() => setSessionWarning(null)} className="text-amber-600 hover:text-amber-800 text-sm font-medium ml-4">
+              OK
+            </button>
+          </div>
+        )}
 
         {/* Scrollable Content - NUR dieser Teil scrollt! */}
         <main className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent">

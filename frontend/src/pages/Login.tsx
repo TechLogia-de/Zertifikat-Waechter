@@ -23,6 +23,17 @@ export default function Login() {
   const [challengeId, setChallengeId] = useState<string | null>(null)
   const [verifyingOtp, setVerifyingOtp] = useState(false)
 
+  // Show timeout message if redirected from session timeout
+  const [timeoutMessage] = useState(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('reason') === 'timeout') {
+      // Clean up URL
+      window.history.replaceState({}, '', '/login')
+      return 'Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.'
+    }
+    return null
+  })
+
   async function handleGoogleLogin() {
     setLoading(true)
     setError(null)
@@ -233,8 +244,20 @@ export default function Login() {
       return
     }
 
-    if (password.length < 6) {
-      setError('Passwort muss mindestens 6 Zeichen lang sein')
+    if (password.length < 8) {
+      setError('Passwort muss mindestens 8 Zeichen lang sein')
+      setLoading(false)
+      return
+    }
+
+    // Enterprise password policy: require upper, lower, digit, special char
+    const hasUppercase = /[A-Z]/.test(password)
+    const hasLowercase = /[a-z]/.test(password)
+    const hasDigit = /\d/.test(password)
+    const hasSpecial = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)
+
+    if (!hasUppercase || !hasLowercase || !hasDigit || !hasSpecial) {
+      setError('Passwort muss Groß-/Kleinbuchstaben, eine Zahl und ein Sonderzeichen enthalten')
       setLoading(false)
       return
     }
@@ -411,6 +434,13 @@ export default function Login() {
               Registrieren
             </button>
           </div>
+
+          {/* Session Timeout Message */}
+          {timeoutMessage && (
+            <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-700 px-3 sm:px-4 py-2 sm:py-3 rounded-lg text-sm sm:text-base">
+              {timeoutMessage}
+            </div>
+          )}
 
           {/* Success Message */}
           {success && (
@@ -595,9 +625,9 @@ export default function Login() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  minLength={6}
+                  minLength={8}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                  placeholder="Mindestens 6 Zeichen"
+                  placeholder="Min. 8 Zeichen (Aa1!)"
                 />
               </div>
 
